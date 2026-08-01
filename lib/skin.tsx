@@ -64,10 +64,14 @@ export function SkinProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (font) {
-      document.documentElement.style.setProperty("--font-sans-v", `"${font}", "Noto Sans CJK", "Noto Sans SC", sans-serif`);
+      // 所选字体同时作用于主文字与等宽元数据（编号/金额/时间戳）
+      const stack = '"' + font + '", "Noto Sans CJK", "Noto Sans SC", sans-serif';
+      document.documentElement.style.setProperty("--font-sans-v", stack);
+      document.documentElement.style.setProperty("--font-mono-v", stack);
       localStorage.setItem(FONT_STORAGE_KEY, font);
     } else {
       document.documentElement.style.removeProperty("--font-sans-v");
+      document.documentElement.style.removeProperty("--font-mono-v");
       localStorage.removeItem(FONT_STORAGE_KEY);
     }
   }, [font]);

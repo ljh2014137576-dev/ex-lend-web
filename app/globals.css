@@ -225,3 +225,8 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* 强制运行时字体变量（覆盖 Tailwind 默认主题，配合皮肤/字体选择器切换） */
+:root {
+  --font-sans: var(--font-sans-v);
+  --font-mono: var(--font-mono-v);
+}
