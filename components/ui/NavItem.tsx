@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Ref } from "react";
 
 export function NavItem({
   num,
@@ -6,30 +7,25 @@ export function NavItem({
   href,
   active,
   onClick,
+  innerRef,
 }: {
   num: string;
   label: string;
   href: string;
   active?: boolean;
   onClick?: () => void;
+  innerRef?: Ref<HTMLAnchorElement>;
 }) {
   return (
-    <li className="px-2 py-0.5">
-      <Link
-        href={href}
-        onClick={onClick}
-        aria-current={active ? "page" : undefined}
-        className={[
-          "flex items-baseline gap-3 rounded-md px-3 py-2 text-sm",
-          "transition-all duration-[var(--transition-fast-v)]",
-          active
-            ? "bg-nav-active font-medium text-nav-active-text shadow-sm"
-            : "text-ink hover:bg-surface2",
-        ].join(" ")}
-      >
-        <span className="font-mono text-[11px] opacity-60">{num}</span>
-        <span>{label}</span>
-      </Link>
-    </li>
+    <Link
+      ref={innerRef}
+      href={href}
+      onClick={onClick}
+      data-active={active || undefined}
+      className="nav-link relative flex items-baseline gap-3 rounded-md px-3 py-2 text-sm transition-colors duration-[var(--transition-fast-v)] hover:bg-surface2"
+    >
+      <span className="font-mono text-[11px] opacity-60">{num}</span>
+      <span>{label}</span>
+    </Link>
   );
 }

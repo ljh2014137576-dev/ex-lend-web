@@ -230,3 +230,67 @@ body {
   --font-sans: var(--font-sans-v);
   --font-mono: var(--font-mono-v);
 }
+/* ============================================================
+   侧边栏标签切换动画（按皮肤）
+   结构：.nav-indicator（定位+平移过渡）> .nav-indicator-inner（皮肤视觉）
+   ============================================================ */
+.nav-indicator {
+  will-change: transform;
+  transition: transform var(--transition-mid-v) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nav-indicator-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* monochrome：黑色横条。新条从左到右伸出；旧条残影从右到左快速褪去 */
+[data-skin="monochrome"] .nav-indicator-inner {
+  background: var(--nav-active);
+  border-radius: 0;
+  transform-origin: left center;
+  animation: ex-bar-grow var(--transition-mid-v) cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-skin="monochrome"] .nav-indicator-ghost {
+  background: var(--nav-active);
+  transform-origin: right center;
+  animation: ex-bar-exit 160ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* modern：底部强调条，纯平移（无进出动画） */
+[data-skin="modern"] .nav-indicator-inner {
+  background: var(--accent);
+  border-radius: var(--radius-sm-v);
+}
+
+/* editorial：左侧强调条 + 快速淡入 */
+[data-skin="editorial"] .nav-indicator-inner {
+  background: var(--accent);
+  width: 3px;
+  animation: ex-bar-fade var(--transition-fast-v) ease-out;
+}
+
+/* 激活项文字颜色按皮肤 */
+.nav-link[data-active] {
+  color: var(--nav-active-text);
+  font-weight: 500;
+}
+[data-skin="modern"] .nav-link[data-active] {
+  color: var(--accent);
+}
+[data-skin="editorial"] .nav-link[data-active] {
+  color: var(--ink);
+}
+
+@keyframes ex-bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes ex-bar-exit {
+  from { transform: scaleX(1); opacity: 1; }
+  to { transform: scaleX(0); opacity: 0; }
+}
+@keyframes ex-bar-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
