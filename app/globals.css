@@ -1,14 +1,17 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Skin System：语义 token
-   默认 editorial；monochrome / modern 可切换（data-skin）
+   Skin System v2：设计令牌全集（颜色/形状/效果/材质/描边/尺寸/间距/动效）
+   三层架构：皮肤(token) → 控件组件库(components/ui) → 页面
+   切换皮肤只改 data-skin 下的 token，组件与页面零改动
    ============================================================ */
 
 :root,
 [data-skin="editorial"] {
+  /* 颜色 */
   --paper: #f4f1ea;
   --surface: #ffffff;
+  --surface2: #ece8df;
   --ink: #1a1a1a;
   --muted: #8a857b;
   --line: #e0dcd2;
@@ -16,19 +19,47 @@
   --accent: #1e4fd8;
   --accent-ink: #ffffff;
   --danger: #b3261e;
+  --danger-ink: #ffffff;
   --success: #2e7d32;
+  --success-ink: #ffffff;
   --warning: #b26a00;
+  --warning-ink: #ffffff;
+  --sidebar: #f4f1ea;
+  --nav-active: #1e4fd8;
+  --nav-active-text: #ffffff;
+  --overlay: rgb(26 26 26 / 0.45);
+  --focus-ring: #1e4fd8;
+  /* 形状 */
   --radius-sm-v: 2px;
   --radius-md-v: 4px;
+  --radius-lg-v: 6px;
+  /* 效果：阴影 */
   --shadow-sm-v: none;
   --shadow-md-v: 0 1px 3px rgb(0 0 0 / 0.08);
-  --font-sans-v: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono-v: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --shadow-lg-v: 0 8px 24px rgb(0 0 0 / 0.12);
+  /* 效果：材质（毛玻璃/亚克力） */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-blur-v: 8px;
+  --glass-border: rgb(255 255 255 / 0.6);
+  /* 描边 */
+  --border-w-v: 1px;
+  --border-w-strong-v: 2px;
+  /* 尺寸与间距 */
+  --control-h: 36px;
+  --row-h: 40px;
+  --panel-pad: 20px;
+  --page-pad: 32px;
+  --control-gap: 8px;
+  --panel-gap: 16px;
+  /* 动效 */
+  --transition-fast-v: 120ms;
+  --transition-mid-v: 180ms;
 }
 
 [data-skin="monochrome"] {
   --paper: #d7d7d2;
   --surface: #e7e7e2;
+  --surface2: #cfcfca;
   --ink: #0b0b0b;
   --muted: #6e6e68;
   --line: #0b0b0b;
@@ -36,17 +67,41 @@
   --accent: #0b0b0b;
   --accent-ink: #d7d7d2;
   --danger: #0b0b0b;
+  --danger-ink: #d7d7d2;
   --success: #0b0b0b;
+  --success-ink: #d7d7d2;
   --warning: #0b0b0b;
+  --warning-ink: #d7d7d2;
+  --sidebar: #d7d7d2;
+  --nav-active: #0b0b0b;
+  --nav-active-text: #d7d7d2;
+  --overlay: rgb(11 11 11 / 0.5);
+  --focus-ring: #0b0b0b;
   --radius-sm-v: 0px;
   --radius-md-v: 0px;
+  --radius-lg-v: 0px;
   --shadow-sm-v: none;
   --shadow-md-v: none;
+  --shadow-lg-v: none;
+  --glass-bg: rgb(215 215 210 / 0.95);
+  --glass-blur-v: 0px;
+  --glass-border: rgb(11 11 11 / 0.2);
+  --border-w-v: 1px;
+  --border-w-strong-v: 2px;
+  --control-h: 36px;
+  --row-h: 40px;
+  --panel-pad: 16px;
+  --page-pad: 24px;
+  --control-gap: 8px;
+  --panel-gap: 12px;
+  --transition-fast-v: 100ms;
+  --transition-mid-v: 150ms;
 }
 
 [data-skin="modern"] {
   --paper: #f5f5f5;
   --surface: #ffffff;
+  --surface2: #f0f0f0;
   --ink: #0a0a0a;
   --muted: #737373;
   --line: #e5e5e5;
@@ -54,17 +109,41 @@
   --accent: #2563eb;
   --accent-ink: #ffffff;
   --danger: #dc2626;
+  --danger-ink: #ffffff;
   --success: #16a34a;
+  --success-ink: #ffffff;
   --warning: #d97706;
+  --warning-ink: #ffffff;
+  --sidebar: #ffffff;
+  --nav-active: #2563eb;
+  --nav-active-text: #ffffff;
+  --overlay: rgb(0 0 0 / 0.4);
+  --focus-ring: #2563eb;
   --radius-sm-v: 6px;
   --radius-md-v: 8px;
+  --radius-lg-v: 12px;
   --shadow-sm-v: 0 1px 2px rgb(0 0 0 / 0.05);
   --shadow-md-v: 0 4px 12px rgb(0 0 0 / 0.08);
+  --shadow-lg-v: 0 12px 32px rgb(0 0 0 / 0.12);
+  --glass-bg: rgb(255 255 255 / 0.7);
+  --glass-blur-v: 12px;
+  --glass-border: rgb(255 255 255 / 0.7);
+  --border-w-v: 1px;
+  --border-w-strong-v: 2px;
+  --control-h: 40px;
+  --row-h: 44px;
+  --panel-pad: 24px;
+  --page-pad: 32px;
+  --control-gap: 8px;
+  --panel-gap: 20px;
+  --transition-fast-v: 150ms;
+  --transition-mid-v: 220ms;
 }
 
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
@@ -72,19 +151,36 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
   --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
   --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-sidebar: var(--sidebar);
+  --color-nav-active: var(--nav-active);
+  --color-nav-active-text: var(--nav-active-text);
+  --color-overlay: var(--overlay);
+  --color-focus-ring: var(--focus-ring);
   --radius-sm: var(--radius-sm-v);
   --radius-md: var(--radius-md-v);
+  --radius-lg: var(--radius-lg-v);
   --shadow-sm: var(--shadow-sm-v);
   --shadow-md: var(--shadow-md-v);
-  --font-sans: var(--font-sans-v);
-  --font-mono: var(--font-mono-v);
+  --shadow-lg: var(--shadow-lg-v);
+  --blur-glass: var(--glass-blur-v);
 }
 
 body {
   background-color: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans-v);
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color var(--transition-mid-v) ease, color var(--transition-mid-v) ease;
+}
+
+/* 基础材质工具类：毛玻璃 / 亚克力 */
+.glass {
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur-v));
+  backdrop-filter: blur(var(--glass-blur-v));
+  border: var(--border-w-v) solid var(--glass-border);
 }

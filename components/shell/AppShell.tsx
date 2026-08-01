@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "./nav";
+import { NavItem } from "@/components/ui/NavItem";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,19 +22,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <ul className="flex-1 overflow-y-auto py-2">
         {NAV_ITEMS.map((item) => (
           <li key={item.id}>
-            <Link
+            <NavItem
+              num={item.num}
+              label={item.label}
               href={item.href}
+              active={isActive(item.href)}
               onClick={() => setDrawerOpen(false)}
-              className={[
-                "flex items-baseline gap-3 px-4 py-2 text-sm transition-colors",
-                isActive(item.href)
-                  ? "bg-ink text-paper"
-                  : "text-ink hover:bg-paper",
-              ].join(" ")}
-            >
-              <span className="font-mono text-[11px] opacity-60">{item.num}</span>
-              <span>{item.label}</span>
-            </Link>
+            />
           </li>
         ))}
       </ul>
@@ -48,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="打开导航"
-            className="flex h-8 w-8 items-center justify-center border border-line text-sm lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-sm lg:hidden"
           >
             ☰
           </button>
@@ -66,21 +61,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex flex-1">
-        <aside className="hidden w-52 shrink-0 border-r border-line bg-surface lg:block">
+        <aside className="hidden w-52 shrink-0 border-r border-line bg-sidebar lg:block">
           {nav}
         </aside>
 
         {drawerOpen && (
           <div className="fixed inset-0 z-30 lg:hidden">
             <div
-              className="absolute inset-0 bg-ink/40"
+              className="absolute inset-0 bg-overlay"
               onClick={() => setDrawerOpen(false)}
             />
-            <div className="absolute inset-y-0 left-0 w-64 border-r border-line bg-surface">
+            <div className="glass absolute inset-y-0 left-0 w-64">
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="absolute right-2 top-3 border border-line px-2 py-1 font-mono text-xs"
+                className="absolute right-2 top-3 rounded-md border border-line px-2 py-1 font-mono text-xs"
               >
                 关闭
               </button>
