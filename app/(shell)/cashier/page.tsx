@@ -6,7 +6,9 @@ import { Panel } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FilterTabs } from "@/components/ui/FilterTabs";
-import { CUSTOMERS, EMPLOYEES, PRODUCTS, type Product, type PayMethod } from "@/lib/mock-data";
+import { CustomerSelect } from "@/components/business/CustomerSelect";
+import { EmployeePicker } from "@/components/business/EmployeePicker";
+import { CUSTOMERS, PRODUCTS, type Product, type PayMethod } from "@/lib/mock-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -63,9 +65,6 @@ export default function CashierPage() {
   const discount = customer.type === "vip" ? original * (1 - vipRate) : 0;
   const paid = original - discount;
   const walletTotal = customer.principal + customer.bonus;
-
-  const toggleEmployee = (id: string) =>
-    setEmployeeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 2 ? [...prev, id] : prev));
 
   const submit = () => {
     setHint(null);
@@ -155,22 +154,12 @@ export default function CashierPage() {
             </div>
           </Panel>
 
-          <Panel title="下单信息">
+          <Panel title="客户与支付">
             <div className="space-y-4">
-              <label className="block space-y-1">
-                <span className="font-mono text-[11px] text-muted">客户（钱包：{money(customer.principal + customer.bonus)}）</span>
-                <select
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  className="h-[var(--control-h)] w-full rounded-md border border-line bg-paper px-3 text-sm outline-none focus:border-ink"
-                >
-                  {CUSTOMERS.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}{c.type === "vip" ? `（VIP${c.vipLevel}）` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="space-y-1">
+                <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
+                <CustomerSelect value={customerId} onChange={setCustomerId} />
+              </div>
 
               <div className="space-y-1">
                 <span className="font-mono text-[11px] text-muted">支付方式</span>
@@ -191,34 +180,18 @@ export default function CashierPage() {
                   ))}
                 </div>
               </div>
-
-              <div className="space-y-1">
-                <span className="font-mono text-[11px] text-muted">接单员工（0–2 人）</span>
-                <div className="grid grid-cols-2 gap-1">
-                  {EMPLOYEES.filter((e) => e.status === "active").map((e) => (
-                    <button
-                      key={e.id}
-                      type="button"
-                      onClick={() => toggleEmployee(e.id)}
-                      aria-pressed={employeeIds.includes(e.id)}
-                      className={[
-                        "rounded-md px-2 py-1.5 text-xs transition-colors",
-                        employeeIds.includes(e.id) ? "bg-nav-active text-nav-active-text" : "border border-line bg-paper hover:bg-surface2",
-                      ].join(" ")}
-                    >
-                      {e.name} · Lv{e.grade}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}
-
-              <Button className="w-full" disabled={cart.length === 0} onClick={submit}>
-                提交订单 {cart.length > 0 ? `（${money(paid)}）` : ""}
-              </Button>
             </div>
           </Panel>
+
+          <Panel title="接单员工" meta="0–2 人 · 可搜索">
+            <EmployeePicker value={employeeIds} onChange={setEmployeeIds} />
+          </Panel>
+
+          {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}
+
+          <Button className="w-full" disabled={cart.length === 0} onClick={submit}>
+            提交订单 {cart.length > 0 ? `（${money(paid)}）` : ""}
+          </Button>
         </div>
       </div>
     </div>
