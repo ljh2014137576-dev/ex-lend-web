@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, type Employee } from "@/lib/mock-data";
+import { BossOnly } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -168,7 +169,7 @@ export default function FinancePage() {
       <Panel title="工资发放" meta="payout_salary（Mock）">
         <div className="flex items-center justify-between gap-4">
           <p className="font-mono text-xs text-muted">按批次扣减员工钱包；非欠款员工余额不足将整体中断</p>
-          <Button onClick={openPayout}>发起工资发放</Button>
+          <BossOnly fallback={<span className="font-mono text-[11px] text-muted">仅老板可操作</span>}><Button onClick={openPayout}>发起工资发放</Button></BossOnly>
         </div>
       </Panel>
 

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { GRADE_RULES, VIP_DISCOUNT_RULES, VIP_UPGRADE_RULES, RECHARGE_PACKAGES, type GradeRule, type VipDiscountRule, type VipUpgradeRule, type RechargePackage } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth";
+import { NoPermission } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 const pct = (n: number) => (n * 100).toFixed(0) + "%";
@@ -22,6 +24,8 @@ export default function RulesPage() {
   const [newVip, setNewVip] = useState({ vipLevel: 2, category: "正常单", discount: 0.92 });
   const [newUpgrade, setNewUpgrade] = useState({ vipLevel: 4, threshold: 100000 });
   const [newPkg, setNewPkg] = useState({ amount: 3000, bonus: 500 });
+  const { isBoss } = useAuth();
+  if (!isBoss) return <NoPermission />;
 
   const updateGrade = (grade: number, rate: number) =>
     setGrades((p) => p.map((g) => (g.grade === grade ? { ...g, rate } : g)));

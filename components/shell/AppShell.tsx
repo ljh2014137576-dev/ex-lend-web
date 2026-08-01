@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { useProfile } from "@/lib/profile";
+import { useAuth } from "@/lib/auth";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { name, avatar } = useProfile();
+  const { role } = useAuth();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -48,6 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </span>
             {name && <span className="hidden text-xs sm:inline">{name}</span>}
+            {role && (
+              <span className="hidden rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[10px] text-muted md:inline">
+                {role === "boss" ? "老板" : "管理岗"}
+              </span>
+            )}
           </Link>
         </div>
       </header>

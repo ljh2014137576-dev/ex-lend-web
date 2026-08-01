@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderMember } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth";
+import { NoPermission } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -20,6 +22,8 @@ export default function AuditPage() {
   const [log, setLog] = useState<string[]>([]);
   const [overrideOrder, setOverrideOrder] = useState<Order | null>(null);
   const [overrideVals, setOverrideVals] = useState<Record<string, string>>({});
+  const { isBoss } = useAuth();
+  if (!isBoss) return <NoPermission />;
 
   const pending = orders.filter((o) => o.auditStatus === "pending");
   const selected = orders.find((o) => o.id === selectedId) ?? null;

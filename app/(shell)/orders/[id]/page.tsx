@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
+import { BossOnly } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -83,8 +84,8 @@ export default function OrderDetailPage() {
           <Button size="sm" variant="secondary" onClick={() => setStatus("in_progress")} disabled={o.status === "in_progress"}>开始</Button>
           <Button size="sm" variant="secondary" onClick={() => setStatus("completed")} disabled={o.status === "completed"}>完成</Button>
           <Link href="/audit"><Button size="sm">去审核</Button></Link>
-          <Button size="sm" variant="danger" onClick={() => setRefundOpen(true)} disabled={o.status === "cancelled"}>退款</Button>
-          <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={o.status !== "booking" || o.auditStatus !== "pending"}>删除</Button>
+          <BossOnly><Button size="sm" variant="danger" onClick={() => setRefundOpen(true)} disabled={o.status === "cancelled"}>退款</Button></BossOnly>
+          <BossOnly><Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={o.status !== "booking" || o.auditStatus !== "pending"}>删除</Button></BossOnly>
         </div>
       </div>
 

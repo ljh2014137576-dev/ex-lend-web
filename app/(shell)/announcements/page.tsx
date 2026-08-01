@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { ANNOUNCEMENTS, type Announcement } from "@/lib/mock-data";
+import { BossOnly } from "@/components/business/RequireRole";
 
 export default function AnnouncementsPage() {
   const [items, setItems] = useState<Announcement[]>(ANNOUNCEMENTS);
@@ -33,7 +34,7 @@ export default function AnnouncementsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="公告" meta={`/announcements · ${items.length} 条（Mock）· 仅老板可发布`} />
-        <Button size="sm" onClick={() => setOpen(true)}>发布公告</Button>
+        <BossOnly fallback={<span className="font-mono text-[11px] text-muted">仅老板可发布</span>}><Button size="sm" onClick={() => setOpen(true)}>发布公告</Button></BossOnly>
       </div>
 
       <Panel title="公告列表" meta="置顶优先">

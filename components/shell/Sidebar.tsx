@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSkin } from "@/lib/skin";
+import { useAuth } from "@/lib/auth";
 import { NAV_ITEMS } from "./nav";
 import { NavItem } from "@/components/ui/NavItem";
 
@@ -13,6 +14,9 @@ export function Sidebar({
   onNavigate?: () => void;
 }) {
   const { skin } = useSkin();
+  const { role, signOut } = useAuth();
+  const effectiveRole = role ?? "manager";
+  const visibleItems = NAV_ITEMS.filter((it) => !it.roles || it.roles.includes(effectiveRole));
   const ulRef = useRef<HTMLUListElement>(null);
   const itemRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [ready, setReady] = useState(false);
@@ -74,7 +78,7 @@ export function Sidebar({
           />
         )}
 
-        {NAV_ITEMS.map((item) => (
+        {visibleItems.map((item) => (
           <li key={item.id} className="relative z-10 px-2 py-0.5">
             <NavItem
               num={item.num}
@@ -113,7 +117,18 @@ export function Sidebar({
         </div>
       )}
       <div className="border-t border-line px-4 py-2.5">
-        <p className="font-mono text-[10px] text-muted">v0.1 · 皮肤系统 v2</p>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-mono text-[10px] text-muted">
+            {effectiveRole === "boss" ? "老板" : "管理岗"} · v0.1
+          </span>
+          <button
+            type="button"
+            onClick={signOut}
+            className="font-mono text-[10px] text-muted underline underline-offset-2 transition-colors hover:text-ink"
+          >
+            退出
+          </button>
+        </div>
       </div>
     </nav>
   );
