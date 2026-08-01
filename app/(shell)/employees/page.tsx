@@ -52,7 +52,7 @@ export default function EmployeesPage() {
         <DataTable<Employee>
           rowKey={(r) => r.id}
           columns={[
-            { key: "name", label: "姓名", render: (r) => <span className="font-medium">{r.name}</span> },
+            { key: "name", label: "昵称", render: (r) => <span className="font-medium">{r.name}</span> },
             { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
             { key: "wallet", label: "钱包余额", align: "right", mono: true, render: (r) => money(r.wallet) },
             { key: "status", label: "状态", render: (r) => (r.status === "active" ? <StatusDot tone="active" label="在职" /> : <StatusDot tone="danger" label="离职" />) },

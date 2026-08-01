@@ -76,12 +76,12 @@ export async function apiCustomers(): Promise<Customer[] | null> {
 export async function apiEmployees(): Promise<Employee[] | null> {
   const { data } = await supabase
     .from("employee")
-    .select("id, name, grade, status, wallet_balance, is_debt")
+    .select("id, name, nickname, grade, status, wallet_balance, is_debt")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
-    name: r.name,
+    name: r.nickname || r.name,
     grade: r.grade ?? 1,
     status: r.status === "resigned" ? "resigned" : "active",
     wallet: Number(r.wallet_balance ?? 0),
@@ -151,7 +151,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
   const { data } = await supabase
     .from("order")
     .select(
-      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount)",
+      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -168,7 +168,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
   }));
   const members = (data.order_member ?? []).map((m) => ({
     employeeId: m.employee_id,
-    name: "员工",
+    name: (m.employee as { nickname?: string; name?: string } | null)?.nickname || (m.employee as { name?: string } | null)?.name || "员工",
     grade: m.grade_snapshot ?? 1,
     base: Number(m.base_amount ?? 0),
     rate: Number(m.applied_rate ?? 0),
@@ -360,12 +360,12 @@ export async function apiRechargePackages(): Promise<RechargePackage[] | null> {
 export async function apiWalletLedgers(): Promise<WalletLedgerRow[] | null> {
   const { data } = await supabase
     .from("wallet_ledger")
-    .select("id, employee_id, type, amount, balance_after, order_id, created_at, employee(name)")
+    .select("id, employee_id, type, amount, balance_after, order_id, created_at, employee(nickname, name)")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
-    employee: (r.employee as { name?: string } | null)?.name ?? "—",
+    employee: (r.employee as { nickname?: string; name?: string } | null)?.nickname || (r.employee as { name?: string } | null)?.name || "—",
     type: r.type,
     amount: Number(r.amount ?? 0),
     balance: Number(r.balance_after ?? 0),
