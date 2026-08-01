@@ -6,9 +6,11 @@ import { Panel } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { NOTIFICATIONS, type NotificationItem } from "@/lib/mock-data";
+import { apiNotifications } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 
 export default function NotificationsPage() {
-  const [items, setItems] = useState<NotificationItem[]>(NOTIFICATIONS);
+  const { data: items, mutate: setItems } = useResource<NotificationItem>("notifications", apiNotifications, NOTIFICATIONS);
   const unread = items.filter((n) => !n.read).length;
 
   const markRead = (id: string) => setItems((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n)));

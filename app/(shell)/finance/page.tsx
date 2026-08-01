@@ -7,6 +7,8 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, type Employee } from "@/lib/mock-data";
+import { apiEmployees, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
 import { rpcPayoutSalary } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
@@ -37,8 +39,8 @@ export default function FinancePage() {
   const totalWallet = EMPLOYEES.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
   const maxTrend = Math.max(...GROSS_TREND.map((g) => g.v));
 
-  const [employees, setEmployees] = useState<Employee[]>(EMPLOYEES);
-  const [payouts, setPayouts] = useState<PayoutRow[]>(INITIAL_PAYOUTS);
+  const { data: employees, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
+  const { data: payouts, mutate: setPayouts } = useResource<PayoutRow>("payouts", apiPayouts, INITIAL_PAYOUTS);
   const [payoutOpen, setPayoutOpen] = useState(false);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [hint, setHint] = useState<string | null>(null);
@@ -52,6 +54,9 @@ export default function FinancePage() {
   };
 
   const { session } = useAuth();
+  const { data: walletLedgers } = useResource("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
+  const { data: customerLedgers } = useResource("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
+  const { data: deleteLogs } = useResource("deleteLogs", apiDeleteLogs, DELETE_LOGS);
 
   const submitPayout = async () => {
     setHint(null);
@@ -147,7 +152,7 @@ export default function FinancePage() {
             { key: "orderNo", label: "关联", mono: true },
             { key: "at", label: "时间", mono: true },
           ]}
-          rows={WALLET_LEDGERS}
+          rows={walletLedgers}
         />
       </Panel>
 
@@ -162,7 +167,7 @@ export default function FinancePage() {
             { key: "bonus", label: "赠送余额", align: "right", mono: true, render: (r) => money(r.bonus) },
             { key: "at", label: "时间", mono: true },
           ]}
-          rows={CUSTOMER_LEDGERS}
+          rows={customerLedgers}
         />
       </Panel>
 
@@ -176,7 +181,7 @@ export default function FinancePage() {
             { key: "reason", label: "原因" },
             { key: "at", label: "时间", mono: true },
           ]}
-          rows={DELETE_LOGS}
+          rows={deleteLogs}
         />
       </Panel>
 

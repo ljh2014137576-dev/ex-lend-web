@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { NOTES, type Note } from "@/lib/mock-data";
+import { apiNotes } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 
 export default function NotesPage() {
-  const [notes, setNotes] = useState<Note[]>(NOTES);
+  const { data: notes, mutate: setNotes } = useResource<Note>("notes", apiNotes, NOTES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", published: false });
 

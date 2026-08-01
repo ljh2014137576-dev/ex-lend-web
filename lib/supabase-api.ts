@@ -7,7 +7,46 @@ import type {
   Order,
   OrderItem,
   OrderMember,
+  Todo,
+  Announcement,
+  Note,
+  NotificationItem,
+  GradeRule,
+  VipDiscountRule,
+  VipUpgradeRule,
+  RechargePackage,
+  DeleteLog,
 } from "@/lib/mock-data";
+
+export interface WalletLedgerRow {
+  id: string;
+  employee: string;
+  type: string;
+  amount: number;
+  balance: number;
+  orderNo: string;
+  at: string;
+}
+
+export interface CustomerLedgerRow {
+  id: string;
+  customer: string;
+  type: string;
+  amount: number;
+  principal: number;
+  bonus: number;
+  at: string;
+}
+
+export interface PayoutRow {
+  id: string;
+  batchNo: string;
+  operator: string;
+  total: number;
+  count: number;
+  status: string;
+  at: string;
+}
 
 // ============================================================
 // 真实数据层（线上 Supabase 表结构，与 lib/mock-data 形状对齐）
@@ -206,4 +245,183 @@ export function rpcPayoutSalary(p_items: { employee_id: string; amount: number }
 
 export function updateOrderStatus(id: string, status: "booking" | "in_progress" | "completed") {
   return supabase.from("order").update({ status }).eq("id", id);
+}
+// ============ 协作 / 规则 / 财务（预取用） ============
+
+export async function apiTodos(): Promise<Todo[] | null> {
+  const { data } = await supabase
+    .from("todo_item")
+    .select("id, title, content, status, mentioned_user_ids, created_by, updated_at")
+    .order("updated_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    title: r.title,
+    content: r.content ?? "",
+    status: r.status as Todo["status"],
+    mentions: r.mentioned_user_ids ?? [],
+    createdBy: "—",
+    updatedAt: r.updated_at ? new Date(r.updated_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiAnnouncements(): Promise<Announcement[] | null> {
+  const { data } = await supabase
+    .from("announcement")
+    .select("id, title, content, is_pinned, created_by, updated_at")
+    .order("updated_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    title: r.title,
+    content: r.content ?? "",
+    pinned: !!r.is_pinned,
+    createdBy: "—",
+    updatedAt: r.updated_at ? new Date(r.updated_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiNotes(): Promise<Note[] | null> {
+  const { data } = await supabase
+    .from("note")
+    .select("id, title, content, is_published, created_by, updated_at")
+    .order("updated_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    title: r.title,
+    content: r.content ?? "",
+    published: !!r.is_published,
+    createdBy: "—",
+    updatedAt: r.updated_at ? new Date(r.updated_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiNotifications(): Promise<NotificationItem[] | null> {
+  const { data } = await supabase
+    .from("notification")
+    .select("id, recipient_id, type, title, content, read_at, created_at")
+    .order("created_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    recipient: "—",
+    type: (r.type === "todo_mention" ? "todo_mention" : "customer_vip_upgrade") as NotificationItem["type"],
+    title: r.title,
+    content: r.content ?? "",
+    read: !!r.read_at,
+    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiGradeRules(): Promise<GradeRule[] | null> {
+  const { data } = await supabase.from("grade_commission_rule").select("grade, rate").order("grade", { ascending: true });
+  if (!data) return null;
+  return data.map((r) => ({ grade: r.grade, rate: Number(r.rate ?? 0) }));
+}
+
+export async function apiVipDiscountRules(): Promise<VipDiscountRule[] | null> {
+  const { data } = await supabase
+    .from("vip_discount_rule")
+    .select("id, vip_level, category, discount")
+    .order("vip_level", { ascending: true });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    vipLevel: r.vip_level,
+    category: r.category ?? "",
+    discount: Number(r.discount ?? 1),
+  }));
+}
+
+export async function apiVipUpgradeRules(): Promise<VipUpgradeRule[] | null> {
+  const { data } = await supabase
+    .from("vip_upgrade_rule")
+    .select("vip_level, consumption_threshold")
+    .order("vip_level", { ascending: true });
+  if (!data) return null;
+  return data.map((r) => ({ vipLevel: r.vip_level, threshold: Number(r.consumption_threshold ?? 0) }));
+}
+
+export async function apiRechargePackages(): Promise<RechargePackage[] | null> {
+  const { data } = await supabase
+    .from("recharge_package")
+    .select("id, amount, bonus, status")
+    .order("amount", { ascending: true });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    amount: Number(r.amount ?? 0),
+    bonus: Number(r.bonus ?? 0),
+    status: r.status === "disabled" ? "disabled" : "enabled",
+  }));
+}
+
+export async function apiWalletLedgers(): Promise<WalletLedgerRow[] | null> {
+  const { data } = await supabase
+    .from("wallet_ledger")
+    .select("id, employee_id, type, amount, balance_after, order_id, created_at, employee(name)")
+    .order("created_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    employee: (r.employee as { name?: string } | null)?.name ?? "—",
+    type: r.type,
+    amount: Number(r.amount ?? 0),
+    balance: Number(r.balance_after ?? 0),
+    orderNo: r.order_id ?? "—",
+    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiCustomerLedgers(): Promise<CustomerLedgerRow[] | null> {
+  const { data } = await supabase
+    .from("customer_wallet_ledger")
+    .select("id, customer_id, type, amount, principal_after, bonus_after, created_at, customer(name)")
+    .order("created_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    customer: (r.customer as { name?: string } | null)?.name ?? "—",
+    type: r.type,
+    amount: Number(r.amount ?? 0),
+    principal: Number(r.principal_after ?? 0),
+    bonus: Number(r.bonus_after ?? 0),
+    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiPayouts(): Promise<PayoutRow[] | null> {
+  const { data } = await supabase
+    .from("payout")
+    .select("id, batch_no, operator_id, total_amount, detail_count, status, created_at")
+    .order("created_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    batchNo: r.batch_no,
+    operator: "—",
+    total: Number(r.total_amount ?? 0),
+    count: r.detail_count ?? 0,
+    status: r.status,
+    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+  }));
+}
+
+export async function apiDeleteLogs(): Promise<DeleteLog[] | null> {
+  const { data } = await supabase
+    .from("order_delete_log")
+    .select("id, order_no, deleted_by, paid_amount, reason, deleted_at")
+    .order("deleted_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    orderNo: r.order_no,
+    deletedBy: "—",
+    paid: Number(r.paid_amount ?? 0),
+    status: "—",
+    auditStatus: "—",
+    reason: r.reason ?? "",
+    at: r.deleted_at ? new Date(r.deleted_at).toLocaleString("zh-CN") : "—",
+  }));
 }

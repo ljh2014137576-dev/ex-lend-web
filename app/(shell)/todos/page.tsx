@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { TODOS, EMPLOYEES, type Todo } from "@/lib/mock-data";
+import { apiTodos } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 
 const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | "accent"; label: string }> = {
   pending: { tone: "neutral", label: "待处理" },
@@ -16,7 +18,7 @@ const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | 
 };
 
 export default function TodosPage() {
-  const [todos, setTodos] = useState<Todo[]>(TODOS);
+  const { data: todos, mutate: setTodos } = useResource<Todo>("todos", apiTodos, TODOS);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", mentions: [] as string[] });
 

@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { ANNOUNCEMENTS, type Announcement } from "@/lib/mock-data";
+import { apiAnnouncements } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
 
 export default function AnnouncementsPage() {
-  const [items, setItems] = useState<Announcement[]>(ANNOUNCEMENTS);
+  const { data: items, mutate: setItems } = useResource<Announcement>("announcements", apiAnnouncements, ANNOUNCEMENTS);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", pinned: false });
 

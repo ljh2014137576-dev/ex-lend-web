@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { GRADE_RULES, VIP_DISCOUNT_RULES, VIP_UPGRADE_RULES, RECHARGE_PACKAGES, type GradeRule, type VipDiscountRule, type VipUpgradeRule, type RechargePackage } from "@/lib/mock-data";
+import { apiGradeRules, apiVipDiscountRules, apiVipUpgradeRules, apiRechargePackages } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
 
@@ -15,10 +17,10 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 const pct = (n: number) => (n * 100).toFixed(0) + "%";
 
 export default function RulesPage() {
-  const [grades, setGrades] = useState<GradeRule[]>(GRADE_RULES);
-  const [vipDiscounts, setVipDiscounts] = useState<VipDiscountRule[]>(VIP_DISCOUNT_RULES);
-  const [upgrades, setUpgrades] = useState<VipUpgradeRule[]>(VIP_UPGRADE_RULES);
-  const [packages, setPackages] = useState<RechargePackage[]>(RECHARGE_PACKAGES);
+  const { data: grades, mutate: setGrades } = useResource<GradeRule>("gradeRules", apiGradeRules, GRADE_RULES);
+  const { data: vipDiscounts, mutate: setVipDiscounts } = useResource<VipDiscountRule>("vipDiscounts", apiVipDiscountRules, VIP_DISCOUNT_RULES);
+  const { data: upgrades, mutate: setUpgrades } = useResource<VipUpgradeRule>("vipUpgrades", apiVipUpgradeRules, VIP_UPGRADE_RULES);
+  const { data: packages, mutate: setPackages } = useResource<RechargePackage>("rechargePackages", apiRechargePackages, RECHARGE_PACKAGES);
 
   const [newGrade, setNewGrade] = useState({ grade: 4, rate: 0.12 });
   const [newVip, setNewVip] = useState({ vipLevel: 2, category: "正常单", discount: 0.92 });
