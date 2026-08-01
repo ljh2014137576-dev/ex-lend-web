@@ -42,9 +42,9 @@ export function Sidebar({
     setReady(true);
   }, [pathname, skin, ready]);
 
-  // modern：底部强调条；其余：整条黑/左条
-  const indicatorTop = skin === "modern" ? pos.top + pos.height - 4 : pos.top;
-  const indicatorHeight = skin === "modern" ? 4 : pos.height;
+  // 指示条：整块高度（monochrome=黑条 / modern=强调背景层 / editorial=左条）
+  const indicatorTop = pos.top;
+  const indicatorHeight = pos.height;
 
   return (
     <nav className="flex h-full flex-col">
