@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex flex-1">
-        <aside className="hidden w-52 shrink-0 border-r border-line bg-sidebar lg:block">
+        <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-52 shrink-0 border-r border-line bg-sidebar lg:block">
           <Sidebar pathname={pathname} />
         </aside>
 
