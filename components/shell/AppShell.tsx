@@ -3,37 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "./nav";
-import { NavItem } from "@/components/ui/NavItem";
+import { Sidebar } from "./Sidebar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
-
-  const nav = (
-    <nav className="flex h-full flex-col">
-      <div className="border-b border-line px-4 py-3">
-        <p className="text-sm font-semibold tracking-tight">Ex-Lend</p>
-        <p className="mt-0.5 font-mono text-[10px] text-muted">员工提成与账户管理</p>
-      </div>
-      <ul className="flex-1 overflow-y-auto py-2">
-        {NAV_ITEMS.map((item) => (
-          <li key={item.id}>
-            <NavItem
-              num={item.num}
-              label={item.label}
-              href={item.href}
-              active={isActive(item.href)}
-              onClick={() => setDrawerOpen(false)}
-            />
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -43,7 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="打开导航"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-sm lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-sm transition-colors hover:bg-surface2 lg:hidden"
           >
             ☰
           </button>
@@ -54,32 +28,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link
           href="/settings"
           title="设置"
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold transition-colors hover:bg-surface2"
         >
           设
         </Link>
       </header>
 
       <div className="flex flex-1">
+        {/* 桌面侧边栏 */}
         <aside className="hidden w-52 shrink-0 border-r border-line bg-sidebar lg:block">
-          {nav}
+          <Sidebar pathname={pathname} />
         </aside>
 
+        {/* 移动端抽屉：滑入动画 */}
         {drawerOpen && (
           <div className="fixed inset-0 z-30 lg:hidden">
             <div
               className="absolute inset-0 bg-overlay"
+              style={{ animation: "ex-fade-in var(--transition-fast-v) ease-out" }}
               onClick={() => setDrawerOpen(false)}
             />
-            <div className="glass absolute inset-y-0 left-0 w-64">
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(false)}
-                className="absolute right-2 top-3 rounded-md border border-line px-2 py-1 font-mono text-xs"
-              >
-                关闭
-              </button>
-              {nav}
+            <div
+              className="glass absolute inset-y-0 left-0 w-64 shadow-lg"
+              style={{ animation: "ex-slide-in var(--transition-mid-v) cubic-bezier(0.22,1,0.36,1)" }}
+            >
+              <div className="flex justify-end border-b border-line p-2">
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="rounded-md border border-line px-2 py-1 font-mono text-xs transition-colors hover:bg-surface2"
+                >
+                  关闭
+                </button>
+              </div>
+              <Sidebar pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
             </div>
           </div>
         )}
