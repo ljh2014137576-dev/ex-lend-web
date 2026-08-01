@@ -1,10 +1,10 @@
 # Ex-Lend 前端规划 v0.1（草案）
 
 > 状态：待用户确认后进入 UI 实现
-> ⚠ 风格变更（2026-08-01）：黑白数据库功能主义经测试不适合，**已废弃**；下文 §4 token 映射作废，新风格待定
+> 风格变更（2026-08-01）：黑白数据库功能主义经测试不适合，**不再作为唯一风格**，改为皮肤系统中的可选项之一
 > 技术栈：Next.js 15 + TypeScript + Tailwind CSS（App Router）
 > 数据：Supabase 线上库 gmfylevxrrdweuwzbumt（直连）
-> 风格：~~黑白数据库功能主义~~（已废弃，新风格待定）
+> 风格：**皮肤系统（Skin System）**——语义 token + 多皮肤可切换（见 §4）
 > 范围：MVP 核心资金闭环（下单 → 指派员工 → 完成 → 审核提成 → 财务）
 > 部署位置：G:\new-ui
 
@@ -18,7 +18,7 @@
 | 数据库 | 直连线上库 gmfylevxrrdweuwzbumt（真实数据，谨慎操作） |
 | 范围 | MVP 核心资金闭环，协作/二期模块后置 |
 
-## 2. 页面清单（10 个路由，MVP）
+## 2. 页面清单（11 个路由，MVP）
 
 | # | 路由 | 页面 | 核心任务 | 数据/接口 | 角色 |
 |---|---|---|---|---|---|
@@ -80,23 +80,54 @@
   - 桌面：左右分栏 = 左（待审核订单编号队列）| 右（选中订单详情 + 提成明细行 + 覆盖/审核操作）
   - 移动：单列（队列 → 展开详情）
 
-## 4. 黑白 token 映射（stylekit → Tailwind）
 
-| token | 值 | 用途 |
+## 4. 皮肤系统（Skin System）★ 核心架构
+
+> 决策：不锁死单一风格，定义**语义 token + 多皮肤切换**，换肤零组件改动。
+
+### 4.1 原则
+
+- 组件**只使用语义 token**（bg/surface/ink/muted/line/accent/danger/radius/shadow/font），禁止硬编码颜色与圆角。
+- 皮肤 = 一套 token 值，挂在 `[data-skin="..."]` 上；切换皮肤只改根属性，样式自动生效。
+- Tailwind 语义色全部映射到 CSS 变量（`bg-paper`、`text-ink`、`border-line`、`bg-accent`…）。
+- 皮肤选择持久化（localStorage），默认 `editorial`。
+
+### 4.2 语义 token 模型
+
+| 类别 | token | 说明 |
 |---|---|---|
-| paper | #D7D7D2 | 页面底色（暖灰纸面） |
-| paper2 | #E7E7E2 | 交替行/悬停底色 |
-| ink | #0B0B0B | 主文字、反白底、1px 线 |
-| ink-muted | 中灰（如 #6E6E68） | 等宽元数据/次要文字 |
-| font-sans | system-ui 无衬线 | 标题/正文层级 |
-| font-mono + tabular-nums | 等宽 | 编号/金额/路径/时间戳 |
-| rounded-none | 直角 | 全部控件 |
-| 反白 | bg-ink text-paper | 激活/选中/主操作/状态高亮 |
-| 状态点 | 4px 实心圆（黑/灰） | 订单状态、在线状态 |
+| 背景 | bg / bg-alt / surface | 页面底、交替行底、数据组/面板底 |
+| 文字 | ink / ink-muted / ink-inverse | 主文字、次要元数据、反白区文字 |
+| 线条 | line / line-strong | 分隔线与边框 |
+| 强调 | accent / accent-ink | 主操作/选中/品牌色（可单色可多色） |
+| 状态 | danger / success / warning | 删除、完成、待处理 |
+| 形状 | radius-sm / radius-md / radius-full | 控件圆角（可 0） |
+| 效果 | shadow-sm / shadow-md | 可整体关闭 |
+| 字体 | font-sans / font-mono / tabular | 层级与数字宽度 |
+| 密度 | row-h / gap-scale | 表格行高与间距节奏 |
 
-- 禁止：彩色、渐变、阴影、圆角卡片、胶囊标签、玻璃态
-- 密度：组内紧凑（表格行 32-36px），组间留白（48-64px），形成密-疏-密节奏
+### 4.3 初始皮肤（3 套）
 
+| skin | 名称 | 特征 | 默认 |
+|---|---|---|---|
+| `editorial` | 精准编辑风财务 | 暖灰纸面 + 白色数据组 + 黑色编辑层级 + 细分割线 + 克制圆角 + 单一受控蓝色强调 | ✅ 默认 |
+| `monochrome` | 黑白数据库 | paper #D7D7D2 / ink #0B0B0B / 无强调色 / 直角 / 等宽元数据 | 可选 |
+| `modern` | 简约现代 | 白底 #FFFFFF / 黑灰层级 / 单强调色 / 圆角 8px / 轻阴影 | 可选 |
+
+（色值实现时在 globals.css 内定稿，此处只定语义方向）
+
+### 4.4 实现机制
+
+- `app/globals.css`：定义 `:root` 默认 token + `[data-skin="editorial|monochrome|modern"]` 三套覆盖。
+- `tailwind.config.ts`：语义色/圆角/阴影映射 CSS 变量。
+- `lib/skin.tsx`：`SkinProvider`（useContext）——读写 `document.documentElement.dataset.skin` + localStorage。
+- `components/ui/SkinSwitcher.tsx`：工具栏快速切换（循环或下拉，显示当前皮肤名）。
+- 规则：新组件必须用语义 token；review 时检查硬编码颜色。
+
+### 4.5 对页面规划的影响
+
+- 页面清单（§2）与数据闭环（§5）**完全不变**。
+- 布局骨架（§3）不变；皮肤只影响配色/圆角/密度，不影响信息架构。
 ## 5. MVP 数据闭环（下单 → 财务）
 
 ```
