@@ -54,6 +54,8 @@
   /* 动效 */
   --transition-fast-v: 120ms;
   --transition-mid-v: 180ms;
+  --font-sans-v: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
 [data-skin="monochrome"] {
@@ -96,6 +98,8 @@
   --panel-gap: 12px;
   --transition-fast-v: 100ms;
   --transition-mid-v: 150ms;
+  --font-sans-v: "JetBrains Mono Variable", "Noto Sans SC", "PingFang SC", monospace;
+  --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
 [data-skin="modern"] {
@@ -138,6 +142,8 @@
   --panel-gap: 20px;
   --transition-fast-v: 150ms;
   --transition-mid-v: 220ms;
+  --font-sans-v: "Inter Variable", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
 @theme inline {

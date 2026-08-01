@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
+import "@fontsource/noto-sans-sc/400.css";
+import "@fontsource/noto-sans-sc/500.css";
+import "@fontsource/noto-sans-sc/600.css";
+import "@fontsource-variable/jetbrains-mono";
+import "@fontsource-variable/inter";
 import { SkinProvider } from "@/lib/skin";
 import "./globals.css";
 
