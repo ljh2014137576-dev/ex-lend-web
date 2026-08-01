@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* 移动端抽屉：滑入 + 滑出动画 */}
-        <div className="fixed inset-0 z-30 lg:hidden" aria-hidden={!drawerOpen}>
+        <div className={["fixed inset-0 z-30 lg:hidden", drawerOpen ? "pointer-events-auto" : "pointer-events-none"].join(" ")} aria-hidden={!drawerOpen}>
           <div
             className={[
               "absolute inset-0 bg-overlay transition-opacity duration-[var(--transition-mid-v)]",
