@@ -28,7 +28,8 @@
 
 ## 文档索引
 
-- [Ex-Lend 接口与业务逻辑文档](docs/EX_LEND_API_AND_BUSINESS.md)：全部 RPC/表/Storage/Realtime 接口、返回内容与完整业务逻辑
+- [Ex-Lend 接口与业务逻辑文档](docs/EX_LEND_API_AND_BUSINESS.md)
+- [前端规划 v0.1](docs/FE_PLAN.md)：页面清单/布局骨架/黑白 token/数据闭环（待确认）：全部 RPC/表/Storage/Realtime 接口、返回内容与完整业务逻辑
 - [操作日志](logs/INDEX.md)：每次操作记录，每 100 条一个文件
 - [数据库备份](ALL_IN_ONE.sql)：Ex-Lend 一键初始化脚本（重建版）
 
