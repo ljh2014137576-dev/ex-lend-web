@@ -14,7 +14,7 @@ export function Sidebar({
   onNavigate?: () => void;
 }) {
   const { skin } = useSkin();
-  const { role, signOut } = useAuth();
+  const { role, mockRole, session, signOut } = useAuth();
   const effectiveRole = role ?? "manager";
   const visibleItems = NAV_ITEMS.filter((it) => !it.roles || it.roles.includes(effectiveRole));
   const ulRef = useRef<HTMLUListElement>(null);
@@ -117,6 +117,9 @@ export function Sidebar({
         </div>
       )}
       <div className="border-t border-line px-4 py-2.5">
+        <p className="mb-1 font-mono text-[9px] text-muted">
+          会话:{session ? "✓" : "✗"} · 角色:{role ?? "无"} · {mockRole ? "测试模式" : session ? "真实" : "—"}
+        </p>
         <div className="flex items-center justify-between gap-2">
           <span className="font-mono text-[10px] text-muted">
             {effectiveRole === "boss" ? "老板" : "管理岗"} · v0.1

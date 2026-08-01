@@ -54,6 +54,7 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [mockRole, setMockRole] = useState<Role | null>(null);
+  const [userRole, setUserRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,16 +72,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ignore
       }
       setSession(data.session);
+      if (data.session) {
+        const { data: u } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", data.session.user.id)
+          .maybeSingle();
+        if (u?.role === "boss" || u?.role === "manager") setUserRole(u.role);
+      }
       setLoading(false);
     })();
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      if (s) {
+        supabase
+          .from("users")
+          .select("role")
+          .eq("id", s.user.id)
+          .maybeSingle()
+          .then(({ data: u }) => {
+            if (u?.role === "boss" || u?.role === "manager") setUserRole(u.role);
+          });
+      } else {
+        setUserRole(null);
+      }
+    });
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
     };
   }, []);
 
-  const role: Role | null = mockRole ?? decodeRole(session?.access_token);
+  // 真实会话优先（先查 users 表角色，再回退 JWT claim），无会话时用测试模式角色
+  const role: Role | null = session ? (userRole ?? decodeRole(session.access_token) ?? mockRole) : mockRole;
   const isAuthed = !!session || !!mockRole;
   const name =
     mockRole === "boss" ? "灰晨" : mockRole === "manager" ? "管理岗" : session?.user?.email?.split("@")[0] ?? "";
