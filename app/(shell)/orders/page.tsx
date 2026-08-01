@@ -25,7 +25,7 @@ export default function OrdersPage() {
         (status === "all" || o.status === status) &&
         (audit === "all" || o.auditStatus === audit),
     );
-  }, [status, audit]);
+  }, [status, audit, orders]);
 
   const countBy = (key: "status" | "auditStatus", v: string) =>
     orders.filter((o) => o[key] === v).length;

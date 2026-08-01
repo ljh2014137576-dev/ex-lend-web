@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
@@ -35,12 +35,16 @@ export default function CashierPage() {
   const { data: products } = useRealData<Product>(apiProducts, PRODUCTS);
   const { session } = useAuth();
 
-  const customer = customers.find((c) => c.id === customerId) ?? customers[0];
+  const customer = customers.find((c) => c.id === customerId) ?? customers[0] ?? null;
+
+  useEffect(() => {
+    if (!customerId && customers.length > 0) setCustomerId(customers[0].id);
+  }, [customers, customerId]);
 
   const categories = useMemo(() => {
     const set = new Set(products.map((p) => p.category));
     return [{ id: "all", label: "全部" }, ...[...set].map((c) => ({ id: c, label: c }))];
-  }, []);
+  }, [products]);
 
   const filteredProducts = useMemo(
     () =>
@@ -50,7 +54,7 @@ export default function CashierPage() {
           (category === "all" || p.category === category) &&
           (keyword === "" || p.name.includes(keyword) || p.category.includes(keyword)),
       ),
-    [category, keyword],
+    [category, keyword, products],
   );
 
   const add = (p: Product) => {
@@ -69,10 +73,10 @@ export default function CashierPage() {
   };
 
   const original = cart.reduce((s, l) => s + l.product.price * l.quantity, 0);
-  const vipRate = customer.type === "vip" ? (customer.vipLevel >= 3 ? 0.85 : 0.9) : 1;
-  const discount = customer.type === "vip" ? original * (1 - vipRate) : 0;
+  const vipRate = customer ? (customer.type === "vip" ? (customer.vipLevel >= 3 ? 0.85 : 0.9) : 1) : 1;
+  const discount = customer && customer.type === "vip" ? original * (1 - vipRate) : 0;
   const paid = original - discount;
-  const walletTotal = customer.principal + customer.bonus;
+  const walletTotal = customer ? customer.principal + customer.bonus : 0;
 
   const submit = async () => {
     setHint(null);
@@ -167,9 +171,9 @@ export default function CashierPage() {
 
             <div className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-xs">
               <div className="flex justify-between"><span className="text-muted">原价</span><span>{money(original)}</span></div>
-              {customer.type === "vip" && (
+              {customer?.type === "vip" && (
                 <div className="flex justify-between">
-                  <span className="text-muted">VIP{vipRate * 10}折（{customer.name}）</span>
+                  <span className="text-muted">VIP{vipRate * 10}折（{customer?.name}）</span>
                   <span className="text-danger">-{money(discount)}</span>
                 </div>
               )}
