@@ -93,7 +93,14 @@ function ProfileSettings() {
 export default function SettingsPage() {
   return (
     <div className="max-w-3xl space-y-10">
-      <PageHeader title="设置" meta="/settings · 外观 / 个人信息 / 控件预览" />
+      <PageHeader title="设置" meta="/settings · 个人信息 / 外观 / 控件预览" />
+
+      <section id="profile" className="scroll-mt-16 space-y-6">
+        <SectionTitle shape="○" title="个人信息" meta="姓名 · 头像" />
+        <Panel title="个人信息">
+          <ProfileSettings />
+        </Panel>
+      </section>
 
       <section id="appearance" className="scroll-mt-16 space-y-6">
         <SectionTitle shape="▢" title="外观" meta="界面主题 · 字体" />
@@ -102,13 +109,6 @@ export default function SettingsPage() {
         </Panel>
         <Panel title="界面字体" meta="19 款自托管免费商用字体 · 选择覆盖当前皮肤默认">
           <FontSettings />
-        </Panel>
-      </section>
-
-      <section id="profile" className="scroll-mt-16 space-y-6">
-        <SectionTitle shape="○" title="个人信息" meta="姓名 · 头像" />
-        <Panel title="个人信息">
-          <ProfileSettings />
         </Panel>
       </section>
 

@@ -95,8 +95,8 @@ export function Sidebar({
           <p className="px-2 pb-1 font-mono text-[10px] text-muted">设置索引</p>
           <ul className="space-y-0.5">
             {[
-              { id: "appearance", shape: "▢", label: "外观" },
               { id: "profile", shape: "○", label: "个人信息" },
+              { id: "appearance", shape: "▢", label: "外观" },
               { id: "preview", shape: "△", label: "控件预览" },
             ].map((s) => (
               <li key={s.id}>
