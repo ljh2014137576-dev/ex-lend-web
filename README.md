@@ -2,8 +2,11 @@
 
 ## 当前状态
 
-这是 `G:\new-ui` 的项目基线。当前目录尚未包含应用源码、依赖清单或运行入口，因此暂时没有可执行的业务功能。
+Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**，皮肤系统（editorial/monochrome/modern 三套可切换）已生效。
 
+- 启动：`npm install` → `npm run dev` → http://localhost:3000
+- 页面规划见 [docs/FE_PLAN.md](docs/FE_PLAN.md)；接口与业务逻辑见 [docs/EX_LEND_API_AND_BUSINESS.md](docs/EX_LEND_API_AND_BUSINESS.md)
+- 规划进度：脚手架 ✓ → 登录/角色守卫 → 订单闭环（收银/订单/审核）→ 财务+目录 → 设置
 ## 数据库备份（Ex-Lend）
 
 - `ALL_IN_ONE.sql`：Ex-Lend（员工提成与客户账户管理系统）Supabase 一键初始化脚本（重建版）。
