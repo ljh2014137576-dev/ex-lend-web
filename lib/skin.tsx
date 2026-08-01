@@ -63,15 +63,23 @@ export function SkinProvider({ children }: { children: React.ReactNode }) {
   }, [skin]);
 
   useEffect(() => {
+    const q = String.fromCharCode(34);
     if (font) {
       // 所选字体同时作用于主文字与等宽元数据（编号/金额/时间戳）
-      const stack = '"' + font + '", "Noto Sans CJK", "Noto Sans SC", sans-serif';
-      document.documentElement.style.setProperty("--font-sans-v", stack);
-      document.documentElement.style.setProperty("--font-mono-v", stack);
+      const stack =
+        q + font + q + ", " + q + "Noto Sans CJK" + q + ", " + q + "Noto Sans SC" + q + ", sans-serif";
+      const root = document.documentElement.style;
+      root.setProperty("--font-sans-v", stack);
+      root.setProperty("--font-mono-v", stack);
+      root.setProperty("--font-sans", stack);
+      root.setProperty("--font-mono", stack);
       localStorage.setItem(FONT_STORAGE_KEY, font);
     } else {
-      document.documentElement.style.removeProperty("--font-sans-v");
-      document.documentElement.style.removeProperty("--font-mono-v");
+      const root = document.documentElement.style;
+      root.removeProperty("--font-sans-v");
+      root.removeProperty("--font-mono-v");
+      root.removeProperty("--font-sans");
+      root.removeProperty("--font-mono");
       localStorage.removeItem(FONT_STORAGE_KEY);
     }
   }, [font]);

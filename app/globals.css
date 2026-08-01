@@ -77,7 +77,7 @@
   --transition-fast-v: 120ms;
   --transition-mid-v: 180ms;
   --font-sans-v: "Noto Sans CJK", "Noto Sans SC", "PingFang SC", sans-serif;
-  --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
+  --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
 
 [data-skin="monochrome"] {
@@ -121,7 +121,7 @@
   --transition-fast-v: 100ms;
   --transition-mid-v: 150ms;
   --font-sans-v: "ZitiQuanXinyiGuanheiTi", "JetBrains Mono Variable", "Noto Sans SC", monospace;
-  --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
+  --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
 
 [data-skin="modern"] {
@@ -165,7 +165,7 @@
   --transition-fast-v: 150ms;
   --transition-mid-v: 220ms;
   --font-sans-v: "Inter Variable", "Noto Sans CJK", "Noto Sans SC", sans-serif;
-  --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
+  --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
 
 @theme inline {
