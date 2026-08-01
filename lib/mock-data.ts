@@ -210,6 +210,129 @@ export const CATEGORIES: ProductCategory[] = [
   { id: "g3", name: "手游小于300", description: "手游代练单价 300 以下", status: "enabled" },
   { id: "g4", name: "正常单", description: "端游及其他正常订单", status: "enabled" },
 ];
+
+export interface GradeRule {
+  grade: number;
+  rate: number;
+}
+
+export interface VipDiscountRule {
+  id: string;
+  vipLevel: number;
+  category: string;
+  discount: number;
+}
+
+export interface VipUpgradeRule {
+  vipLevel: number;
+  threshold: number;
+}
+
+export interface RechargePackage {
+  id: string;
+  amount: number;
+  bonus: number;
+  status: "enabled" | "disabled";
+}
+
+export interface Todo {
+  id: string;
+  title: string;
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+  mentions: string[];
+  createdBy: string;
+  updatedAt: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  createdBy: string;
+  updatedAt: string;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  published: boolean;
+  createdBy: string;
+  updatedAt: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  recipient: string;
+  type: "todo_mention" | "customer_vip_upgrade";
+  title: string;
+  content: string;
+  read: boolean;
+  at: string;
+}
+
+export interface DeleteLog {
+  id: string;
+  orderNo: string;
+  deletedBy: string;
+  paid: number;
+  status: string;
+  auditStatus: string;
+  reason: string;
+  at: string;
+}
+
+export const GRADE_RULES: GradeRule[] = [
+  { grade: 1, rate: 0.05 },
+  { grade: 2, rate: 0.08 },
+  { grade: 3, rate: 0.1 },
+];
+
+export const VIP_DISCOUNT_RULES: VipDiscountRule[] = [
+  { id: "vd1", vipLevel: 1, category: "体验单", discount: 0.95 },
+  { id: "vd2", vipLevel: 2, category: "手游小于300", discount: 0.9 },
+  { id: "vd3", vipLevel: 3, category: "手游大于300", discount: 0.85 },
+];
+
+export const VIP_UPGRADE_RULES: VipUpgradeRule[] = [
+  { vipLevel: 1, threshold: 5000 },
+  { vipLevel: 2, threshold: 20000 },
+  { vipLevel: 3, threshold: 50000 },
+];
+
+export const RECHARGE_PACKAGES: RechargePackage[] = [
+  { id: "rp1", amount: 500, bonus: 50, status: "enabled" },
+  { id: "rp2", amount: 1000, bonus: 150, status: "enabled" },
+  { id: "rp3", amount: 2000, bonus: 400, status: "disabled" },
+];
+
+export const TODOS: Todo[] = [
+  { id: "t1", title: "核对本周提成明细", content: "周三前完成上周订单提成核对", status: "in_progress", mentions: ["灰晨", "阿明"], createdBy: "灰晨", updatedAt: "2026-08-01 18:00" },
+  { id: "t2", title: "补录支付凭证", content: "订单 ORD20260801104502 缺凭证", status: "pending", mentions: ["小芳"], createdBy: "灰晨", updatedAt: "2026-08-01 17:30" },
+  { id: "t3", title: "跟进大客户钱七充值", content: "到期提醒充值套餐", status: "completed", mentions: [], createdBy: "张三", updatedAt: "2026-07-31 11:00" },
+];
+
+export const ANNOUNCEMENTS: Announcement[] = [
+  { id: "a1", title: "7 月工资发放时间调整", content: "本月工资发放提前至 7 月 30 日，请各员工确认银行信息。", pinned: true, createdBy: "灰晨", updatedAt: "2026-07-28 10:00" },
+  { id: "a2", title: "新商品分类上线", content: "新增「手游小于300」分类，请在商品管理中选择对应分类。", pinned: false, createdBy: "灰晨", updatedAt: "2026-07-26 15:00" },
+];
+
+export const NOTES: Note[] = [
+  { id: "n1", title: "交接说明", content: "老板灰晨负责审核与财务；张三负责日常运营。", published: true, createdBy: "灰晨", updatedAt: "2026-07-30 09:00" },
+  { id: "n2", title: "个人备忘", content: "明天跟进 VIP 客户回访。", published: false, createdBy: "张三", updatedAt: "2026-08-01 20:00" },
+];
+
+export const NOTIFICATIONS: NotificationItem[] = [
+  { id: "nt1", recipient: "小芳", type: "todo_mention", title: "你被提及了一条待办", content: "@小芳：补录支付凭证", read: false, at: "2026-08-01 17:30" },
+  { id: "nt2", recipient: "小芳", type: "customer_vip_upgrade", title: "客户 VIP 自动升级", content: "客户「钱七」已从 VIP 1 自动升级为 VIP 2。", read: false, at: "2026-07-29 10:00" },
+  { id: "nt3", recipient: "灰晨", type: "todo_mention", title: "你被提及了一条待办", content: "@灰晨：核对本周提成明细", read: true, at: "2026-08-01 18:00" },
+];
+
+export const DELETE_LOGS: DeleteLog[] = [
+  { id: "dl1", orderNo: "ORD20260730120001", deletedBy: "灰晨", paid: 320, status: "booking", auditStatus: "pending", reason: "客户下错单", at: "2026-07-30 13:00" },
+];
 export const DASHBOARD_STATS = {
   todayOrders: 12,
   todayIncome: 8642,

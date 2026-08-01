@@ -1,22 +1,31 @@
+"use client";
+
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
-import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES } from "@/lib/mock-data";
+import { Modal } from "@/components/ui/Modal";
+import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, type Employee } from "@/lib/mock-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
+interface PayoutRow {
+  id: string;
+  batchNo: string;
+  operator: string;
+  total: number;
+  count: number;
+  status: string;
+  at: string;
+}
+
 const GROSS_TREND = [
-  { day: "07-26", v: 620 },
-  { day: "07-27", v: 410 },
-  { day: "07-28", v: 880 },
-  { day: "07-29", v: 730 },
-  { day: "07-30", v: 1050 },
-  { day: "07-31", v: 940 },
-  { day: "08-01", v: 1230 },
+  { day: "07-26", v: 620 }, { day: "07-27", v: 410 }, { day: "07-28", v: 880 },
+  { day: "07-29", v: 730 }, { day: "07-30", v: 1050 }, { day: "07-31", v: 940 }, { day: "08-01", v: 1230 },
 ];
 
-const PAYOUTS = [
+const INITIAL_PAYOUTS: PayoutRow[] = [
   { id: "pa1", batchNo: "PB20260731", operator: "灰晨", total: 3200, count: 3, status: "completed", at: "2026-07-31 20:00" },
   { id: "pa2", batchNo: "PB20260715", operator: "灰晨", total: 2800, count: 2, status: "completed", at: "2026-07-15 20:00" },
 ];
@@ -24,6 +33,44 @@ const PAYOUTS = [
 export default function FinancePage() {
   const totalWallet = EMPLOYEES.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
   const maxTrend = Math.max(...GROSS_TREND.map((g) => g.v));
+
+  const [employees, setEmployees] = useState<Employee[]>(EMPLOYEES);
+  const [payouts, setPayouts] = useState<PayoutRow[]>(INITIAL_PAYOUTS);
+  const [payoutOpen, setPayoutOpen] = useState(false);
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [hint, setHint] = useState<string | null>(null);
+
+  const openPayout = () => {
+    const init: Record<string, string> = {};
+    EMPLOYEES.filter((e) => e.status === "active").forEach((e) => (init[e.id] = ""));
+    setAmounts(init);
+    setHint(null);
+    setPayoutOpen(true);
+  };
+
+  const submitPayout = () => {
+    setHint(null);
+    const active = employees.filter((e) => e.status === "active");
+    const rows = active
+      .map((e) => ({ e, v: Number(amounts[e.id]) || 0 }))
+      .filter((r) => r.v > 0);
+    if (rows.length === 0) return setHint("请至少填写一名员工的发放金额");
+    for (const r of rows) {
+      if (!r.e.isDebt && r.e.wallet < r.v) {
+        return setHint(`员工 ${r.e.name} 余额不足（当前 ${money(r.e.wallet)}，欲发 ${money(r.v)}）`);
+      }
+    }
+    const total = rows.reduce((s, r) => s + r.v, 0);
+    const batchNo = "PB" + new Date().toISOString().replace(/\D/g, "").slice(0, 8);
+    setEmployees((prev) =>
+      prev.map((e) => {
+        const row = rows.find((r) => r.e.id === e.id);
+        return row ? { ...e, wallet: +(e.wallet - row.v).toFixed(2) } : e;
+      }),
+    );
+    setPayouts((p) => [{ id: "pa" + Date.now(), batchNo, operator: "灰晨", total, count: rows.length, status: "completed", at: new Date().toLocaleString("zh-CN") }, ...p]);
+    setPayoutOpen(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -44,14 +91,11 @@ export default function FinancePage() {
       </div>
 
       <Panel title="毛利趋势（近 7 日）" meta="元 · Mock">
-        <div className="flex h-40 items-end gap-3 border-b border-line pb-0">
+        <div className="flex h-40 items-end gap-3 border-b border-line">
           {GROSS_TREND.map((g) => (
             <div key={g.day} className="flex flex-1 flex-col items-center gap-1">
               <span className="font-mono text-[10px] text-muted">{g.v}</span>
-              <div
-                className="w-full bg-accent/70"
-                style={{ height: Math.max(8, (g.v / maxTrend) * 120) + "px" }}
-              />
+              <div className="w-full bg-accent/70" style={{ height: Math.max(8, (g.v / maxTrend) * 120) + "px" }} />
             </div>
           ))}
         </div>
@@ -63,7 +107,7 @@ export default function FinancePage() {
       </Panel>
 
       <Panel title="打款批次" meta="payout（Mock）">
-        <DataTable
+        <DataTable<PayoutRow>
           rowKey={(r) => r.id}
           columns={[
             { key: "batchNo", label: "批次号", mono: true },
@@ -73,7 +117,7 @@ export default function FinancePage() {
             { key: "status", label: "状态", mono: true },
             { key: "at", label: "时间", mono: true },
           ]}
-          rows={PAYOUTS}
+          rows={payouts}
         />
       </Panel>
 
@@ -107,12 +151,59 @@ export default function FinancePage() {
         />
       </Panel>
 
+      <Panel title="订单删除审计" meta="order_delete_log（Mock）">
+        <DataTable
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "orderNo", label: "订单号", mono: true },
+            { key: "deletedBy", label: "删除人" },
+            { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
+            { key: "reason", label: "原因" },
+            { key: "at", label: "时间", mono: true },
+          ]}
+          rows={DELETE_LOGS}
+        />
+      </Panel>
+
       <Panel title="工资发放" meta="payout_salary（Mock）">
         <div className="flex items-center justify-between gap-4">
-          <p className="font-mono text-xs text-muted">按批次扣减员工钱包，非欠款员工余额不足将整体中断</p>
-          <Button variant="secondary">发起工资发放（待实现）</Button>
+          <p className="font-mono text-xs text-muted">按批次扣减员工钱包；非欠款员工余额不足将整体中断</p>
+          <Button onClick={openPayout}>发起工资发放</Button>
         </div>
       </Panel>
+
+      <Modal open={payoutOpen} title="工资发放（Mock）" onClose={() => setPayoutOpen(false)} wide>
+        <div className="space-y-4">
+          {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}
+          <div className="max-h-[50vh] overflow-y-auto">
+            <DataTable<Employee>
+              rowKey={(r) => r.id}
+              columns={[
+                { key: "name", label: "员工" },
+                { key: "wallet", label: "当前余额", align: "right", mono: true, render: (r) => money(r.wallet) },
+                { key: "isDebt", label: "欠款", mono: true, render: (r) => (r.isDebt ? "是" : "否") },
+                {
+                  key: "amount", label: "发放金额", align: "right",
+                  render: (r) => (
+                    <input
+                      type="number" min="0"
+                      value={amounts[r.id] ?? ""}
+                      onChange={(e) => setAmounts({ ...amounts, [r.id]: e.target.value })}
+                      placeholder="0"
+                      className="w-24 rounded-md border border-line bg-paper px-2 py-1 text-right font-mono text-xs outline-none focus:border-ink"
+                    />
+                  ),
+                },
+              ]}
+              rows={employees.filter((e) => e.status === "active")}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setPayoutOpen(false)}>取消</Button>
+            <Button onClick={submitPayout}>确认发放</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
