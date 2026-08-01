@@ -25,6 +25,13 @@
 2. 技术栈、依赖和目录结构
 3. 本地启动、测试和构建命令
 4. code-memory-mcp 索引项目名称与刷新方式（当前索引项目名：new-ui；Ex-Lend 索引项目名：ex-lend）
+
+## 文档索引
+
+- [Ex-Lend 接口与业务逻辑文档](docs/EX_LEND_API_AND_BUSINESS.md)：全部 RPC/表/Storage/Realtime 接口、返回内容与完整业务逻辑
+- [操作日志](logs/INDEX.md)：每次操作记录，每 100 条一个文件
+- [数据库备份](ALL_IN_ONE.sql)：Ex-Lend 一键初始化脚本（重建版）
+
 ## 操作日志
 
 - 日志目录：`logs/`；每条操作一条记录，每 100 条切分一个文件，索引见 `logs/INDEX.md`。
