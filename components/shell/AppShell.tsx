@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div
             className={[
               "glass absolute inset-y-0 left-0 w-64 shadow-lg",
-              "transition-[transform,visibility] ease-[cubic-bezier(0.22,1,0.36,1)]",
+              "transition-[translate,visibility] ease-[cubic-bezier(0.22,1,0.36,1)]",
               drawerOpen ? "visible translate-x-0" : "invisible -translate-x-full",
             ].join(" ")}
             style={{
