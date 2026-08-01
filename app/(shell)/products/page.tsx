@@ -70,6 +70,8 @@ export default function ProductsPage() {
         <FilterTabs tabs={cats} active={category} onChange={setCategory} />
       </div>
 
+      <p className="font-mono text-[11px] text-muted"><a href="/categories" className="underline underline-offset-2 hover:text-accent">→ 管理商品分类</a></p>
+
       <Panel title="商品列表" meta="行内可上下架">
         <DataTable<Product>
           rowKey={(r) => r.id}

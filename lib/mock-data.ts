@@ -196,6 +196,20 @@ export const CUSTOMER_LEDGERS = [
   { id: "cl3", customer: "钱七", type: "recharge_bonus", amount: 300, principal: 6100, bonus: 880, at: "2026-07-29 09:12" },
 ];
 
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  description: string;
+  status: "enabled" | "disabled";
+}
+
+export const CATEGORIES: ProductCategory[] = [
+  { id: "g1", name: "体验单", description: "引流/咨询类体验项目", status: "enabled" },
+  { id: "g2", name: "手游大于300", description: "手游代练单价 300 以上", status: "enabled" },
+  { id: "g3", name: "手游小于300", description: "手游代练单价 300 以下", status: "enabled" },
+  { id: "g4", name: "正常单", description: "端游及其他正常订单", status: "enabled" },
+];
 export const DASHBOARD_STATS = {
   todayOrders: 12,
   todayIncome: 8642,

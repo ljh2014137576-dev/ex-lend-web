@@ -25,13 +25,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Ex-Lend / {pathname}
           </p>
         </div>
-        <Link
-          href="/settings"
-          title="设置"
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold transition-colors hover:bg-surface2"
-        >
-          设
-        </Link>
+                <div className="flex items-center gap-2">
+          <Link
+            href="/cashier"
+            className="hidden h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 sm:inline-flex"
+          >
+            + 新建订单
+          </Link>
+          <Link
+            href="/settings"
+            title="设置"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold transition-colors hover:bg-surface2"
+          >
+            设
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-1">

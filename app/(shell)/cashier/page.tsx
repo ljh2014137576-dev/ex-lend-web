@@ -80,7 +80,7 @@ export default function CashierPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="收银台" meta="/cashier · Mock 下单交互" />
+      <PageHeader title="新建订单" meta="/cashier · 收银台 · Mock 下单交互" />
 
       {receipt && (
         <div className="border border-line bg-surface p-4">
