@@ -15,7 +15,7 @@ import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function EmployeesPage() {
-  const { data: employees, real, setData: setEmployees } = useRealData<Employee>(apiEmployees, EMPLOYEES);
+  const { data: employees, real, error, pending, setData: setEmployees } = useRealData<Employee>(apiEmployees, EMPLOYEES);
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", grade: 1, phone: "" });
@@ -38,7 +38,7 @@ export default function EmployeesPage() {
         <PageHeader title="员工" meta={`/employees · ${employees.length} 人（Mock）`} />
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>批量导入</Button>
-          <DataSourceBadge real={real} />
+          <DataSourceBadge real={real} error={error} />
           <Button size="sm" onClick={() => setOpen(true)}>新建员工</Button>
         </div>
       </div>
@@ -58,6 +58,7 @@ export default function EmployeesPage() {
             { key: "isDebt", label: "欠款", render: (r) => (r.isDebt ? <StatusDot tone="danger" label="欠款" /> : <StatusDot tone="neutral" label="无" />) },
           ]}
           rows={filtered}
+          empty={pending ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

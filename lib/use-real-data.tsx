@@ -6,9 +6,10 @@ import { useAuth } from "@/lib/auth";
 export function useRealData<T>(
   fetcher: () => Promise<T[] | null>,
   fallback: T[],
-): { data: T[]; real: boolean; loading: boolean; error: string | null; setData: (updater: T[] | ((prev: T[]) => T[])) => void } {
+): { data: T[]; real: boolean; loading: boolean; error: string | null; pending: boolean; setData: (updater: T[] | ((prev: T[]) => T[])) => void } {
   const { session } = useAuth();
-  const [data, setDataState] = useState<T[]>(fallback);
+  // 不再预填 Mock：真实会话下避免"假数据闪现"，无会话时才用 fallback
+  const [data, setDataState] = useState<T[]>([]);
   const [real, setReal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,10 @@ export function useRealData<T>(
     let mounted = true;
     (async () => {
       if (!session) {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setDataState(fallback);
+          setLoading(false);
+        }
         return;
       }
       try {
@@ -48,7 +52,10 @@ export function useRealData<T>(
     setDataState(updater);
   };
 
-  return { data, real, loading, error, setData };
+  // pending = 真实会话下正在加载（页面可显示"加载中"）
+  const pending = !!session && loading && !real;
+
+  return { data, real, loading, error, pending, setData };
 }
 
 export function DataSourceBadge({ real, error }: { real: boolean; error?: string | null }) {

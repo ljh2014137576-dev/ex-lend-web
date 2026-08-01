@@ -27,7 +27,7 @@ interface LedgerEntry {
 }
 
 export default function CustomersPage() {
-  const { data: customers, real, setData: setCustomers } = useRealData<Customer>(apiCustomers, CUSTOMERS);
+  const { data: customers, real, error, pending, setData: setCustomers } = useRealData<Customer>(apiCustomers, CUSTOMERS);
   const [ledgers, setLedgers] = useState<LedgerEntry[]>(CUSTOMER_LEDGERS);
   const [keyword, setKeyword] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -101,7 +101,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="客户" meta={`/customers · ${customers.length} 人（Mock）`} />
-        <DataSourceBadge real={real} />`n        <Button size="sm" onClick={() => setCreateOpen(true)}>新建客户</Button>
+        <DataSourceBadge real={real} error={error} />`n        <Button size="sm" onClick={() => setCreateOpen(true)}>新建客户</Button>
       </div>
 
       <div className="max-w-sm">
@@ -128,6 +128,7 @@ export default function CustomersPage() {
             ) },
           ]}
           rows={filtered}
+          empty={pending ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

@@ -16,7 +16,7 @@ import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function ProductsPage() {
-  const { data: products, real, setData: setProducts } = useRealData<Product>(apiProducts, PRODUCTS);
+  const { data: products, real, error, pending, setData: setProducts } = useRealData<Product>(apiProducts, PRODUCTS);
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
@@ -62,7 +62,7 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="商品" meta={`/products · ${products.length} 项（Mock）`} />
-        <DataSourceBadge real={real} />
+        <DataSourceBadge real={real} error={error} />
         <Button size="sm" onClick={() => setOpen(true)}>新建商品</Button>
       </div>
 
@@ -91,6 +91,7 @@ export default function ProductsPage() {
             ) },
           ]}
           rows={filtered}
+          empty={pending ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

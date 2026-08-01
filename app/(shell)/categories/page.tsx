@@ -13,7 +13,7 @@ import { apiCategories } from "@/lib/supabase-api";
 import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 
 export default function CategoriesPage() {
-  const { data: categories, real, setData: setCategories } = useRealData<ProductCategory>(apiCategories, CATEGORIES);
+  const { data: categories, real, error, pending, setData: setCategories } = useRealData<ProductCategory>(apiCategories, CATEGORIES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
 
@@ -40,7 +40,7 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="商品分类" meta={`/categories · ${categories.length} 个（Mock）`} />
-        <DataSourceBadge real={real} />
+        <DataSourceBadge real={real} error={error} />
         <Button size="sm" onClick={() => setOpen(true)}>新建分类</Button>
       </div>
 
@@ -59,6 +59,7 @@ export default function CategoriesPage() {
             ) },
           ]}
           rows={categories}
+          empty={pending ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

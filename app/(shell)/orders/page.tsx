@@ -17,7 +17,7 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 export default function OrdersPage() {
   const [status, setStatus] = useState("all");
   const [audit, setAudit] = useState("all");
-  const { data: orders, real } = useRealData<Order>(apiOrders, ORDERS);
+  const { data: orders, real, error, pending } = useRealData<Order>(apiOrders, ORDERS);
 
   const filtered = useMemo(() => {
     return orders.filter(
@@ -32,7 +32,7 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="订单" meta={`/orders · 共 ${orders.length} 笔${real ? " · 真实数据" : "（Mock）"}`} />
+      <PageHeader title="订单" meta={`/orders · 共 ${orders.length} 笔${real ? " · 真实数据" : "（Mock）"}${error ? " · ⚠ " + error.slice(0,40) : ""}`} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <FilterTabs
@@ -74,6 +74,7 @@ export default function OrdersPage() {
             { key: "createdAt", label: "时间", mono: true, render: (r) => r.createdAt },
           ]}
           rows={filtered}
+          empty={pending ? "加载中…" : "暂无数据"}
         />
       </Panel>
 
