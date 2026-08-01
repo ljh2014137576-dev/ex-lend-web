@@ -57,7 +57,7 @@ export function Sidebar({
         {ready && (
           <li
             aria-hidden
-            className="nav-indicator pointer-events-none absolute left-2 right-2 z-0"
+            className="nav-indicator pointer-events-none absolute left-2 right-2 top-0 z-0"
             style={{ transform: `translateY(${indicatorTop}px)`, height: indicatorHeight }}
           >
             <span key={pathname + skin} className="nav-indicator-inner" />
