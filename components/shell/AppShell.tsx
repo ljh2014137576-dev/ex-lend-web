@@ -4,10 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
+import { useProfile } from "@/lib/profile";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { name, avatar } = useProfile();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -34,10 +36,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <Link
             href="/settings"
-            title="设置"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold transition-colors hover:bg-surface2"
+            title={name ? "设置 · " + name : "设置"}
+            className="flex h-8 items-center gap-2 rounded-full border border-line bg-paper pl-0.5 pr-2 transition-colors hover:bg-surface2"
           >
-            设
+            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-surface2 text-xs font-semibold">
+              {avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatar} alt="头像" className="h-full w-full object-cover" />
+              ) : (
+                <span>{name.slice(0, 1) || "设"}</span>
+              )}
+            </span>
+            {name && <span className="hidden text-xs sm:inline">{name}</span>}
           </Link>
         </div>
       </header>

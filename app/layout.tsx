@@ -5,6 +5,7 @@ import "@fontsource/noto-sans-sc/600.css";
 import "@fontsource-variable/jetbrains-mono";
 import "@fontsource-variable/inter";
 import { SkinProvider } from "@/lib/skin";
+import { ProfileProvider } from "@/lib/profile";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" data-skin="editorial">
       <body className="min-h-screen bg-paper text-ink antialiased">
-        <SkinProvider>{children}</SkinProvider>
+        <SkinProvider><ProfileProvider>{children}</ProfileProvider></SkinProvider>
       </body>
     </html>
   );

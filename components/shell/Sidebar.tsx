@@ -90,6 +90,28 @@ export function Sidebar({
         ))}
       </ul>
 
+      {pathname === "/settings" && (
+        <div className="border-t border-line px-2 py-2">
+          <p className="px-2 pb-1 font-mono text-[10px] text-muted">设置索引</p>
+          <ul className="space-y-0.5">
+            {[
+              { id: "appearance", shape: "▢", label: "外观" },
+              { id: "profile", shape: "○", label: "个人信息" },
+              { id: "preview", shape: "△", label: "控件预览" },
+            ].map((s) => (
+              <li key={s.id}>
+                <a
+                  href={"#" + s.id}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-ink transition-colors hover:bg-surface2"
+                >
+                  <span className="text-[10px] leading-none" aria-hidden>{s.shape}</span>
+                  <span>{s.label}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="border-t border-line px-4 py-2.5">
         <p className="font-mono text-[10px] text-muted">v0.1 · 皮肤系统 v2</p>
       </div>
