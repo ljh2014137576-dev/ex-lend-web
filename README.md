@@ -32,6 +32,11 @@
 - [操作日志](logs/INDEX.md)：每次操作记录，每 100 条一个文件
 - [数据库备份](ALL_IN_ONE.sql)：Ex-Lend 一键初始化脚本（重建版）
 
+
+## SQL 模块化索引（Ex-Lend）
+
+- [模块索引](sql/README.md)：按业务域切分的 11 个 SQL 模块（schema/rls/triggers/customer/employee/order/commission/refund/system/auth/seed），查什么读什么，不用读全量。
+
 ## 操作日志
 
 - 日志目录：`logs/`；每条操作一条记录，每 100 条切分一个文件，索引见 `logs/INDEX.md`。
