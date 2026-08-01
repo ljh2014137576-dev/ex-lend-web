@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { CATEGORIES, PRODUCTS, type ProductCategory } from "@/lib/mock-data";
+import { apiCategories } from "@/lib/supabase-api";
+import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<ProductCategory[]>(CATEGORIES);
+  const { data: categories, real, setData: setCategories } = useRealData<ProductCategory>(apiCategories, CATEGORIES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
 
@@ -38,6 +40,7 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="商品分类" meta={`/categories · ${categories.length} 个（Mock）`} />
+        <DataSourceBadge real={real} />
         <Button size="sm" onClick={() => setOpen(true)}>新建分类</Button>
       </div>
 

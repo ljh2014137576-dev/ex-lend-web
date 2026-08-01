@@ -10,11 +10,13 @@ import { Modal } from "@/components/ui/Modal";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { PRODUCTS, type Product } from "@/lib/mock-data";
+import { apiProducts } from "@/lib/supabase-api";
+import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const { data: products, real, setData: setProducts } = useRealData<Product>(apiProducts, PRODUCTS);
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
@@ -60,6 +62,7 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="商品" meta={`/products · ${products.length} 项（Mock）`} />
+        <DataSourceBadge real={real} />
         <Button size="sm" onClick={() => setOpen(true)}>新建商品</Button>
       </div>
 

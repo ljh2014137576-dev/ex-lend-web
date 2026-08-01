@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { CUSTOMERS, CUSTOMER_LEDGERS, type Customer } from "@/lib/mock-data";
+import { apiCustomers } from "@/lib/supabase-api";
+import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -23,7 +25,7 @@ interface LedgerEntry {
 }
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(CUSTOMERS);
+  const { data: customers, real, setData: setCustomers } = useRealData<Customer>(apiCustomers, CUSTOMERS);
   const [ledgers, setLedgers] = useState<LedgerEntry[]>(CUSTOMER_LEDGERS);
   const [keyword, setKeyword] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -81,7 +83,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title="客户" meta={`/customers · ${customers.length} 人（Mock）`} />
-        <Button size="sm" onClick={() => setCreateOpen(true)}>新建客户</Button>
+        <DataSourceBadge real={real} />`n        <Button size="sm" onClick={() => setCreateOpen(true)}>新建客户</Button>
       </div>
 
       <div className="max-w-sm">

@@ -9,15 +9,18 @@ import { FilterTabs } from "@/components/ui/FilterTabs";
 import { Button } from "@/components/ui/Button";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order } from "@/lib/mock-data";
+import { apiOrders } from "@/lib/supabase-api";
+import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function OrdersPage() {
   const [status, setStatus] = useState("all");
   const [audit, setAudit] = useState("all");
+  const { data: orders, real } = useRealData<Order>(apiOrders, ORDERS);
 
   const filtered = useMemo(() => {
-    return ORDERS.filter(
+    return orders.filter(
       (o) =>
         (status === "all" || o.status === status) &&
         (audit === "all" || o.auditStatus === audit),
@@ -25,16 +28,16 @@ export default function OrdersPage() {
   }, [status, audit]);
 
   const countBy = (key: "status" | "auditStatus", v: string) =>
-    ORDERS.filter((o) => o[key] === v).length;
+    orders.filter((o) => o[key] === v).length;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="订单" meta={`/orders · 共 ${ORDERS.length} 笔（Mock）`} />
+      <PageHeader title="订单" meta={`/orders · 共 ${orders.length} 笔${real ? " · 真实数据" : "（Mock）"}`} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <FilterTabs
           tabs={[
-            { id: "all", label: "全部", count: ORDERS.length },
+            { id: "all", label: "全部", count: orders.length },
             { id: "booking", label: "待开始", count: countBy("status", "booking") },
             { id: "in_progress", label: "进行中", count: countBy("status", "in_progress") },
             { id: "completed", label: "已完成", count: countBy("status", "completed") },
