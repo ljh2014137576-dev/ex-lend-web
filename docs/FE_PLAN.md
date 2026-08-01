@@ -1,6 +1,6 @@
 # Ex-Lend 前端规划 v0.1（草案）
 
-> 状态：待用户确认后进入 UI 实现
+> 状态：**规划已确认（皮肤默认 editorial），进入 UI 实现阶段**
 > 风格变更（2026-08-01）：黑白数据库功能主义经测试不适合，**不再作为唯一风格**，改为皮肤系统中的可选项之一
 > 技术栈：Next.js 15 + TypeScript + Tailwind CSS（App Router）
 > 数据：Supabase 线上库 gmfylevxrrdweuwzbumt（直连）
