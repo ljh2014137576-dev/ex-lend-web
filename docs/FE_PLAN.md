@@ -1,9 +1,10 @@
 # Ex-Lend 前端规划 v0.1（草案）
 
 > 状态：待用户确认后进入 UI 实现
+> ⚠ 风格变更（2026-08-01）：黑白数据库功能主义经测试不适合，**已废弃**；下文 §4 token 映射作废，新风格待定
 > 技术栈：Next.js 15 + TypeScript + Tailwind CSS（App Router）
 > 数据：Supabase 线上库 gmfylevxrrdweuwzbumt（直连）
-> 风格：黑白数据库功能主义（stylekit: monochrome-database-functionalism）
+> 风格：~~黑白数据库功能主义~~（已废弃，新风格待定）
 > 范围：MVP 核心资金闭环（下单 → 指派员工 → 完成 → 审核提成 → 财务）
 > 部署位置：G:\new-ui
 
