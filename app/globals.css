@@ -1,3 +1,25 @@
+/* ============================================================
+   自托管免费商用字体（来自 fonts.net.cn，public/fonts/）
+   ============================================================ */
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-thin.otf") format("opentype"); font-weight: 100; font-display: swap; }
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-light.otf") format("opentype"); font-weight: 200; font-display: swap; }
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-demilight.otf") format("opentype"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-regular.otf") format("opentype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-medium.otf") format("opentype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-bold.otf") format("opentype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-black.otf") format("opentype"); font-weight: 900; font-display: swap; }
+@font-face { font-family: "YouSheBiaoTiHei"; src: url("/fonts/youshe-biaotihei.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "ZitiQuanXinyiGuanheiTi"; src: url("/fonts/ziti-quanxinyiguanhei.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "YangRenDongZhuShiTi"; src: url("/fonts/yangrendong-zhushiti-heavy.ttf") format("truetype"); font-weight: 800; font-display: swap; }
+@font-face { font-family: "AlimamaFangYuanTi"; src: url("/fonts/alimama-fangyuanti.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "MaoKenWangXingYuan"; src: url("/fonts/maoken-wangxingyuan.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "MaoKenShiJinHei"; src: url("/fonts/maoken-shijinhei.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "JingNanJunJunTi"; src: url("/fonts/jingnan-junjunti-bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "MaoMaoPengYouTi"; src: url("/fonts/maomao-pengyouti.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "JyhPhy"; src: url("/fonts/jyh-phy.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "KonatuTohaba"; src: url("/fonts/konatu-tohaba.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "UnDotum"; src: url("/fonts/undotum-bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "FTMaru400a"; src: url("/fonts/ftmaru400a.ttf") format("truetype"); font-weight: 400; font-display: swap; }
 @import "tailwindcss";
 
 /* ============================================================
@@ -54,7 +76,7 @@
   /* 动效 */
   --transition-fast-v: 120ms;
   --transition-mid-v: 180ms;
-  --font-sans-v: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-sans-v: "Noto Sans CJK", "Noto Sans SC", "PingFang SC", sans-serif;
   --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -98,7 +120,7 @@
   --panel-gap: 12px;
   --transition-fast-v: 100ms;
   --transition-mid-v: 150ms;
-  --font-sans-v: "JetBrains Mono Variable", "Noto Sans SC", "PingFang SC", monospace;
+  --font-sans-v: "ZitiQuanXinyiGuanheiTi", "JetBrains Mono Variable", "Noto Sans SC", monospace;
   --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -142,7 +164,7 @@
   --panel-gap: 20px;
   --transition-fast-v: 150ms;
   --transition-mid-v: 220ms;
-  --font-sans-v: "Inter Variable", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-sans-v: "Inter Variable", "Noto Sans CJK", "Noto Sans SC", sans-serif;
   --font-mono-v: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
