@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderMember } from "@/lib/mock-data";
+import { apiOrders } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 import { rpcApproveCommission } from "@/lib/supabase-api";
 import { NoPermission } from "@/components/business/RequireRole";
@@ -16,10 +18,15 @@ import { NoPermission } from "@/components/business/RequireRole";
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function AuditPage() {
-  const [orders, setOrders] = useState(ORDERS);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    ORDERS.find((o) => o.auditStatus === "pending")?.id ?? null,
-  );
+  const { data: orders, mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedId && orders.length > 0) {
+      const firstPending = orders.find((o) => o.auditStatus === "pending");
+      if (firstPending) setSelectedId(firstPending.id);
+    }
+  }, [orders, selectedId]);
   const [log, setLog] = useState<string[]>([]);
   const [overrideOrder, setOverrideOrder] = useState<Order | null>(null);
   const [overrideVals, setOverrideVals] = useState<Record<string, string>>({});

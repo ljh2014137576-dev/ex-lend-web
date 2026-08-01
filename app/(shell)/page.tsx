@@ -1,27 +1,46 @@
+"use client";
+
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { DataSourceBadge } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
+import { apiOrders, apiEmployees } from "@/lib/supabase-api";
+import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { DASHBOARD_STATS, ORDERS, type Order } from "@/lib/mock-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function WorkbenchPage() {
-  const recent = [...ORDERS].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
-  const pendingAudit = ORDERS.filter((o) => o.auditStatus === "pending");
+  const { data: orders, real, loading } = useResource<Order>("orders", apiOrders, ORDERS);
+  const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayOrders = orders.filter((o) => o.createdAt.startsWith(today));
+  const todayIncome = todayOrders.reduce((s, o) => s + o.paid, 0);
+  const pendingAudit = orders.filter((o) => o.auditStatus === "pending");
+  const pendingCommission = pendingAudit.reduce((s, o) => s + o.commission, 0);
+  const activeEmployees = employees.filter((e) => e.status === "active").length;
+
+  const recent = [...orders]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5);
 
   const stats = [
-    { label: "今日订单", value: DASHBOARD_STATS.todayOrders, note: "单" },
-    { label: "今日收入", value: money(DASHBOARD_STATS.todayIncome), note: "已收+预收" },
-    { label: "待审核提成", value: DASHBOARD_STATS.pendingAudit, note: "笔" },
-    { label: "在职员工", value: DASHBOARD_STATS.activeEmployees, note: "人" },
+    { label: "今日订单", value: todayOrders.length, note: "单" },
+    { label: "今日收入", value: money(todayIncome), note: "实付合计" },
+    { label: "待审核提成", value: money(pendingCommission), note: `${pendingAudit.length} 笔` },
+    { label: "在职员工", value: activeEmployees, note: "人" },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="工作台" meta="/ · Mock 数据测试版" />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <PageHeader title="工作台" meta={`/ · ${real ? "真实数据" : "Mock 数据"}${loading ? " · 加载中" : ""}`} />
+        <DataSourceBadge real={real} />
+      </div>
 
       <div className="grid grid-cols-2 gap-px border border-line bg-line lg:grid-cols-4">
         {stats.map((s) => (
@@ -33,7 +52,7 @@ export default function WorkbenchPage() {
         ))}
       </div>
 
-      <Panel title="最近订单" meta="最近 5 笔">
+      <Panel title="最近订单" meta={`最近 ${recent.length} 笔`}>
         <DataTable<Order>
           rowKey={(r) => r.id}
           columns={[
@@ -45,13 +64,14 @@ export default function WorkbenchPage() {
             { key: "createdAt", label: "时间", mono: true, render: (r) => r.createdAt },
           ]}
           rows={recent}
+          empty={loading ? "加载中…" : "暂无订单"}
         />
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="待审核提成" meta="仅老板可操作">
+        <Panel title="待审核提成" meta={`${pendingAudit.length} 笔 · 仅老板可操作`}>
           <ul className="divide-y divide-line">
-            {pendingAudit.map((o) => (
+            {pendingAudit.slice(0, 6).map((o) => (
               <li key={o.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div>
                   <p className="font-mono text-xs">{o.orderNo}</p>
@@ -66,10 +86,10 @@ export default function WorkbenchPage() {
           </ul>
         </Panel>
 
-        <Panel title="快捷入口" meta="Mock 页面导航">
+        <Panel title="快捷入口" meta="页面导航">
           <div className="grid grid-cols-2 gap-2">
             {[
-              { href: "/cashier", label: "收银台 /cashier" },
+              { href: "/cashier", label: "新建订单 /cashier" },
               { href: "/orders", label: "订单 /orders" },
               { href: "/audit", label: "审核台 /audit" },
               { href: "/finance", label: "财务 /finance" },
