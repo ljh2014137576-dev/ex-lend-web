@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/Input";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { CustomerSelect } from "@/components/business/CustomerSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
-import { CUSTOMERS, PRODUCTS, type Product, type PayMethod } from "@/lib/mock-data";
+import { CUSTOMERS, EMPLOYEES, PRODUCTS, type Customer, type Employee, type Product, type PayMethod } from "@/lib/mock-data";
+import { apiCustomers, apiEmployees, apiProducts, rpcCreateOrderMulti } from "@/lib/supabase-api";
+import { useRealData } from "@/lib/use-real-data";
+import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -21,22 +24,27 @@ export default function CashierPage() {
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [customerId, setCustomerId] = useState(CUSTOMERS[0].id);
+  const [customerId, setCustomerId] = useState("");
   const [payMethod, setPayMethod] = useState<PayMethod>("wallet");
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
-  const customer = CUSTOMERS.find((c) => c.id === customerId)!;
+  const { data: customers } = useRealData<Customer>(apiCustomers, CUSTOMERS);
+  const { data: employees } = useRealData<Employee>(apiEmployees, EMPLOYEES);
+  const { data: products } = useRealData<Product>(apiProducts, PRODUCTS);
+  const { session } = useAuth();
+
+  const customer = customers.find((c) => c.id === customerId) ?? customers[0];
 
   const categories = useMemo(() => {
-    const set = new Set(PRODUCTS.map((p) => p.category));
+    const set = new Set(products.map((p) => p.category));
     return [{ id: "all", label: "全部" }, ...[...set].map((c) => ({ id: c, label: c }))];
   }, []);
 
   const filteredProducts = useMemo(
     () =>
-      PRODUCTS.filter(
+      products.filter(
         (p) =>
           p.status === "on_sale" &&
           (category === "all" || p.category === category) &&
@@ -66,13 +74,30 @@ export default function CashierPage() {
   const paid = original - discount;
   const walletTotal = customer.principal + customer.bonus;
 
-  const submit = () => {
+  const submit = async () => {
     setHint(null);
+    if (!customer) return setHint("请选择客户");
     if (cart.length === 0) return setHint("请先添加商品");
     if (employeeIds.length === 1) return setHint("接单员工需选 0 或 2 名");
     if (payMethod === "wallet" && walletTotal < paid) return setHint("客户钱包余额不足（本金+赠送）");
-    const no = "ORD" + new Date().toISOString().replace(/\D/g, "").slice(0, 14);
-    setReceipt({ no, paid, discount, at: new Date().toLocaleString("zh-CN") });
+
+    if (session) {
+      // 真实会话：调用 create_order_multi RPC
+      const { data, error } = await rpcCreateOrderMulti({
+        p_customer_id: customer.id,
+        p_items: cart.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+        p_employee_ids: employeeIds,
+        p_pay_method: payMethod,
+        p_paid_amount: null,
+      });
+      if (error || data?.success === false) {
+        return setHint("下单失败：" + (error?.message ?? data?.message ?? "未知错误"));
+      }
+      setReceipt({ no: data.order_no, paid: Number(data.paid_amount), discount: Number(data.discount ?? 0), at: new Date().toLocaleString("zh-CN") });
+    } else {
+      const no = "ORD" + new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+      setReceipt({ no, paid, discount, at: new Date().toLocaleString("zh-CN") });
+    }
     setCart([]);
     setEmployeeIds([]);
   };
@@ -158,7 +183,7 @@ export default function CashierPage() {
             <div className="space-y-4">
               <div className="space-y-1">
                 <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
-                <CustomerSelect value={customerId} onChange={setCustomerId} />
+                <CustomerSelect value={customerId || customers[0]?.id || ""} onChange={setCustomerId} customers={customers} />
               </div>
 
               <div className="space-y-1">
@@ -184,7 +209,7 @@ export default function CashierPage() {
           </Panel>
 
           <Panel title="接单员工" meta="0–2 人 · 可搜索">
-            <EmployeePicker value={employeeIds} onChange={setEmployeeIds} />
+            <EmployeePicker value={employeeIds} onChange={setEmployeeIds} employees={employees} />
           </Panel>
 
           {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}

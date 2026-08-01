@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, type Employee } from "@/lib/mock-data";
 import { BossOnly } from "@/components/business/RequireRole";
+import { rpcPayoutSalary } from "@/lib/supabase-api";
+import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -49,7 +51,9 @@ export default function FinancePage() {
     setPayoutOpen(true);
   };
 
-  const submitPayout = () => {
+  const { session } = useAuth();
+
+  const submitPayout = async () => {
     setHint(null);
     const active = employees.filter((e) => e.status === "active");
     const rows = active
@@ -63,6 +67,16 @@ export default function FinancePage() {
     }
     const total = rows.reduce((s, r) => s + r.v, 0);
     const batchNo = "PB" + new Date().toISOString().replace(/\D/g, "").slice(0, 8);
+
+    if (session) {
+      const { data, error } = await rpcPayoutSalary(
+        rows.map((r) => ({ employee_id: r.e.id, amount: r.v })),
+        batchNo,
+      );
+      if (error || data?.success === false) {
+        return setHint("发放失败：" + (error?.message ?? data?.message ?? "未知错误"));
+      }
+    }
     setEmployees((prev) =>
       prev.map((e) => {
         const row = rows.find((r) => r.e.id === e.id);

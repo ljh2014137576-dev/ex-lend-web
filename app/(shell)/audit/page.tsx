@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderMember } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
+import { rpcApproveCommission } from "@/lib/supabase-api";
 import { NoPermission } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -22,14 +23,20 @@ export default function AuditPage() {
   const [log, setLog] = useState<string[]>([]);
   const [overrideOrder, setOverrideOrder] = useState<Order | null>(null);
   const [overrideVals, setOverrideVals] = useState<Record<string, string>>({});
-  const { isBoss } = useAuth();
+  const { isBoss, session } = useAuth();
   if (!isBoss) return <NoPermission />;
 
   const pending = orders.filter((o) => o.auditStatus === "pending");
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
-  const approve = (id: string) => {
+  const approve = async (id: string) => {
     const o = orders.find((x) => x.id === id);
+    if (session) {
+      const { data, error } = await rpcApproveCommission(id);
+      if (error || data?.success === false) {
+        return setLog((l) => [`${new Date().toLocaleTimeString()} 审核失败：${error?.message ?? data?.message}`, ...l]);
+      }
+    }
     setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: "approved" } : x)));
     setLog((l) => [`${new Date().toLocaleTimeString()} 通过审核：${o?.orderNo}（佣金 ${o ? money(o.commission) : ""}）`, ...l]);
   };

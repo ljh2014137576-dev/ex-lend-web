@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -10,14 +10,30 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
+import { apiOrderDetail, rpcRefundOrder, rpcDeleteOrder, updateOrderStatus } from "@/lib/supabase-api";
+import { useAuth } from "@/lib/auth";
 import { BossOnly } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
-  const order = ORDERS.find((o) => o.id === params.id);
-  const [localOrder, setLocalOrder] = useState<Order | null>(order ?? null);
+  const mockOrder = ORDERS.find((o) => o.id === params.id) ?? null;
+  const [localOrder, setLocalOrder] = useState<Order | null>(mockOrder);
+  const [realDetail, setRealDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
+  const { session } = useAuth();
+
+  useEffect(() => {
+    let mounted = true;
+    if (session && params.id) {
+      apiOrderDetail(params.id).then((r) => {
+        if (mounted && r) setRealDetail(r);
+      });
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [session, params.id]);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundMethod, setRefundMethod] = useState<"wallet" | "cash">("wallet");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -32,23 +48,41 @@ export default function OrderDetailPage() {
     );
   }
 
-  const o = localOrder;
+  const o = realDetail?.order ?? localOrder;
+  const items = realDetail?.items ?? o?.items ?? [];
+  const members = realDetail?.members ?? o?.members ?? [];
 
-  const setStatus = (status: "booking" | "in_progress" | "completed") => {
+  const setStatus = async (status: "booking" | "in_progress" | "completed") => {
     setNotice(null);
+    if (session && o.id) {
+      const { error } = await updateOrderStatus(o.id, status);
+      if (error) return setNotice("状态更新失败：" + error.message);
+    }
     setLocalOrder({ ...o, status });
   };
 
-  const refund = () => {
+  const refund = async () => {
     setNotice(null);
+    if (session && o.id) {
+      const { data, error } = await rpcRefundOrder(o.id, refundMethod);
+      if (error || data?.success === false) {
+        return setNotice("退款失败：" + (error?.message ?? data?.message ?? "未知错误"));
+      }
+    }
     setLocalOrder({ ...o, status: "cancelled", auditStatus: "rejected", commission: 0, grossProfit: 0 });
     setRefundOpen(false);
     setNotice(`已退款（${refundMethod === "wallet" ? "钱包" : "现金"}），订单置为已取消/已拒绝`);
   };
 
-  const removeOrder = () => {
+  const removeOrder = async () => {
     setDeleteOpen(false);
-    setNotice(`订单 ${o.orderNo} 已删除（Mock，已写入删除审计）`);
+    if (session && o.id) {
+      const { data, error } = await rpcDeleteOrder(o.id, "前端删除");
+      if (error || data?.success === false) {
+        return setNotice("删除失败：" + (error?.message ?? data?.message ?? "未知错误"));
+      }
+    }
+    setNotice(`订单 ${o.orderNo} 已删除（已写入删除审计）`);
     setLocalOrder(null);
   };
 
@@ -100,7 +134,7 @@ export default function OrderDetailPage() {
               { key: "unit", label: "单价", align: "right", mono: true, render: (r) => money(r.unitPrice) },
               { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
             ]}
-            rows={o.items}
+            rows={items}
           />
         </Panel>
 
@@ -114,7 +148,7 @@ export default function OrderDetailPage() {
               { key: "rate", label: "比例", align: "right", mono: true, render: (r) => (r.rate * 100).toFixed(1) + "%" },
               { key: "commission", label: "佣金", align: "right", mono: true, render: (r) => money(r.commission) },
             ]}
-            rows={o.members}
+            rows={members}
           />
         </Panel>
       </div>

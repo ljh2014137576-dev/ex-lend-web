@@ -1,19 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { EMPLOYEES } from "@/lib/mock-data";
+import { EMPLOYEES, type Employee } from "@/lib/mock-data";
 import { Input } from "@/components/ui/Input";
 
 export function EmployeePicker({
   value,
   onChange,
+  employees = EMPLOYEES,
 }: {
   value: string[];
   onChange: (ids: string[]) => void;
+  employees?: Employee[];
 }) {
   const [keyword, setKeyword] = useState("");
 
-  const active = useMemo(() => EMPLOYEES.filter((e) => e.status === "active"), []);
+  const active = useMemo(() => employees.filter((e) => e.status === "active"), [employees]);
   const filtered = active.filter(
     (e) => keyword === "" || e.name.includes(keyword),
   );

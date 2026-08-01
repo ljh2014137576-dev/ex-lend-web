@@ -167,3 +167,43 @@ export const rpc = {
     p_paid_amount: number | null;
   }) => supabase.rpc("create_order_multi", params),
 };
+// RPC：写入类（真实会话下调用，错误返回 {success:false,message}）
+export async function rpcCreateOrderMulti(params: {
+  p_customer_id: string;
+  p_items: { product_id: string; quantity: number }[];
+  p_employee_ids: string[];
+  p_pay_method: "wallet" | "cash";
+  p_paid_amount: number | null;
+}) {
+  return supabase.rpc("create_order_multi", params);
+}
+
+export function rpcApproveCommission(p_order_id: string) {
+  return supabase.rpc("approve_commission", { p_order_id });
+}
+
+export function rpcRefundOrder(p_order_id: string, p_refund_method: "wallet" | "cash") {
+  return supabase.rpc("refund_order", { p_order_id, p_refund_method });
+}
+
+export function rpcDeleteOrder(p_order_id: string, p_reason: string) {
+  return supabase.rpc("delete_order", { p_order_id, p_reason });
+}
+
+export function rpcRechargeCustom(params: {
+  p_customer_id: string;
+  p_amount: number;
+  p_bonus: number;
+  p_remark: string;
+  p_proof_path: string | null;
+}) {
+  return supabase.rpc("recharge_custom", params);
+}
+
+export function rpcPayoutSalary(p_items: { employee_id: string; amount: number }[], p_batch_no: string) {
+  return supabase.rpc("payout_salary", { p_items, p_batch_no });
+}
+
+export function updateOrderStatus(id: string, status: "booking" | "in_progress" | "completed") {
+  return supabase.from("order").update({ status }).eq("id", id);
+}

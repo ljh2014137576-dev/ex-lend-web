@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CUSTOMERS } from "@/lib/mock-data";
+import { CUSTOMERS, type Customer } from "@/lib/mock-data";
 import { Input } from "@/components/ui/Input";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -9,16 +9,18 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 export function CustomerSelect({
   value,
   onChange,
+  customers = CUSTOMERS,
 }: {
   value: string;
   onChange: (id: string) => void;
+  customers?: Customer[];
 }) {
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const customer = CUSTOMERS.find((c) => c.id === value);
-  const filtered = CUSTOMERS.filter(
+  const customer = customers.find((c) => c.id === value);
+  const filtered = customers.filter(
     (c) => keyword === "" || c.name.includes(keyword) || c.phone.includes(keyword),
   );
 

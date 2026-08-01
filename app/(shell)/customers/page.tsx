@@ -11,6 +11,8 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { CUSTOMERS, CUSTOMER_LEDGERS, type Customer } from "@/lib/mock-data";
 import { apiCustomers } from "@/lib/supabase-api";
 import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
+import { rpcRechargeCustom } from "@/lib/supabase-api";
+import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -62,11 +64,27 @@ export default function CustomersPage() {
     setForm({ name: "", phone: "", type: "normal" });
   };
 
-  const doRecharge = () => {
+  const { session } = useAuth();
+
+  const doRecharge = async () => {
     if (!rechargeTarget) return;
     const amount = recharge.mode === "package" ? recharge.amount : Number(recharge.amount);
     const bonus = recharge.mode === "package" ? recharge.bonus : Number(recharge.bonus);
     if (!(amount > 0) || bonus < 0) return;
+
+    if (session) {
+      const { data, error } = await rpcRechargeCustom({
+        p_customer_id: rechargeTarget.id,
+        p_amount: amount,
+        p_bonus: bonus,
+        p_remark: "前端充值",
+        p_proof_path: null,
+      });
+      if (error || data?.success === false) {
+        setRechargeTarget(null);
+        return;
+      }
+    }
     const updated = customers.map((c) =>
       c.id === rechargeTarget.id ? { ...c, principal: c.principal + amount, bonus: c.bonus + bonus } : c,
     );
