@@ -298,3 +298,38 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* ============================================================
+   筛选条（FilterTabs）选中指示：横向平移 + 按皮肤
+   ============================================================ */
+.tab-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  z-index: 0;
+  transition:
+    transform var(--nav-anim-dur) cubic-bezier(0.77, 0, 0.175, 1),
+    width var(--nav-anim-dur) cubic-bezier(0.77, 0, 0.175, 1);
+}
+.tab-indicator-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+[data-skin="modern"] .tab-indicator-inner {
+  background: var(--accent);
+  border-radius: var(--radius-sm-v);
+}
+[data-skin="monochrome"] .tab-indicator {
+  transition: none;
+}
+[data-skin="monochrome"] .tab-indicator-inner {
+  background: var(--nav-active);
+  border-radius: 0;
+  transform-origin: left center;
+  animation: ex-bar-grow var(--nav-anim-dur) cubic-bezier(0.77, 0, 0.175, 1);
+}
+[data-skin="editorial"] .tab-indicator-inner {
+  background: var(--accent);
+  border-radius: var(--radius-sm-v);
+}
