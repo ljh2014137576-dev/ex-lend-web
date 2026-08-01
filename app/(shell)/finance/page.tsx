@@ -6,8 +6,24 @@ import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES } from "@/
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
+const GROSS_TREND = [
+  { day: "07-26", v: 620 },
+  { day: "07-27", v: 410 },
+  { day: "07-28", v: 880 },
+  { day: "07-29", v: 730 },
+  { day: "07-30", v: 1050 },
+  { day: "07-31", v: 940 },
+  { day: "08-01", v: 1230 },
+];
+
+const PAYOUTS = [
+  { id: "pa1", batchNo: "PB20260731", operator: "灰晨", total: 3200, count: 3, status: "completed", at: "2026-07-31 20:00" },
+  { id: "pa2", batchNo: "PB20260715", operator: "灰晨", total: 2800, count: 2, status: "completed", at: "2026-07-15 20:00" },
+];
+
 export default function FinancePage() {
   const totalWallet = EMPLOYEES.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
+  const maxTrend = Math.max(...GROSS_TREND.map((g) => g.v));
 
   return (
     <div className="space-y-6">
@@ -26,6 +42,40 @@ export default function FinancePage() {
           </div>
         ))}
       </div>
+
+      <Panel title="毛利趋势（近 7 日）" meta="元 · Mock">
+        <div className="flex h-40 items-end gap-3 border-b border-line pb-0">
+          {GROSS_TREND.map((g) => (
+            <div key={g.day} className="flex flex-1 flex-col items-center gap-1">
+              <span className="font-mono text-[10px] text-muted">{g.v}</span>
+              <div
+                className="w-full bg-accent/70"
+                style={{ height: Math.max(8, (g.v / maxTrend) * 120) + "px" }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 flex gap-3">
+          {GROSS_TREND.map((g) => (
+            <span key={g.day} className="flex-1 text-center font-mono text-[10px] text-muted">{g.day}</span>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="打款批次" meta="payout（Mock）">
+        <DataTable
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "batchNo", label: "批次号", mono: true },
+            { key: "operator", label: "操作人" },
+            { key: "total", label: "总额", align: "right", mono: true, render: (r) => money(r.total) },
+            { key: "count", label: "明细数", align: "right", mono: true },
+            { key: "status", label: "状态", mono: true },
+            { key: "at", label: "时间", mono: true },
+          ]}
+          rows={PAYOUTS}
+        />
+      </Panel>
 
       <Panel title="员工钱包流水" meta="wallet_ledger（Mock）">
         <DataTable

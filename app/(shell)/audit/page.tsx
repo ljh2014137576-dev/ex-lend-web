@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderMember } from "@/lib/mock-data";
 
@@ -16,18 +18,52 @@ export default function AuditPage() {
     ORDERS.find((o) => o.auditStatus === "pending")?.id ?? null,
   );
   const [log, setLog] = useState<string[]>([]);
+  const [overrideOrder, setOverrideOrder] = useState<Order | null>(null);
+  const [overrideVals, setOverrideVals] = useState<Record<string, string>>({});
 
   const pending = orders.filter((o) => o.auditStatus === "pending");
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
   const approve = (id: string) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, auditStatus: "approved" } : o)));
-    setLog((l) => [`${new Date().toLocaleTimeString()} 通过审核：${orders.find((o) => o.id === id)?.orderNo}`, ...l]);
+    const o = orders.find((x) => x.id === id);
+    setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: "approved" } : x)));
+    setLog((l) => [`${new Date().toLocaleTimeString()} 通过审核：${o?.orderNo}（佣金 ${o ? money(o.commission) : ""}）`, ...l]);
   };
 
   const reject = (id: string) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, auditStatus: "rejected" } : o)));
-    setLog((l) => [`${new Date().toLocaleTimeString()} 撤销：${orders.find((o) => o.id === id)?.orderNo}`, ...l]);
+    const o = orders.find((x) => x.id === id);
+    setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: "rejected" } : x)));
+    setLog((l) => [`${new Date().toLocaleTimeString()} 撤销审核：${o?.orderNo}`, ...l]);
+  };
+
+  const approveAll = () => {
+    if (pending.length === 0) return;
+    setOrders((prev) => prev.map((o) => (o.auditStatus === "pending" ? { ...o, auditStatus: "approved" } : o)));
+    setLog((l) => [`${new Date().toLocaleTimeString()} 批量通过 ${pending.length} 笔`, ...l]);
+  };
+
+  const openOverride = (o: Order) => {
+    setOverrideOrder(o);
+    const init: Record<string, string> = {};
+    o.members.forEach((m) => (init[m.employeeId] = String(m.commission)));
+    setOverrideVals(init);
+  };
+
+  const saveOverride = () => {
+    if (!overrideOrder) return;
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === overrideOrder.id
+          ? {
+              ...o,
+              commission: Object.values(overrideVals).reduce((s, v) => s + (Number(v) || 0), 0),
+              members: o.members.map((m) => ({ ...m, commission: Number(overrideVals[m.employeeId]) || 0, override: Number(overrideVals[m.employeeId]) || 0 })),
+            }
+          : o,
+      ),
+    );
+    setLog((l) => [`${new Date().toLocaleTimeString()} 覆盖提成：${overrideOrder.orderNo}`, ...l]);
+    setOverrideOrder(null);
   };
 
   return (
@@ -36,6 +72,11 @@ export default function AuditPage() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         <Panel title={`待审核队列（${pending.length}）`} className="lg:col-span-2">
+          <div className="mb-3 flex justify-end">
+            <Button size="sm" variant="secondary" disabled={pending.length === 0} onClick={approveAll}>
+              批量通过
+            </Button>
+          </div>
           <ul className="divide-y divide-line">
             {pending.map((o) => (
               <li key={o.id}>
@@ -60,16 +101,18 @@ export default function AuditPage() {
           {selected ? (
             <div className="space-y-4">
               <div className="grid gap-px border border-line bg-line sm:grid-cols-3">
-                {[
-                  { label: "客户", value: `${selected.customerName} · ${selected.payMethod === "wallet" ? "钱包" : "现金"}` },
-                  { label: "实付 / 佣金", value: `${money(selected.paid)} / ${money(selected.commission)}` },
-                  { label: "审核状态", value: <AuditStatusTag status={selected.auditStatus} /> },
-                ].map((x) => (
-                  <div key={String(x.label)} className="bg-surface p-3">
-                    <p className="font-mono text-[11px] text-muted">{x.label}</p>
-                    <p className="mt-1 text-sm font-medium">{x.value}</p>
-                  </div>
-                ))}
+                <div className="bg-surface p-3">
+                  <p className="font-mono text-[11px] text-muted">客户</p>
+                  <p className="mt-1 text-sm font-medium">{selected.customerName} · {selected.payMethod === "wallet" ? "钱包" : "现金"}</p>
+                </div>
+                <div className="bg-surface p-3">
+                  <p className="font-mono text-[11px] text-muted">实付 / 佣金</p>
+                  <p className="mt-1 text-sm font-medium">{money(selected.paid)} / {money(selected.commission)}</p>
+                </div>
+                <div className="bg-surface p-3">
+                  <p className="font-mono text-[11px] text-muted">审核状态</p>
+                  <p className="mt-1 text-sm font-medium"><AuditStatusTag status={selected.auditStatus} /></p>
+                </div>
               </div>
 
               <DataTable<OrderMember>
@@ -80,6 +123,7 @@ export default function AuditPage() {
                   { key: "base", label: "基数", align: "right", mono: true, render: (r) => money(r.base) },
                   { key: "rate", label: "比例", align: "right", mono: true, render: (r) => (r.rate * 100).toFixed(1) + "%" },
                   { key: "commission", label: "佣金", align: "right", mono: true, render: (r) => money(r.commission) },
+                  { key: "override", label: "覆盖", align: "right", mono: true, render: (r) => (r.override != null ? money(r.override) : <span className="text-muted">—</span>) },
                 ]}
                 rows={selected.members}
               />
@@ -91,7 +135,9 @@ export default function AuditPage() {
                 <Button variant="danger" onClick={() => reject(selected.id)} disabled={selected.auditStatus !== "approved"}>
                   撤销审核（冲回）
                 </Button>
-                <Button variant="secondary">覆盖提成（待实现）</Button>
+                <Button variant="secondary" onClick={() => openOverride(selected)} disabled={selected.auditStatus !== "pending"}>
+                  覆盖提成
+                </Button>
               </div>
             </div>
           ) : (
@@ -108,6 +154,36 @@ export default function AuditPage() {
           {log.length === 0 && <li className="font-mono text-xs text-muted">暂无操作</li>}
         </ul>
       </Panel>
+
+      <Modal
+        open={!!overrideOrder}
+        title={`覆盖提成 — ${overrideOrder?.orderNo ?? ""}`}
+        onClose={() => setOverrideOrder(null)}
+      >
+        {overrideOrder && (
+          <div className="space-y-3">
+            {overrideOrder.members.map((m) => (
+              <label key={m.employeeId} className="block space-y-1">
+                <span className="font-mono text-[11px] text-muted">
+                  {m.name}（原 {money(m.commission)}）
+                </span>
+                <Input
+                  type="number"
+                  value={overrideVals[m.employeeId] ?? ""}
+                  onChange={(e) => setOverrideVals({ ...overrideVals, [m.employeeId]: e.target.value })}
+                />
+              </label>
+            ))}
+            <p className="font-mono text-[11px] text-muted">
+              合计：{money(Object.values(overrideVals).reduce((s, v) => s + (Number(v) || 0), 0))}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setOverrideOrder(null)}>取消</Button>
+              <Button onClick={saveOverride}>保存覆盖</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
