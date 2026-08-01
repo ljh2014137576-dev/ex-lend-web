@@ -10,7 +10,9 @@ import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { CUSTOMERS, CUSTOMER_LEDGERS, type Customer } from "@/lib/mock-data";
 import { apiCustomers } from "@/lib/supabase-api";
-import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
+import { DataSourceBadge } from "@/lib/use-real-data";
+import { supabase } from "@/lib/supabase";
 import { rpcRechargeCustom } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
 
@@ -27,7 +29,7 @@ interface LedgerEntry {
 }
 
 export default function CustomersPage() {
-  const { data: customers, real, error, pending, setData: setCustomers } = useRealData<Customer>(apiCustomers, CUSTOMERS);
+  const { data: customers, real, error, loading, mutate: setCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const [ledgers, setLedgers] = useState<LedgerEntry[]>(CUSTOMER_LEDGERS);
   const [keyword, setKeyword] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -45,7 +47,10 @@ export default function CustomersPage() {
     [customers, keyword],
   );
 
-  const createCustomer = () => {
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // 乐观更新：先本地显示，真实会话写库，失败回滚并提示重试
+  const createCustomer = async () => {
     if (!form.name.trim()) return;
     const nc: Customer = {
       id: "c" + Date.now(),
@@ -59,7 +64,22 @@ export default function CustomersPage() {
       total: 0,
       status: "active",
     };
-    setCustomers((p) => [...p, nc]);
+    const prev = customers;
+    setActionError(null);
+    setCustomers((p) => [nc, ...p]);
+    if (session) {
+      const { error } = await supabase.from("customer").insert({
+        name: nc.name,
+        phone: nc.phone === "—" ? null : nc.phone,
+        type: nc.type,
+        vip_level: nc.vipLevel,
+      });
+      if (error) {
+        setCustomers(() => prev); // 失败回滚
+        setActionError("创建失败，请重试：" + error.message);
+        return;
+      }
+    }
     setCreateOpen(false);
     setForm({ name: "", phone: "", type: "normal" });
   };
@@ -72,6 +92,12 @@ export default function CustomersPage() {
     const bonus = recharge.mode === "package" ? recharge.bonus : Number(recharge.bonus);
     if (!(amount > 0) || bonus < 0) return;
 
+    const updated = customers.map((c) =>
+      c.id === rechargeTarget.id ? { ...c, principal: c.principal + amount, bonus: c.bonus + bonus } : c,
+    );
+    const prev = customers;
+    setActionError(null);
+    setCustomers(() => updated); // 乐观更新
     if (session) {
       const { data, error } = await rpcRechargeCustom({
         p_customer_id: rechargeTarget.id,
@@ -81,14 +107,11 @@ export default function CustomersPage() {
         p_proof_path: null,
       });
       if (error || data?.success === false) {
-        setRechargeTarget(null);
+        setCustomers(() => prev); // 失败回滚
+        setActionError("充值失败，请重试：" + (error?.message ?? data?.message ?? "未知错误"));
         return;
       }
     }
-    const updated = customers.map((c) =>
-      c.id === rechargeTarget.id ? { ...c, principal: c.principal + amount, bonus: c.bonus + bonus } : c,
-    );
-    setCustomers(updated);
     const nc = updated.find((c) => c.id === rechargeTarget.id)!;
     setLedgers((p) => [
       { id: "cl" + Date.now(), customer: nc.name, type: "recharge_principal", amount, principal: nc.principal, bonus: nc.bonus, at: new Date().toLocaleString("zh-CN") },
@@ -128,7 +151,7 @@ export default function CustomersPage() {
             ) },
           ]}
           rows={filtered}
-          empty={pending ? "加载中…" : "暂无数据"}
+          empty={loading ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

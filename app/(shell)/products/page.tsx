@@ -11,12 +11,13 @@ import { FilterTabs } from "@/components/ui/FilterTabs";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { PRODUCTS, type Product } from "@/lib/mock-data";
 import { apiProducts } from "@/lib/supabase-api";
-import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
+import { DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function ProductsPage() {
-  const { data: products, real, error, pending, setData: setProducts } = useRealData<Product>(apiProducts, PRODUCTS);
+  const { data: products, real, error, loading, mutate: setProducts } = useResource<Product>("products", apiProducts, PRODUCTS);
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
@@ -91,7 +92,7 @@ export default function ProductsPage() {
             ) },
           ]}
           rows={filtered}
-          empty={pending ? "加载中…" : "暂无数据"}
+          empty={loading ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

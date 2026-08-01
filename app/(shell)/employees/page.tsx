@@ -10,12 +10,13 @@ import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { EMPLOYEES, type Employee } from "@/lib/mock-data";
 import { apiEmployees } from "@/lib/supabase-api";
-import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
+import { DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function EmployeesPage() {
-  const { data: employees, real, error, pending, setData: setEmployees } = useRealData<Employee>(apiEmployees, EMPLOYEES);
+  const { data: employees, real, error, loading, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", grade: 1, phone: "" });
@@ -58,7 +59,7 @@ export default function EmployeesPage() {
             { key: "isDebt", label: "欠款", render: (r) => (r.isDebt ? <StatusDot tone="danger" label="欠款" /> : <StatusDot tone="neutral" label="无" />) },
           ]}
           rows={filtered}
-          empty={pending ? "加载中…" : "暂无数据"}
+          empty={loading ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

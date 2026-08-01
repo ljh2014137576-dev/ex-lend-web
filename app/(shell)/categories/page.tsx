@@ -10,10 +10,11 @@ import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { CATEGORIES, PRODUCTS, type ProductCategory } from "@/lib/mock-data";
 import { apiCategories } from "@/lib/supabase-api";
-import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
+import { DataSourceBadge } from "@/lib/use-real-data";
 
 export default function CategoriesPage() {
-  const { data: categories, real, error, pending, setData: setCategories } = useRealData<ProductCategory>(apiCategories, CATEGORIES);
+  const { data: categories, real, error, loading, mutate: setCategories } = useResource<ProductCategory>("categories", apiCategories, CATEGORIES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
 
@@ -59,7 +60,7 @@ export default function CategoriesPage() {
             ) },
           ]}
           rows={categories}
-          empty={pending ? "加载中…" : "暂无数据"}
+          empty={loading ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

@@ -10,14 +10,15 @@ import { Button } from "@/components/ui/Button";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order } from "@/lib/mock-data";
 import { apiOrders } from "@/lib/supabase-api";
-import { useRealData, DataSourceBadge } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
+import { DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function OrdersPage() {
   const [status, setStatus] = useState("all");
   const [audit, setAudit] = useState("all");
-  const { data: orders, real, error, pending } = useRealData<Order>(apiOrders, ORDERS);
+  const { data: orders, real, error, loading } = useResource<Order>("orders", apiOrders, ORDERS);
 
   const filtered = useMemo(() => {
     return orders.filter(
@@ -74,7 +75,7 @@ export default function OrdersPage() {
             { key: "createdAt", label: "时间", mono: true, render: (r) => r.createdAt },
           ]}
           rows={filtered}
-          empty={pending ? "加载中…" : "暂无数据"}
+          empty={loading ? "加载中…" : "暂无数据"}
         />
       </Panel>
 

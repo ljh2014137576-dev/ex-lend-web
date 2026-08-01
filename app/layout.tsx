@@ -7,6 +7,7 @@ import "@fontsource-variable/inter";
 import { SkinProvider } from "@/lib/skin";
 import { ProfileProvider } from "@/lib/profile";
 import { AuthProvider } from "@/lib/auth";
+import { DataProvider } from "@/lib/data-store";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" data-skin="editorial">
       <body className="min-h-screen bg-paper text-ink antialiased">
-        <SkinProvider><AuthProvider><ProfileProvider>{children}</ProfileProvider></AuthProvider></SkinProvider>
+        <SkinProvider><AuthProvider><DataProvider><ProfileProvider>{children}</ProfileProvider></DataProvider></AuthProvider></SkinProvider>
       </body>
     </html>
   );

@@ -10,7 +10,7 @@ import { CustomerSelect } from "@/components/business/CustomerSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
 import { CUSTOMERS, EMPLOYEES, PRODUCTS, type Customer, type Employee, type Product, type PayMethod } from "@/lib/mock-data";
 import { apiCustomers, apiEmployees, apiProducts, rpcCreateOrderMulti } from "@/lib/supabase-api";
-import { useRealData } from "@/lib/use-real-data";
+import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -30,9 +30,9 @@ export default function CashierPage() {
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
-  const { data: customers } = useRealData<Customer>(apiCustomers, CUSTOMERS);
-  const { data: employees } = useRealData<Employee>(apiEmployees, EMPLOYEES);
-  const { data: products } = useRealData<Product>(apiProducts, PRODUCTS);
+  const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
+  const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
+  const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { session } = useAuth();
 
   const customer = customers.find((c) => c.id === customerId) ?? customers[0] ?? null;
