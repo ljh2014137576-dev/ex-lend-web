@@ -76,6 +76,7 @@
   /* 动效 */
   --transition-fast-v: 120ms;
   --transition-mid-v: 180ms;
+  --nav-anim-dur: 320ms;
   --font-sans-v: "Noto Sans CJK", "Noto Sans SC", "PingFang SC", sans-serif;
   --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
@@ -120,6 +121,7 @@
   --panel-gap: 12px;
   --transition-fast-v: 100ms;
   --transition-mid-v: 150ms;
+  --nav-anim-dur: 380ms;
   --font-sans-v: "ZitiQuanXinyiGuanheiTi", "JetBrains Mono Variable", "Noto Sans SC", monospace;
   --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
@@ -164,6 +166,7 @@
   --panel-gap: 20px;
   --transition-fast-v: 150ms;
   --transition-mid-v: 220ms;
+  --nav-anim-dur: 460ms;
   --font-sans-v: "Inter Variable", "Noto Sans CJK", "Noto Sans SC", sans-serif;
   --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
@@ -236,7 +239,7 @@ body {
    ============================================================ */
 .nav-indicator {
   will-change: transform;
-  transition: transform var(--transition-mid-v) cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--nav-anim-dur) cubic-bezier(0.77, 0, 0.175, 1);
 }
 .nav-indicator-inner {
   display: block;
@@ -252,12 +255,12 @@ body {
   background: var(--nav-active);
   border-radius: 0;
   transform-origin: left center;
-  animation: ex-bar-grow var(--transition-mid-v) cubic-bezier(0.22, 1, 0.36, 1);
+  animation: ex-bar-grow var(--nav-anim-dur) cubic-bezier(0.77, 0, 0.175, 1);
 }
 [data-skin="monochrome"] .nav-indicator-ghost {
   background: var(--nav-active);
   transform-origin: left center;
-  animation: ex-bar-exit 160ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: ex-bar-exit 300ms cubic-bezier(0.77, 0, 0.175, 1) forwards;
 }
 
 /* modern：底部强调条，纯平移（无进出动画） */
