@@ -13,11 +13,13 @@ export function DataTable<T>({
   rows,
   rowKey,
   empty = "暂无数据",
+  onRowDoubleClick,
 }: {
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T, index: number) => string;
   empty?: string;
+  onRowDoubleClick?: (row: T) => void;
 }) {
   const alignCls = (a?: string) =>
     a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left";
@@ -43,7 +45,7 @@ export function DataTable<T>({
             </tr>
           )}
           {rows.map((row, index) => (
-            <tr key={rowKey(row, index)} className="border-b border-line last:border-0 transition-colors hover:bg-surface2">
+            <tr key={rowKey(row, index)} className="border-b border-line last:border-0 transition-colors hover:bg-surface2" onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}>
               {columns.map((c) => (
                 <td
                   key={c.key}

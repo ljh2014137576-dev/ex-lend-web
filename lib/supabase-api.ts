@@ -142,6 +142,7 @@ export async function apiOrders(): Promise<Order[] | null> {
     auditStatus: r.audit_status as Order["auditStatus"],
     operator: "—",
     createdAt: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+    proofPath: null,
     items: [],
     members: [],
   }));
@@ -151,7 +152,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
   const { data } = await supabase
     .from("order")
     .select(
-      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))",
+      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, proof_path, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -190,6 +191,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
     auditStatus: data.audit_status as Order["auditStatus"],
     operator: "—",
     createdAt: data.created_at ? new Date(data.created_at).toLocaleString("zh-CN") : "—",
+    proofPath: data.proof_path ?? null,
     items,
     members,
   };
@@ -424,4 +426,25 @@ export async function apiDeleteLogs(): Promise<DeleteLog[] | null> {
     reason: r.reason ?? "",
     at: r.deleted_at ? new Date(r.deleted_at).toLocaleString("zh-CN") : "—",
   }));
+}
+export function rpcBatchStartOrders(p_order_ids: string[]) {
+  return supabase.rpc("batch_start_orders", { p_order_ids });
+}
+
+export function rpcBatchApproveOrders(p_order_ids: string[]) {
+  return supabase.rpc("batch_approve_orders", { p_order_ids });
+}
+
+export function rpcUpdateOrderProof(p_order_id: string, p_proof_path: string) {
+  return supabase.rpc("update_order_proof", { p_order_id, p_proof_path });
+}
+
+export async function uploadProof(file: File, userId: string, orderId: string): Promise<string> {
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = userId + "/order-" + orderId + "-" + Date.now() + "." + ext;
+  const { error } = await supabase.storage
+    .from("payment-proofs")
+    .upload(path, file, { upsert: false, contentType: file.type });
+  if (error) throw error;
+  return path;
 }

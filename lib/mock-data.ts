@@ -77,6 +77,7 @@ export interface Order {
   auditStatus: AuditStatus;
   operator: string;
   createdAt: string;
+  proofPath?: string | null;
   items: OrderItem[];
   members: OrderMember[];
 }
