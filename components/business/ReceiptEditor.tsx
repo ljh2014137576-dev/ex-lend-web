@@ -49,11 +49,11 @@ function orderToReceipt(order: Order) {
     customer: order.customerName,
     receiptNo: order.orderNo,
     date: toLocalInput(order.createdAt) || nowLocalInput(),
-    qrText: order.orderNo,
+    qrText: "青盐",
     qrLabel: "扫码查询",
     barcodeLabel: "小票条码",
     note: "感谢您的光临",
-    watermark: "SAMPLE / 样例",
+    watermark: "青盐欢迎喵~",
     items: order.items.map((it, index) => ({
       id: index + 1,
       name: it.productName,
@@ -95,12 +95,12 @@ export function ReceiptEditor({
   const [qrLabel, setQrLabel] = useState("扫码查询");
   const [barcodeLabel, setBarcodeLabel] = useState("小票条码");
   const [note, setNote] = useState("感谢您的光临");
-  const [paperWidth, setPaperWidth] = useState<58 | 68 | 80>(68);
+  const [paperWidth, setPaperWidth] = useState<58 | 68 | 80>(58);
   const [density, setDensity] = useState<Density>("normal");
   const [textureStrength, setTextureStrength] = useState(0.75);
   const [fontFamily, setFontFamily] = useState(DEFAULT_FONT);
   const [captionFontSize, setCaptionFontSize] = useState(13);
-  const [watermark, setWatermark] = useState("SAMPLE / 样例");
+  const [watermark, setWatermark] = useState("青盐欢迎喵~");
   const [qrImage, setQrImage] = useState("");
   const [zoom, setZoom] = useState(100);
   const [toast, setToast] = useState("");
@@ -189,7 +189,7 @@ export function ReceiptEditor({
     const d = orderToReceipt(order);
     setItems(d.items); setCustomer(d.customer); setReceiptNo(d.receiptNo); setDate(d.date);
     setQrText(d.qrText); setQrLabel(d.qrLabel); setBarcodeLabel(d.barcodeLabel); setNote(d.note);
-    setWatermark(d.watermark); setPaperWidth(68); setDensity("normal"); setTextureStrength(0.75);
+    setWatermark(d.watermark); setPaperWidth(58); setDensity("normal"); setTextureStrength(0.75);
     setFontFamily(DEFAULT_FONT); setCaptionFontSize(13);
     notify("已恢复订单默认");
   }
