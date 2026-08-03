@@ -24,9 +24,9 @@ export default function ProductsPage() {
   const [form, setForm] = useState({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
 
   const cats = useMemo(() => {
-    const set = new Set(PRODUCTS.map((p) => p.category));
+    const set = new Set(products.map((p) => p.category));
     return [{ id: "all", label: "全部" }, ...[...set].map((c) => ({ id: c, label: c }))];
-  }, []);
+  }, [products]);
 
   const filtered = useMemo(
     () =>

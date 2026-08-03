@@ -68,13 +68,13 @@ export default function FinancePage() {
 
   const openPayout = () => {
     const init: Record<string, string> = {};
-    EMPLOYEES.filter((e) => e.status === "active").forEach((e) => (init[e.id] = ""));
+    employees.filter((e) => e.status === "active").forEach((e) => (init[e.id] = ""));
     setAmounts(init);
     setHint(null);
     setPayoutOpen(true);
   };
 
-  const { session } = useAuth();
+  const { session, name } = useAuth();
   const { data: orders } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: walletLedgers } = useResource("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
@@ -167,7 +167,7 @@ export default function FinancePage() {
         return row ? { ...e, wallet: +(e.wallet - row.v).toFixed(2) } : e;
       }),
     );
-    setPayouts((p) => [{ id: "pa" + Date.now(), batchNo, operator: "灰晨", total, count: rows.length, status: "completed", at: new Date().toLocaleString("zh-CN") }, ...p]);
+    setPayouts((p) => [{ id: "pa" + Date.now(), batchNo, operator: name || "当前用户", total, count: rows.length, status: "completed", at: new Date().toLocaleString("zh-CN") }, ...p]);
     setPayoutOpen(false);
   };
 

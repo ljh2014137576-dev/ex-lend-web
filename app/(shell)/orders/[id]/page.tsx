@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
-import { apiOrderDetail, rpcRefundOrder, rpcDeleteOrder, updateOrderStatus } from "@/lib/supabase-api";
+import { apiOrders, apiOrderDetail, rpcRefundOrder, rpcDeleteOrder, updateOrderStatus } from "@/lib/supabase-api";
+import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 import { BossOnly } from "@/components/business/RequireRole";
 
@@ -18,16 +19,29 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
-  const mockOrder = ORDERS.find((o) => o.id === params.id) ?? null;
-  const [localOrder, setLocalOrder] = useState<Order | null>(mockOrder);
+  const { data: orders, real, loading: ordersLoading } = useResource<Order>("orders", apiOrders, ORDERS);
+  const cachedOrder = orders.find((o) => o.id === params.id) ?? null;
+  const [localOrder, setLocalOrder] = useState<Order | null>(null);
   const [realDetail, setRealDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const { session } = useAuth();
+
+  // 优先用缓存订单立即渲染；真实详情（含明细/成员）异步到达后合并
+  useEffect(() => {
+    if (!localOrder && cachedOrder) setLocalOrder(cachedOrder);
+  }, [localOrder, cachedOrder]);
+  useEffect(() => {
+    if (realDetail?.order) setLocalOrder((prev) => prev ?? realDetail.order);
+  }, [realDetail]);
 
   useEffect(() => {
     let mounted = true;
     if (session && params.id) {
+      setDetailLoading(true);
       apiOrderDetail(params.id).then((r) => {
-        if (mounted && r) setRealDetail(r);
+        if (!mounted) return;
+        setRealDetail(r);
+        setDetailLoading(false);
       });
     }
     return () => {
@@ -39,7 +53,19 @@ export default function OrderDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  if (!localOrder) {
+  const o = localOrder;
+  const items = realDetail?.items ?? o?.items ?? [];
+  const members = realDetail?.members ?? o?.members ?? [];
+
+  if (!o) {
+    if (ordersLoading || (session && detailLoading)) {
+      return (
+        <div className="space-y-6">
+          <PageHeader title="加载中…" meta="/orders/[id]" />
+          <Link href="/orders" className="font-mono text-xs underline underline-offset-2">← 返回订单列表</Link>
+        </div>
+      );
+    }
     return (
       <div>
         <PageHeader title="订单不存在或已删除" meta="/orders/[id]" />
@@ -47,10 +73,6 @@ export default function OrderDetailPage() {
       </div>
     );
   }
-
-  const o = realDetail?.order ?? localOrder;
-  const items = realDetail?.items ?? o?.items ?? [];
-  const members = realDetail?.members ?? o?.members ?? [];
 
   const setStatus = async (status: "booking" | "in_progress" | "completed") => {
     setNotice(null);
@@ -92,7 +114,7 @@ export default function OrderDetailPage() {
         <div className="border border-line bg-surface p-3 font-mono text-xs text-muted">{notice}</div>
       )}
 
-      <PageHeader title={o.orderNo} meta={`/orders/${o.id} · Mock 数据 · ${o.createdAt}`} />
+      <PageHeader title={o.orderNo} meta={`/orders/${o.id} · ${real ? "真实数据" : "Mock 数据"} · ${o.createdAt}`} />
 
       <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -193,7 +215,7 @@ export default function OrderDetailPage() {
 
       <p className="font-mono text-[11px] text-muted">
         <Link href="/orders" className="underline underline-offset-2 hover:text-accent">← 返回订单列表</Link>
-        {" · 状态/退款/删除为本地 Mock 交互"}
+        {real ? " · 状态/退款/删除直连数据库 RPC" : " · 状态/退款/删除为本地 Mock 交互"}
       </p>
     </div>
   );
