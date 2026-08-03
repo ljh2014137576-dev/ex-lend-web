@@ -12,6 +12,7 @@ import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatu
 import { OrderDetailModal } from "@/components/business/OrderDetailModal";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
+import { dateKey } from "@/lib/date";
 import { apiOrders, apiEmployees, rpcBatchStartOrders, rpcBatchApproveOrders } from "@/lib/supabase-api";
 import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
@@ -80,7 +81,7 @@ export default function OrdersPage() {
     return orders.filter((o) => {
       if (status !== "all" && o.status !== status) return false;
       if (audit !== "all" && o.auditStatus !== audit) return false;
-      const day = o.createdAt.slice(0, 10);
+      const day = dateKey(o.createdAt);
       if (dateFrom && day < dateFrom) return false;
       if (dateTo && day > dateTo) return false;
       if (keyword && !o.orderNo.includes(keyword) && !o.customerName.includes(keyword)) return false;

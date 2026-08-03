@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { dateKey } from "@/lib/date";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
@@ -96,8 +97,8 @@ export default function FinancePage() {
     if (r) setRange(r);
   };
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todayOrders = orders.filter((o) => o.createdAt.startsWith(today));
+  const today = dateKey(new Date());
+  const todayOrders = orders.filter((o) => dateKey(o.createdAt) === today);
   const todayCommission = todayOrders
     .filter((o) => o.auditStatus === "approved")
     .reduce((s, o) => s + o.commission, 0);
@@ -105,7 +106,7 @@ export default function FinancePage() {
   const rangeOrders = useMemo(
     () =>
       orders.filter((o) => {
-        const d = o.createdAt.slice(0, 10);
+        const d = dateKey(o.createdAt);
         return (!range.from || d >= range.from) && (!range.to || d <= range.to);
       }),
     [orders, range],
@@ -124,11 +125,11 @@ export default function FinancePage() {
   const trendData = useMemo(() => {
     const days: { day: string; v: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      const d = dateKey(new Date(Date.now() - i * 86400000));
       days.push({ day: d.slice(5), v: 0 });
     }
     approvedOrders.forEach((o) => {
-      const hit = days.find((x) => o.createdAt.startsWith(x.day) || o.createdAt.slice(0, 10).endsWith(x.day));
+      const hit = days.find((x) => dateKey(o.createdAt) === x.day);
       if (hit) hit.v += o.grossProfit;
     });
     return days;

@@ -6,6 +6,7 @@ import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { DataSourceBadge } from "@/lib/use-real-data";
+import { dateKey } from "@/lib/date";
 import { useResource } from "@/lib/data-store";
 import { apiOrders, apiEmployees } from "@/lib/supabase-api";
 import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
@@ -17,8 +18,8 @@ export default function WorkbenchPage() {
   const { data: orders, real, loading } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todayOrders = orders.filter((o) => o.createdAt.startsWith(today));
+  const today = dateKey(new Date());
+  const todayOrders = orders.filter((o) => dateKey(o.createdAt) === today);
   const todayIncome = todayOrders.filter((o) => o.status !== "cancelled").reduce((s, o) => s + o.paid, 0);
   const pendingAudit = orders.filter((o) => o.auditStatus === "pending");
   const pendingCommission = pendingAudit.reduce((s, o) => s + o.commission, 0);
