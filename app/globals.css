@@ -358,7 +358,7 @@ body {
 .customer-row strong { color: #111; font-weight: 700; }
 .thank-art-layer { display: flex; justify-content: center; margin: 0 4px 3px; padding: 0 2px 5px; border-bottom: 1px dotted #777; }
 .thank-art-layer img { display: block; width: 92%; height: auto; object-fit: contain; }
-.codes-layer { --code-visual-height: 41px; display: grid; grid-template-columns: .78fr 1px 1.22fr; align-items: start; gap: 8px; min-height: 78px; padding: 2px 2px 1px; }
+.codes-layer { --code-visual-height: 41px; display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); align-items: start; gap: 8px; min-height: 78px; padding: 2px 2px 1px; }
 .qr-side, .barcode-side { padding-top: 0; text-align: center; }
 .code-title { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 3px; color: #111; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .code-title i { color: #a3dc3b; font-size: 12px; font-style: normal; }
