@@ -99,7 +99,7 @@ export function ReceiptEditor({
   const [qrLabel, setQrLabel] = useState("扫码查询");
   const [barcodeLabel, setBarcodeLabel] = useState("小票条码");
   const [note, setNote] = useState("感谢您的光临");
-  const [paperWidth, setPaperWidth] = useState<58 | 80>(58);
+  const [paperWidth, setPaperWidth] = useState<58 | 80>(80);
   const [density, setDensity] = useState<Density>("normal");
   const [textureStrength, setTextureStrength] = useState(0.75);
   const [fontFamily, setFontFamily] = useState(DEFAULT_FONT);
@@ -110,6 +110,7 @@ export function ReceiptEditor({
   const [toast, setToast] = useState("");
   const receiptRef = useRef<HTMLDivElement>(null);
   const barcodeRef = useRef<SVGSVGElement>(null);
+  const barcodeWrapRef = useRef<HTMLDivElement>(null);
 
   // 打开时按订单预填
   useEffect(() => {
@@ -151,11 +152,11 @@ export function ReceiptEditor({
       });
     };
     try {
-      // 先按 barWidth=1 渲染测量自然宽度，再按 目标宽度 = 二维码边长(41) × 1.75 反算 barWidth，
-      // 使条码左右长度与二维码成合理比例、高度同为 41px、且不会超宽。
+      // 两遍渲染：先按 barWidth=1 量自然宽度，再按容器实际宽度（条码区 flex 撑满剩余宽度）反算 barWidth，
+      // 使条码长度自适应纸宽（80mm 更长、58mm 较短），高度恒为 41px，且不超宽。
       draw(1);
       const natural = svg.getBBox().width || 1;
-      const targetWidth = 41 * 1.75;
+      const targetWidth = Math.max(60, barcodeWrapRef.current?.clientWidth || 120);
       const barWidth = Math.max(0.25, Math.min(2.2, targetWidth / natural));
       draw(barWidth);
       svg.setAttribute("width", "100%");
@@ -164,7 +165,7 @@ export function ReceiptEditor({
     } catch {
       svg.setAttribute("aria-label", "条形码内容无效");
     }
-  }, [receiptNo]);
+  }, [receiptNo, paperWidth]);
 
   function notify(message: string) {
     setToast(message);
@@ -180,7 +181,7 @@ export function ReceiptEditor({
     const d = orderToReceipt(order);
     setItems(d.items); setCustomer(d.customer); setReceiptNo(d.receiptNo); setDate(d.date);
     setQrText(d.qrText); setQrLabel(d.qrLabel); setBarcodeLabel(d.barcodeLabel); setNote(d.note);
-    setWatermark(d.watermark); setPaperWidth(58); setDensity("normal"); setTextureStrength(0.75);
+    setWatermark(d.watermark); setPaperWidth(80); setDensity("normal"); setTextureStrength(0.75);
     setFontFamily(DEFAULT_FONT); setCaptionFontSize(13);
     notify("已恢复订单默认");
   }
@@ -305,8 +306,7 @@ export function ReceiptEditor({
                       <div className="code-divider" />
                       <div className="barcode-side">
                         <div className="code-title"><i>✦</i>{barcodeLabel || "小票条码"}<i>✦</i></div>
-                        <div className="code-visual barcode-visual"><svg ref={barcodeRef} className="barcode" aria-label="条形码" /></div>
-                        <div className="barcode-number">{receiptNo || "—"}</div>
+                        <div className="code-visual barcode-visual" ref={barcodeWrapRef}><svg ref={barcodeRef} className="barcode" aria-label="条形码" /></div>
                       </div>
                     </div>
                     <div className="thank-you"><span>♥</span><p>{note || "感谢您的光临"}</p><span>♥</span></div>
