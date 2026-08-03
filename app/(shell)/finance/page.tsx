@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, ORDERS, CUSTOMERS, type Employee, type Order, type Customer } from "@/lib/mock-data";
+import { WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, ORDERS, CUSTOMERS, type Employee, type Order, type Customer } from "@/lib/mock-data";
 import { apiEmployees, apiOrders, apiCustomers, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
@@ -27,18 +27,12 @@ interface PayoutRow {
   at: string;
 }
 
-const GROSS_TREND = [
-  { day: "07-26", v: 620 }, { day: "07-27", v: 410 }, { day: "07-28", v: 880 },
-  { day: "07-29", v: 730 }, { day: "07-30", v: 1050 }, { day: "07-31", v: 940 }, { day: "08-01", v: 1230 },
-];
-
 const INITIAL_PAYOUTS: PayoutRow[] = [
   { id: "pa1", batchNo: "PB20260731", operator: "灰晨", total: 3200, count: 3, status: "completed", at: "2026-07-31 20:00" },
   { id: "pa2", batchNo: "PB20260715", operator: "灰晨", total: 2800, count: 2, status: "completed", at: "2026-07-15 20:00" },
 ];
 
 export default function FinancePage() {
-  const maxTrend = Math.max(...GROSS_TREND.map((g) => g.v));
 
   const { data: employees, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: payouts, mutate: setPayouts } = useResource<PayoutRow>("payouts", apiPayouts, INITIAL_PAYOUTS);
@@ -79,6 +73,21 @@ export default function FinancePage() {
     .reduce((s, o) => s + o.commission, 0);
   // 员工钱包合计 = 所有在职员工的 wallet_balance 之和（来自缓存，真实模式为线上数据）
   const totalWallet = employees.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
+  // 毛利趋势：近 7 日，按已审核订单毛利聚合（真实数据）
+  const trendData = useMemo(() => {
+    const days: { day: string; v: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      days.push({ day: d.slice(5), v: 0 });
+    }
+    approvedOrders.forEach((o) => {
+      const hit = days.find((x) => o.createdAt.startsWith(x.day) || o.createdAt.slice(0, 10).endsWith(x.day));
+      if (hit) hit.v += o.grossProfit;
+    });
+    return days;
+  }, [approvedOrders]);
+  const maxTrend = Math.max(1, ...trendData.map((g) => g.v));
+
 
 
   const submitPayout = async () => {
@@ -139,7 +148,7 @@ export default function FinancePage() {
 
       <Panel title="毛利趋势（近 7 日）" meta="元 · Mock">
         <div className="flex h-40 items-end gap-3 border-b border-line">
-          {GROSS_TREND.map((g) => (
+          {trendData.map((g) => (
             <div key={g.day} className="flex flex-1 flex-col items-center gap-1">
               <span className="font-mono text-[10px] text-muted">{g.v}</span>
               <div className="w-full bg-accent/70" style={{ height: Math.max(8, (g.v / maxTrend) * 120) + "px" }} />
@@ -147,7 +156,7 @@ export default function FinancePage() {
           ))}
         </div>
         <div className="mt-1 flex gap-3">
-          {GROSS_TREND.map((g) => (
+          {trendData.map((g) => (
             <span key={g.day} className="flex-1 text-center font-mono text-[10px] text-muted">{g.day}</span>
           ))}
         </div>

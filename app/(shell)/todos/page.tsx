@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { TODOS, EMPLOYEES, type Todo } from "@/lib/mock-data";
-import { apiTodos } from "@/lib/supabase-api";
+import { apiTodos, apiEmployees } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 
 const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | "accent"; label: string }> = {
@@ -19,6 +19,7 @@ const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | 
 
 export default function TodosPage() {
   const { data: todos, mutate: setTodos } = useResource<Todo>("todos", apiTodos, TODOS);
+  const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", mentions: [] as string[] });
 
@@ -88,7 +89,7 @@ export default function TodosPage() {
           <div className="space-y-1">
             <span className="font-mono text-[11px] text-muted">@ 提及</span>
             <div className="flex flex-wrap gap-1">
-              {["灰晨", ...EMPLOYEES.map((e) => e.name)].map((name) => (
+              {["灰晨", ...employees.map((e) => e.name)].map((name) => (
                 <button
                   key={name}
                   type="button"

@@ -13,7 +13,7 @@ import { apiCustomers } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { supabase } from "@/lib/supabase";
-import { rpcRechargeCustom } from "@/lib/supabase-api";
+import { rpcRechargeCustom, apiCustomerLedgers } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -30,7 +30,7 @@ interface LedgerEntry {
 
 export default function CustomersPage() {
   const { data: customers, real, error, loading, mutate: setCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
-  const [ledgers, setLedgers] = useState<LedgerEntry[]>(CUSTOMER_LEDGERS);
+  const { data: ledgers, mutate: setLedgers } = useResource<LedgerEntry>("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
   const [keyword, setKeyword] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [rechargeTarget, setRechargeTarget] = useState<Customer | null>(null);

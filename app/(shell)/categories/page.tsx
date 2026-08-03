@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { CATEGORIES, PRODUCTS, type ProductCategory } from "@/lib/mock-data";
-import { apiCategories } from "@/lib/supabase-api";
+import { CATEGORIES, PRODUCTS, type Product, type ProductCategory } from "@/lib/mock-data";
+import { apiCategories, apiProducts } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
 
@@ -18,11 +18,12 @@ export default function CategoriesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
 
+  const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const productCount = useMemo(() => {
     const map: Record<string, number> = {};
-    PRODUCTS.forEach((p) => (map[p.category] = (map[p.category] || 0) + 1));
+    products.forEach((p) => (map[p.category] = (map[p.category] || 0) + 1));
     return map;
-  }, []);
+  }, [products]);
 
   const create = () => {
     if (!form.name.trim()) return;
