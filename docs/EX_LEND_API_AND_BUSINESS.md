@@ -296,3 +296,17 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 | `/dashboard/orders` | 订单管理（新建/指派/审核/退款/删除） |
 | `/dashboard/finance` | 财务看板（仅 boss） |
 | `/dashboard/notes`、`/dashboard/settings`、`/dashboard/profile` 等 | 协作与个人设置 |
+
+## 13. 前端营业额口径（new-ui）
+
+| 入口 | 说明 |
+|---|---|
+| `/finance`（财务） | "营业额"面板：默认本周（周一~今天），可切换 今日/本周/上周/本月/近7天/近30天/全部，或自定义起止日期 |
+| `/`（工作台） | "今日收入"卡片 = 今日非取消订单 paid 合计（实付，不含已取消） |
+
+**营业额双口径（按订单 createdAt 日期区间筛选）：**
+- **名义收入** = 区间内全部订单 `original`（订单字面金额）合计，未减折扣，含已取消订单。
+- **真实收入** = 区间内非取消订单 `paid`（实付）合计，已去折扣，排除已取消订单。
+- 辅助指标：折扣金额（非取消订单 discount 合计）、已取消订单单数。
+
+> 注：若"名义收入"也应排除已取消订单，仅需在 finance/page.tsx 的 nominalRevenue 前加 `status !== "cancelled"` 过滤，一行改动。
