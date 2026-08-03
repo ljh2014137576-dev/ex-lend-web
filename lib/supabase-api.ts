@@ -123,7 +123,7 @@ export async function apiCategories(): Promise<ProductCategory[] | null> {
 export async function apiOrders(): Promise<Order[] | null> {
   const { data } = await supabase
     .from("order")
-    .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, created_at, customer(name)")
+    .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, created_at, customer(name), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
@@ -144,7 +144,14 @@ export async function apiOrders(): Promise<Order[] | null> {
     createdAt: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
     proofPath: null,
     items: [],
-    members: [],
+    members: (r.order_member ?? []).map((m) => ({
+      employeeId: m.employee_id,
+      name: (m.employee as { nickname?: string; name?: string } | null)?.nickname || (m.employee as { name?: string } | null)?.name || "员工",
+      grade: m.grade_snapshot ?? 1,
+      base: Number(m.base_amount ?? 0),
+      rate: Number(m.applied_rate ?? 0),
+      commission: Number(m.commission_amount ?? 0),
+    })),
   }));
 }
 

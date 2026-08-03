@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { EMPLOYEES, type Employee } from "@/lib/mock-data";
-import { apiEmployees } from "@/lib/supabase-api";
+import { apiEmployees, apiWalletLedgers, type WalletLedgerRow } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
+import { WALLET_LEDGERS } from "@/lib/mock-data";
 import { DataSourceBadge } from "@/lib/use-real-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -20,6 +21,8 @@ export default function EmployeesPage() {
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", grade: 1, phone: "" });
+  const [ledgerEmployee, setLedgerEmployee] = useState<Employee | null>(null);
+  const { data: ledgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
 
   const filtered = useMemo(
     () => employees.filter((e) => keyword === "" || e.name.includes(keyword)),
@@ -57,6 +60,9 @@ export default function EmployeesPage() {
             { key: "wallet", label: "钱包余额", align: "right", mono: true, render: (r) => money(r.wallet) },
             { key: "status", label: "状态", render: (r) => (r.status === "active" ? <StatusDot tone="active" label="在职" /> : <StatusDot tone="danger" label="离职" />) },
             { key: "isDebt", label: "欠款", render: (r) => (r.isDebt ? <StatusDot tone="danger" label="欠款" /> : <StatusDot tone="neutral" label="无" />) },
+            { key: "actions", label: "操作", render: (r) => (
+              <Button size="sm" variant="secondary" onClick={() => setLedgerEmployee(r)}>流水</Button>
+            ) },
           ]}
           rows={filtered}
           empty={loading ? "加载中…" : "暂无数据"}
@@ -80,6 +86,33 @@ export default function EmployeesPage() {
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>取消</Button>
             <Button onClick={create}>创建</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!ledgerEmployee}
+        title={`钱包流水 — ${ledgerEmployee?.name ?? ""}`}
+        onClose={() => setLedgerEmployee(null)}
+        wide
+      >
+        <div className="space-y-3">
+          <p className="font-mono text-[11px] text-muted">
+            当前钱包余额：{money(ledgerEmployee?.wallet ?? 0)}
+          </p>
+          <div className="max-h-[55vh] overflow-y-auto">
+            <DataTable<WalletLedgerRow>
+              rowKey={(r) => r.id}
+              columns={[
+                { key: "type", label: "类型", mono: true },
+                { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
+                { key: "balance", label: "变动后余额", align: "right", mono: true, render: (r) => money(r.balance) },
+                { key: "orderNo", label: "关联", mono: true },
+                { key: "at", label: "时间", mono: true },
+              ]}
+              rows={ledgers.filter((l) => l.employee === ledgerEmployee?.name)}
+              empty="暂无流水"
+            />
           </div>
         </div>
       </Modal>
