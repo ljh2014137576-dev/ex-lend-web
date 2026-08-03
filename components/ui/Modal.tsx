@@ -8,12 +8,14 @@ export function Modal({
   onClose,
   children,
   wide,
+  xwide,
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  xwide?: boolean;
 }) {
   if (!open) return null;
 
@@ -27,7 +29,7 @@ export function Modal({
       <div
         className={[
           "glass relative w-full rounded-md border border-line p-5 shadow-lg",
-          wide ? "max-w-2xl" : "max-w-md",
+          xwide ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md",
         ].join(" ")}
         style={{ animation: "ex-slide-up var(--transition-mid-v) cubic-bezier(0.22,1,0.36,1)" }}
       >

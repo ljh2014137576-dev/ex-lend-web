@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { apiOrderDetail, rpcUpdateOrderProof, uploadProof } from "@/lib/supabase-api";
+import { apiOrderDetail, rpcUpdateOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
@@ -26,6 +27,9 @@ export function OrderDetailModal({
   const [proofMsg, setProofMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [editCommissions, setEditCommissions] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [modalMsg, setModalMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!orderId) return;
@@ -91,8 +95,48 @@ export function OrderDetailModal({
   const items = detail?.items ?? o?.items ?? [];
   const members = detail?.members ?? o?.members ?? [];
 
+  const canEditCommission = o?.status === "completed" && o?.auditStatus === "pending" && members.length > 0;
+
+  const openCommissionEditor = () => {
+    const init: Record<string, string> = {};
+    members.forEach((m) => (init[m.employeeId] = String(m.commission)));
+    setDrafts(init);
+    setEditCommissions(true);
+    setModalMsg(null);
+  };
+
+  const saveCommissions = async () => {
+    if (!detail) return;
+    const commissions = members.map((m) => ({ employee_id: m.employeeId, amount: Number(drafts[m.employeeId]) || 0 }));
+    if (session) {
+      const { data, error } = await rpcSetPendingOrderCommissions(detail.order.id, commissions);
+      if (error || data?.success === false) {
+        return setModalMsg("修改失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+      }
+    }
+    setDetail({
+      ...detail,
+      members: members.map((m) => ({ ...m, commission: Number(drafts[m.employeeId]) || 0 })),
+      order: { ...detail.order, commission: commissions.reduce((s, c) => s + c.amount, 0) },
+    });
+    setEditCommissions(false);
+    setModalMsg("提成已修改（审核时将按此入账）");
+  };
+
+  const rejectAudit = async () => {
+    if (!detail) return;
+    if (session) {
+      const { data, error } = await rpcRejectOrderAudit(detail.order.id);
+      if (error || data?.success === false) {
+        return setModalMsg("驳回失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+      }
+    }
+    setDetail({ ...detail, order: { ...detail.order, auditStatus: "pending", commission: 0, grossProfit: 0 } });
+    setModalMsg("已驳回审核，订单恢复为待审核");
+  };
+
   return (
-    <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} wide>
+    <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} xwide>
       {o ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -140,6 +184,39 @@ export function OrderDetailModal({
               rows={members}
             />
           )}
+
+          {(canEditCommission || o?.auditStatus === "approved") && (
+            <div className="flex flex-wrap items-center gap-2">
+              {canEditCommission && (
+                <Button size="sm" variant="secondary" onClick={openCommissionEditor}>修改提成</Button>
+              )}
+              {o?.auditStatus === "approved" && (
+                <Button size="sm" variant="danger" onClick={rejectAudit}>驳回审核</Button>
+              )}
+            </div>
+          )}
+
+          {editCommissions && (
+            <div className="space-y-2 border border-line bg-paper p-3">
+              <p className="font-mono text-[11px] text-muted">修改提成（审核时将按此入账）</p>
+              {members.map((m) => (
+                <label key={m.employeeId} className="flex items-center gap-2">
+                  <span className="w-20 font-mono text-[11px] text-muted">{m.name}</span>
+                  <Input
+                    type="number"
+                    value={drafts[m.employeeId] ?? ""}
+                    onChange={(e) => setDrafts({ ...drafts, [m.employeeId]: e.target.value })}
+                  />
+                </label>
+              ))}
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setEditCommissions(false)}>取消</Button>
+                <Button size="sm" onClick={saveCommissions}>保存提成</Button>
+              </div>
+            </div>
+          )}
+
+          {modalMsg && <p className="font-mono text-[11px] text-danger">{modalMsg}</p>}
 
           <div className="border border-line bg-paper p-3">
             <p className="mb-2 font-mono text-[11px] text-muted">支付凭证</p>

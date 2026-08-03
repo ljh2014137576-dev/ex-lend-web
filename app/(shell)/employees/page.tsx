@@ -94,7 +94,7 @@ export default function EmployeesPage() {
         open={!!ledgerEmployee}
         title={`钱包流水 — ${ledgerEmployee?.name ?? ""}`}
         onClose={() => setLedgerEmployee(null)}
-        wide
+        xwide
       >
         <div className="space-y-3">
           <p className="font-mono text-[11px] text-muted">

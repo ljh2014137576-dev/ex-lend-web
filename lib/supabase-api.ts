@@ -456,3 +456,10 @@ export async function uploadProof(file: File, userId: string, orderId: string): 
   if (error) throw error;
   return path;
 }
+export function rpcSetPendingOrderCommissions(p_order_id: string, p_commissions: { employee_id: string; amount: number }[]) {
+  return supabase.rpc("set_pending_order_commissions", { p_order_id, p_commissions });
+}
+
+export function rpcRejectOrderAudit(p_order_id: string) {
+  return supabase.rpc("reject_order_audit", { p_order_id });
+}
