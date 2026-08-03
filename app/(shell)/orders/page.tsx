@@ -59,8 +59,19 @@ export default function OrdersPage() {
   const [payMethod, setPayMethod] = useState("all");
   const [minPaid, setMinPaid] = useState("");
   const [maxPaid, setMaxPaid] = useState("");
-  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [employeeIds, setEmployeeIds] = useState<string[]>([]);
+  const [employeeMode, setEmployeeMode] = useState<"or" | "and">("or");
+  const [empKeyword, setEmpKeyword] = useState("");
   const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
+
+  const employeeSuggestions = employees.filter(
+    (e) =>
+      !employeeIds.includes(e.id) &&
+      (empKeyword === "" || e.name.includes(empKeyword)),
+  );
+
+  const toggleEmployee = (id: string) =>
+    setEmployeeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const [selected, setSelected] = useState<string[]>([]);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
@@ -73,13 +84,18 @@ export default function OrdersPage() {
       if (dateFrom && day < dateFrom) return false;
       if (dateTo && day > dateTo) return false;
       if (keyword && !o.orderNo.includes(keyword) && !o.customerName.includes(keyword)) return false;
-      if (employeeFilter !== "all" && !o.members.some((m) => m.employeeId === employeeFilter)) return false;
+      if (employeeIds.length > 0) {
+        const has = (id: string) => o.members.some((m) => m.employeeId === id);
+        if (employeeMode === "or") {
+          if (!employeeIds.some(has)) return false;
+        } else if (!employeeIds.every(has)) return false;
+      }
       if (payMethod !== "all" && o.payMethod !== payMethod) return false;
       if (minPaid !== "" && o.paid < Number(minPaid)) return false;
       if (maxPaid !== "" && o.paid > Number(maxPaid)) return false;
       return true;
     });
-  }, [orders, status, audit, dateFrom, dateTo, keyword, payMethod, minPaid, maxPaid, employeeFilter]);
+  }, [orders, status, audit, dateFrom, dateTo, keyword, payMethod, minPaid, maxPaid, employeeIds, employeeMode]);
 
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => orders.some((o) => o.id === id)));
@@ -94,7 +110,9 @@ export default function OrdersPage() {
     setPayMethod("all");
     setMinPaid("");
     setMaxPaid("");
-    setEmployeeFilter("all");
+    setEmployeeIds([]);
+    setEmployeeMode("or");
+    setEmpKeyword("");
   };
 
   const toggleSelect = (id: string) =>
@@ -178,12 +196,56 @@ export default function OrdersPage() {
           <div className="flex flex-wrap items-center gap-3">
             <FilterTabs
               tabs={[
-                { id: "all", label: "员工-全部" },
-                ...employees.map((e) => ({ id: e.id, label: e.name })),
+                { id: "or", label: "合并" },
+                { id: "and", label: "交集" },
               ]}
-              active={employeeFilter}
-              onChange={setEmployeeFilter}
+              active={employeeMode}
+              onChange={(id) => setEmployeeMode(id as "or" | "and")}
             />
+            <div className="relative">
+              <Input
+                placeholder="搜索员工添加…"
+                value={empKeyword}
+                onChange={(e) => setEmpKeyword(e.target.value)}
+                className="w-44"
+              />
+              {empKeyword !== "" && employeeSuggestions.length > 0 && (
+                <ul className="absolute z-30 mt-1 w-56 rounded-md border border-line bg-surface shadow-md">
+                  {employeeSuggestions.slice(0, 6).map((e) => (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleEmployee(e.id);
+                          setEmpKeyword("");
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-xs transition-colors hover:bg-surface2"
+                      >
+                        {e.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {employeeIds.map((id) => {
+              const e = employees.find((x) => x.id === id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleEmployee(id)}
+                  className="rounded-md bg-nav-active px-2 py-1 font-mono text-[10px] text-nav-active-text"
+                >
+                  {e?.name ?? id} ×
+                </button>
+              );
+            })}
+            {employeeIds.length > 0 && (
+              <span className="font-mono text-[10px] text-muted">
+                {employeeMode === "or" ? "合并（任一）" : "交集（全部）"}
+              </span>
+            )}
             <FilterTabs
               tabs={[
                 { id: "all", label: "支付-全部" },
