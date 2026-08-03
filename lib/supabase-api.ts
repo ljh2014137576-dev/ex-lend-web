@@ -20,6 +20,7 @@ import type {
 
 export interface WalletLedgerRow {
   id: string;
+  employeeId?: string;
   employee: string;
   type: string;
   amount: number;
@@ -375,6 +376,7 @@ export async function apiWalletLedgers(): Promise<WalletLedgerRow[] | null> {
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
+    employeeId: r.employee_id ?? undefined,
     employee: (r.employee as { nickname?: string; name?: string } | null)?.nickname || (r.employee as { name?: string } | null)?.name || "—",
     type: r.type,
     amount: Number(r.amount ?? 0),
