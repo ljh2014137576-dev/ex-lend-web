@@ -370,7 +370,7 @@ export async function apiRechargePackages(): Promise<RechargePackage[] | null> {
 export async function apiWalletLedgers(): Promise<WalletLedgerRow[] | null> {
   const { data } = await supabase
     .from("wallet_ledger")
-    .select("id, employee_id, type, amount, balance_after, order_id, created_at, employee(nickname, name)")
+    .select("id, employee_id, type, amount, balance_after, order_id, payout_id, created_at, employee(nickname, name), order:order_id(order_no), payout:payout_id(batch_no)")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
@@ -379,7 +379,7 @@ export async function apiWalletLedgers(): Promise<WalletLedgerRow[] | null> {
     type: r.type,
     amount: Number(r.amount ?? 0),
     balance: Number(r.balance_after ?? 0),
-    orderNo: r.order_id ?? "—",
+    orderNo: (r.order as { order_no?: string } | null)?.order_no || (r.payout as { batch_no?: string } | null)?.batch_no || "—",
     at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
   }));
 }
