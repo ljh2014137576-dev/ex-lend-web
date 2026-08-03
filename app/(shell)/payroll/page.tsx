@@ -6,13 +6,15 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { useResource } from "@/lib/data-store";
-import { apiEmployees, apiWalletLedgers, apiPayouts } from "@/lib/supabase-api";
-import { EMPLOYEES, WALLET_LEDGERS, type Employee } from "@/lib/mock-data";
+import { apiEmployees, apiOrders, apiWalletLedgers, apiPayouts } from "@/lib/supabase-api";
+import { EMPLOYEES, ORDERS, WALLET_LEDGERS, type Employee, type Order } from "@/lib/mock-data";
 import type { WalletLedgerRow } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
+import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { dateKey } from "@/lib/date";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -34,7 +36,9 @@ export default function PayrollPage() {
   const { data: employees, real } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: ledgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
   const { data: payouts } = useResource("payouts", apiPayouts, []);
+  const { data: orders } = useResource<Order>("orders", apiOrders, ORDERS);
   const [hint, setHint] = useState<string | null>(null);
+  const [detailEmp, setDetailEmp] = useState<PayrollRow | null>(null);
 
   if (!isBoss) return <NoPermission />;
 
@@ -60,11 +64,27 @@ export default function PayrollPage() {
     [employees, ledgerByEmployee],
   );
 
-  const active = rows.filter((r) => r.status === "active");
+  // 排除没有工资的员工（结余/累计佣金/已发/调整全为 0 且无欠款）
+  const visibleRows = rows.filter((r) => r.wallet !== 0 || r.commission !== 0 || r.payout !== 0 || r.other !== 0 || r.isDebt);
+  const active = visibleRows.filter((r) => r.status === "active");
   const totalWallet = active.reduce((s, r) => s + r.wallet, 0);
   const totalCommission = active.reduce((s, r) => s + r.commission, 0);
   const totalPayout = active.reduce((s, r) => s + r.payout, 0);
   const debtRows = active.filter((r) => r.isDebt || r.wallet < 0);
+
+  // 选中员工的订单明细
+  const empOrders = useMemo(() => {
+    if (!detailEmp) return [];
+    return orders
+      .filter((o) => o.members.some((m) => m.employeeId === detailEmp.id))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [detailEmp, orders]);
+  const empOrderTotal = empOrders.reduce((s, o) => s + o.paid, 0);
+  const empCommissionTotal = empOrders.reduce(
+    (s, o) => s + (o.members.find((m) => m.employeeId === detailEmp?.id)?.commission ?? 0),
+    0,
+  );
+  const empCompleted = empOrders.filter((o) => o.status === "completed").length;
 
   const exportExcel = () => {
     try {
@@ -79,7 +99,7 @@ export default function PayrollPage() {
         ["欠款员工数", debtRows.length],
       ];
       const header = ["员工", "等级", "状态", "累计佣金", "已发放", "调整/扣减", "当前工资结余", "欠款"];
-      const body = rows.map((r) => [
+      const body = visibleRows.map((r) => [
         r.name,
         r.grade,
         r.status === "active" ? "在职" : "离职",
@@ -114,7 +134,7 @@ export default function PayrollPage() {
         <PageHeader title="工资结算" meta="/payroll · 老板专用 · 汇总员工工资与发放记录" />
         <div className="flex items-center gap-3">
           <DataSourceBadge real={real} />
-          <Button onClick={exportExcel} disabled={rows.length === 0}>导出 Excel</Button>
+          <Button onClick={exportExcel} disabled={visibleRows.length === 0}>导出 Excel</Button>
         </div>
       </div>
 
@@ -135,7 +155,7 @@ export default function PayrollPage() {
         ))}
       </div>
 
-      <Panel title="员工工资汇总" meta={rows.length + " 人" + (real ? " · 真实数据" : " · Mock") + " · 当前工资结余 = 员工钱包余额"}>
+      <Panel title="员工工资汇总" meta={visibleRows.length + " 人（已排除无工资）" + (real ? " · 真实数据" : " · Mock") + " · 双击查看订单明细"}>
         <DataTable<PayrollRow>
           rowKey={(r) => r.id}
           empty="暂无员工"
@@ -149,7 +169,8 @@ export default function PayrollPage() {
             { key: "wallet", label: "当前工资结余", align: "right", mono: true, render: (r) => <span className={r.wallet < 0 ? "text-danger" : ""}>{money(r.wallet)}</span> },
             { key: "isDebt", label: "欠款", mono: true, render: (r) => (r.isDebt || r.wallet < 0 ? "是" : "否") },
           ]}
-          rows={rows}
+          rows={visibleRows}
+          onRowDoubleClick={(r) => setDetailEmp(r)}
         />
       </Panel>
 
@@ -166,6 +187,50 @@ export default function PayrollPage() {
           rows={payouts}
         />
       </Panel>
+
+      <Modal open={!!detailEmp} title={detailEmp ? detailEmp.name + " 的订单与提成" : "订单明细"} onClose={() => setDetailEmp(null)} xwide>
+        {detailEmp && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium">{detailEmp.name}</span>
+              <span className="font-mono text-[11px] text-muted">Lv{detailEmp.grade} · {detailEmp.status === "active" ? "在职" : "离职"}</span>
+              <span className="font-mono text-[11px] text-muted">当前工资结余</span>
+              <span className={"font-mono text-sm tabular-nums " + (detailEmp.wallet < 0 ? "text-danger" : "")}>{money(detailEmp.wallet)}</span>
+            </div>
+
+            <div className="max-h-[55vh] overflow-y-auto">
+              <DataTable<Order>
+                rowKey={(r) => r.id}
+                empty="该员工暂无参与订单"
+                columns={[
+                  { key: "orderNo", label: "订单号", mono: true },
+                  { key: "customer", label: "客户", render: (r) => r.customerName },
+                  { key: "paid", label: "金额", align: "right", mono: true, render: (r) => money(r.paid) },
+                  { key: "commission", label: "该员工提成", align: "right", mono: true, render: (r) => money(r.members.find((m) => m.employeeId === detailEmp.id)?.commission ?? 0) },
+                  { key: "status", label: "状态", render: (r) => <OrderStatusTag status={r.status} /> },
+                  { key: "audit", label: "审核", render: (r) => <AuditStatusTag status={r.auditStatus} /> },
+                  { key: "createdAt", label: "时间", mono: true, render: (r) => r.createdAt },
+                ]}
+                rows={empOrders}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-4">
+              {[
+                { label: "订单数", value: empOrders.length + " 笔" },
+                { label: "已完成", value: empCompleted + " 笔" },
+                { label: "订单总额", value: money(empOrderTotal) },
+                { label: "提成合计", value: money(empCommissionTotal) },
+              ].map((s) => (
+                <div key={s.label} className="bg-surface p-3">
+                  <p className="font-mono text-[10px] text-muted">{s.label}</p>
+                  <p className="mt-1 text-base font-semibold tabular-nums">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
