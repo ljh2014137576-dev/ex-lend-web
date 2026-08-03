@@ -36,6 +36,7 @@ export function storeAvatar(path: string, url: string) {
 export function useUserAvatar() {
   const { session } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (!session) {
@@ -43,31 +44,37 @@ export function useUserAvatar() {
       return;
     }
     let mounted = true;
-    apiCurrentProfile(session.user.id).then((p) => {
-      if (!mounted || !p) return;
-      const avatarPath = p.avatarPath;
-      if (!avatarPath) return;
-      const cached = cachedAvatar(avatarPath);
-      if (cached) setAvatarUrl(cached);
-      supabase.storage
-        .from("avatars")
-        .createSignedUrl(avatarPath, 300)
-        .then(({ data }) => {
-          if (!mounted || !data) return;
-          const signed = data.signedUrl;
-          if (!signed) return;
-          storeAvatar(avatarPath, signed);
-          const img = new Image();
-          img.onload = () => {
-            if (mounted) setAvatarUrl(signed);
-          };
-          img.src = signed;
-        });
-    });
+    const load = async () => {
+      try {
+        const p = await apiCurrentProfile(session.user.id);
+        if (!mounted || !p) return;
+        const avatarPath = p.avatarPath;
+        if (!avatarPath) return;
+        const cached = cachedAvatar(avatarPath);
+        if (cached) setAvatarUrl(cached);
+        const { data } = await supabase.storage.from("avatars").createSignedUrl(avatarPath, 300);
+        if (!mounted || !data) return;
+        const signed = data.signedUrl;
+        if (!signed) return;
+        storeAvatar(avatarPath, signed);
+        const img = new Image();
+        img.onload = () => {
+          if (mounted) setAvatarUrl(signed);
+        };
+        img.src = signed;
+      } catch {
+        // 头像加载失败静默处理
+      }
+    };
+    void load();
+    // 头像更新事件：设置页上传后触发，立即刷新顶栏头像
+    const onAvatarUpdated = () => setVersion((v) => v + 1);
+    window.addEventListener("avatar-updated", onAvatarUpdated);
     return () => {
       mounted = false;
+      window.removeEventListener("avatar-updated", onAvatarUpdated);
     };
-  }, [session]);
+  }, [session, version]);
 
   return avatarUrl;
 }

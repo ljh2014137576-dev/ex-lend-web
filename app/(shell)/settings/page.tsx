@@ -13,6 +13,8 @@ import { useProfile } from "@/lib/profile";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { apiCurrentProfile, apiUpdateMyName, uploadAvatar, rpcUpdateSelfAvatar } from "@/lib/supabase-api";
+import Cropper, { type Area } from "react-easy-crop";
+import { Modal } from "@/components/ui/Modal";
 
 function SectionTitle({ shape, title, meta }: { shape: string; title: string; meta?: string }) {
   return (
@@ -49,6 +51,29 @@ function FontSettings() {
   );
 }
 
+async function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("图片加载失败"));
+    img.src = src;
+  });
+}
+
+// 按裁切区域生成正方形 PNG（白底），供上传/预览
+async function cropToBlob(src: string, px: Area): Promise<Blob | null> {
+  const img = await loadImg(src);
+  const canvas = document.createElement("canvas");
+  canvas.width = px.width;
+  canvas.height = px.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, px.x, px.y, px.width, px.height, 0, 0, px.width, px.height);
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
+}
+
 function ProfileSettings() {
   const { session } = useAuth();
   const { name: localName, avatar: localAvatar, setName: setLocalName, setAvatar: setLocalAvatar } = useProfile();
@@ -57,6 +82,13 @@ function ProfileSettings() {
   const [draft, setDraft] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 裁切状态
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [cropPixels, setCropPixels] = useState<Area | null>(null);
 
   // 头像预加载后再替换，避免 <img src> 变化导致闪白
   const applyAvatar = (url: string) => {
@@ -78,7 +110,6 @@ function ProfileSettings() {
         }
         if (p?.avatarPath) {
           const cacheKey = "avatar-signed:" + p.avatarPath;
-          // 签名 URL 会话内缓存（约 4 分钟），复用同一 URL 可命中浏览器缓存，避免重下图片闪动
           let cached: { url: string; exp: number } | null = null;
           try {
             const raw = sessionStorage.getItem(cacheKey);
@@ -130,27 +161,65 @@ function ProfileSettings() {
     window.setTimeout(() => setMsg(null), 2200);
   };
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 选择图片 → 打开裁切
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropSrc(String(reader.result));
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCropPixels(null);
+      setCropOpen(true);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const closeCrop = () => {
+    setCropOpen(false);
+    setCropSrc(null);
+    setCropPixels(null);
+  };
+
+  // 上传裁切结果
+  const uploadAvatarBlob = async (blob: Blob) => {
     if (session) {
       try {
+        const file = new File([blob], "avatar.png", { type: "image/png" });
         const path = await uploadAvatar(file, session.user.id);
         const { error } = await rpcUpdateSelfAvatar(path);
         if (error) return setMsg("头像保存失败：" + error.message);
         const { data } = await supabase.storage.from("avatars").createSignedUrl(path, 300);
-        if (data?.signedUrl) setAvatarUrl(data.signedUrl);
+        if (data?.signedUrl) applyAvatar(data.signedUrl);
+        window.dispatchEvent(new Event("avatar-updated")); // 顶栏头像立即刷新
         setMsg("头像已上传");
       } catch (err) {
         setMsg("上传失败：" + (err instanceof Error ? err.message : String(err)));
       }
     } else {
       const reader = new FileReader();
-      reader.onload = () => setAvatarUrl(String(reader.result));
-      reader.readAsDataURL(file);
+      reader.onload = () => {
+        setAvatarUrl(String(reader.result));
+        setLocalAvatar(String(reader.result));
+      };
+      reader.readAsDataURL(blob);
       setMsg("头像已保存到本机（测试模式）");
     }
     window.setTimeout(() => setMsg(null), 2200);
+  };
+
+  const confirmCrop = async () => {
+    if (!cropSrc || !cropPixels) return;
+    try {
+      const blob = await cropToBlob(cropSrc, cropPixels);
+      if (!blob) return setMsg("裁切失败，请重试");
+      closeCrop();
+      await uploadAvatarBlob(blob);
+    } catch (err) {
+      setMsg("裁切失败：" + (err instanceof Error ? err.message : String(err)));
+    }
   };
 
   return (
@@ -168,8 +237,8 @@ function ProfileSettings() {
           <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
             上传头像
           </Button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void handleFile(e)} />
-          <p className="mt-1 font-mono text-[10px] text-muted">{session ? "真实登录：姓名/头像保存至账户" : "测试模式：姓名/头像保存在本机"}</p>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+          <p className="mt-1 font-mono text-[10px] text-muted">{session ? "真实登录：姓名/头像保存至账户 · 支持缩放裁切" : "测试模式：姓名/头像保存在本机 · 支持缩放裁切"}</p>
         </div>
       </div>
 
@@ -178,10 +247,39 @@ function ProfileSettings() {
       <label className="block space-y-1">
         <span className="font-mono text-[11px] text-muted">姓名</span>
         <div className="flex gap-2">
-          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="你的姓名" />
-          <Button onClick={() => void saveName()} disabled={!draft.trim()}>保存</Button>
+          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="你的姓名" className="min-w-0 flex-1" />
+          <Button onClick={() => void saveName()} disabled={!draft.trim()} className="whitespace-nowrap">保存</Button>
         </div>
       </label>
+
+      {/* 头像裁切弹窗 */}
+      <Modal open={cropOpen} title="调整头像" onClose={closeCrop} wide>
+        <div className="space-y-4">
+          <div className="relative h-64 w-full overflow-hidden rounded-md bg-black/80">
+            {cropSrc && (
+              <Cropper
+                image={cropSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_c, px) => setCropPixels(px)}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[10px] text-muted">缩放</span>
+            <input type="range" min={1} max={3} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="flex-1" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeCrop}>取消</Button>
+            <Button onClick={() => void confirmCrop()} disabled={!cropPixels}>确认</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
