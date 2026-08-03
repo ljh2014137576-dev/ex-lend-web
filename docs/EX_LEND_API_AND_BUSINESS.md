@@ -312,3 +312,16 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 **真实数据一致性（2026-08-03 复查）：** 商品分类筛选、工资发放弹窗、订单详情路由均已切换为缓存/真实 API；页面中仍出现的 Mock 仅为无真实会话时的 fallback（测试模式），不会在真实登录后显示。
 
 > 注：若"名义收入"也应排除已取消订单，仅需在 finance/page.tsx 的 nominalRevenue 前加 `status !== "cancelled"` 过滤，一行改动。
+
+## 14. 小票生成（集成自 img-cre / Receipt Studio）
+
+| 入口 | 说明 |
+|---|---|
+| 订单列表双击行弹窗（OrderDetailModal） | "生成小票"按钮 |
+| 订单详情页 /orders/[id] | "生成小票"按钮 |
+
+**行为：** 打开后按订单预填：客户名→消费者、orderNo→票号/条码（CODE128）、createdAt→生成时间、订单明细→商品行、订单号→二维码内容；可编辑文字图层/购买明细/画布（58/80mm、密度、纹理、水印），实时预览并缩放。
+
+**导出：** 复制 PNG（剪贴板）、下载 PNG/JPEG（html-to-image，pixelRatio 3）、PDF（jsPDF，按纸宽换算高度）。资源位于 public/receipt/，样式位于 app/globals.css（.receipt 系列），字体复用 YouSheBiaoTiHei。
+
+**注意：** 小票含"样例水印"默认值（SAMPLE / 样例），如需正式小票请自行确认合规后再去除。
