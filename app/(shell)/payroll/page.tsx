@@ -22,6 +22,9 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 interface PayrollRow {
   id: string;
   name: string;
+  realName?: string;
+  alipay?: string;
+  bankCard?: string;
   grade: number;
   status: "active" | "resigned";
   wallet: number;
@@ -59,7 +62,7 @@ export default function PayrollPage() {
     () =>
       employees.map((e) => {
         const g = ledgerByEmployee.get(e.id) ?? ledgerByEmployee.get(e.name) ?? { commission: 0, payout: 0, other: 0 };
-        return { id: e.id, name: e.name, grade: e.grade, status: e.status, wallet: e.wallet, isDebt: e.isDebt, ...g };
+        return { id: e.id, name: e.name, realName: e.realName, alipay: e.alipay, bankCard: e.bankCard, grade: e.grade, status: e.status, wallet: e.wallet, isDebt: e.isDebt, ...g };
       }),
     [employees, ledgerByEmployee],
   );
@@ -98,9 +101,12 @@ export default function PayrollPage() {
         ["已发放合计", Number(totalPayout.toFixed(2))],
         ["欠款员工数", debtRows.length],
       ];
-      const header = ["员工", "等级", "状态", "累计佣金", "已发放", "调整/扣减", "当前工资结余", "欠款"];
+      const header = ["员工(昵称)", "真实姓名", "支付宝账号", "银行卡号", "等级", "状态", "累计佣金", "已发放", "调整/扣减", "当前工资结余", "欠款"];
       const body = visibleRows.map((r) => [
         r.name,
+        r.realName ?? "",
+        r.alipay ?? "",
+        r.bankCard ?? "",
         r.grade,
         r.status === "active" ? "在职" : "离职",
         Number(r.commission.toFixed(2)),
@@ -110,7 +116,7 @@ export default function PayrollPage() {
         r.isDebt ? "是" : "否",
       ]);
       const ws = XLSX.utils.aoa_to_sheet([...sumRows, [], header, ...body]);
-      ws["!cols"] = [{ wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 8 }];
+      ws["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 22 }, { wch: 6 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 8 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "工资结算");
       const ws2 = XLSX.utils.aoa_to_sheet([

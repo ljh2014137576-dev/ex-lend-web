@@ -24,6 +24,9 @@ export interface Customer {
 export interface Employee {
   id: string;
   name: string;
+  realName?: string;
+  alipay?: string;
+  bankCard?: string;
   grade: number;
   status: "active" | "resigned";
   wallet: number;
@@ -92,12 +95,12 @@ export const CUSTOMERS: Customer[] = [
 ];
 
 export const EMPLOYEES: Employee[] = [
-  { id: "e1", name: "阿明", grade: 2, status: "active", wallet: 4860, isDebt: false },
-  { id: "e2", name: "小芳", grade: 1, status: "active", wallet: 1290, isDebt: false },
-  { id: "e3", name: "大刘", grade: 3, status: "active", wallet: 8800, isDebt: false },
-  { id: "e4", name: "小丽", grade: 1, status: "active", wallet: 750, isDebt: false },
-  { id: "e5", name: "老周", grade: 2, status: "active", wallet: 5320, isDebt: true },
-  { id: "e6", name: "阿强", grade: 1, status: "resigned", wallet: -320, isDebt: true },
+  { id: "e1", name: "阿明", realName: "马明", alipay: "alipay-13800001201", bankCard: "6222 0202 0000 1201", grade: 2, status: "active", wallet: 4860, isDebt: false },
+  { id: "e2", name: "小芳", realName: "林芳", alipay: "alipay-13900003302", bankCard: "6217 0000 0000 3302", grade: 1, status: "active", wallet: 1290, isDebt: false },
+  { id: "e3", name: "大刘", realName: "刘强", alipay: "alipay-13700005503", bankCard: "6228 4800 0000 5503", grade: 3, status: "active", wallet: 8800, isDebt: false },
+  { id: "e4", name: "小丽", realName: "陈丽", alipay: "alipay-13600007704", bankCard: "6215 0000 0000 7704", grade: 1, status: "active", wallet: 750, isDebt: false },
+  { id: "e5", name: "老周", realName: "周国平", alipay: "alipay-13500009905", bankCard: "6217 0000 0000 9905", grade: 2, status: "active", wallet: 5320, isDebt: true },
+  { id: "e6", name: "阿强", realName: "黄强", alipay: "alipay-13000001106", bankCard: "6228 0000 0000 1106", grade: 1, status: "resigned", wallet: -320, isDebt: true },
 ];
 
 export const PRODUCTS: Product[] = [

@@ -77,12 +77,15 @@ export async function apiCustomers(): Promise<Customer[] | null> {
 export async function apiEmployees(): Promise<Employee[] | null> {
   const { data } = await supabase
     .from("employee")
-    .select("id, name, nickname, grade, status, wallet_balance, is_debt")
+    .select("id, name, nickname, alipay_account, bank_card, grade, status, wallet_balance, is_debt")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
     name: r.nickname || r.name,
+    realName: r.name ?? "",
+    alipay: r.alipay_account ?? "",
+    bankCard: r.bank_card ?? "",
     grade: r.grade ?? 1,
     status: r.status === "resigned" ? "resigned" : "active",
     wallet: Number(r.wallet_balance ?? 0),
