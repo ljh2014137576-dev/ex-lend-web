@@ -8,7 +8,7 @@
 @font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-medium.otf") format("opentype"); font-weight: 500; font-display: swap; }
 @font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-bold.otf") format("opentype"); font-weight: 700; font-display: swap; }
 @font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-black.otf") format("opentype"); font-weight: 900; font-display: swap; }
-@font-face { font-family: "YouSheBiaoTiHei"; src: url("/fonts/youshe-biaotihei.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "YouSheBiaoTiHei"; src: url("/fonts/youshe-biaotihei.ttf") format("truetype"); font-weight: 400 900; font-display: swap; }
 @font-face { font-family: "ZitiQuanXinyiGuanheiTi"; src: url("/fonts/ziti-quanxinyiguanhei.ttf") format("truetype"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "YangRenDongZhuShiTi"; src: url("/fonts/yangrendong-zhushiti-heavy.ttf") format("truetype"); font-weight: 800; font-display: swap; }
 @font-face { font-family: "AlimamaFangYuanTi"; src: url("/fonts/alimama-fangyuanti.ttf") format("truetype"); font-weight: 400; font-display: swap; }
@@ -338,6 +338,9 @@ body {
 .receipt-shadow { width: max-content; height: max-content; filter: drop-shadow(0 18px 22px rgba(62, 52, 35, .18)); }
 .receipt { --paper: #f8f4ea; position: relative; overflow: hidden; padding: 9px 10px 31px; color: #252525; background-color: var(--paper); background-image: radial-gradient(rgba(111, 106, 93, calc(var(--texture-strength, .75) * .11)) .55px, transparent .7px), linear-gradient(115deg, rgba(255, 255, 255, .38), transparent 44%, rgba(226, 226, 218, calc(var(--texture-strength, .75) * .14))); background-size: 4px 4px, 100% 100%; font-size: 10px; line-height: 1.4; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), 95% 100%, 90% calc(100% - 10px), 85% 100%, 80% calc(100% - 10px), 75% 100%, 70% calc(100% - 10px), 65% 100%, 60% calc(100% - 10px), 55% 100%, 50% calc(100% - 10px), 45% 100%, 40% calc(100% - 10px), 35% 100%, 30% calc(100% - 10px), 25% 100%, 20% calc(100% - 10px), 15% 100%, 10% calc(100% - 10px), 5% 100%, 0 calc(100% - 10px)); }
 .receipt[data-density="compact"] { padding-top: 6px; font-size: 9px; }
+/* 小票票面字体固定，不随皮肤/主题字体变化 */
+.receipt { font-family: "YouSheBiaoTiHei", "Noto Sans CJK", sans-serif !important; }
+
 .receipt-watermark { position: absolute; top: 43%; left: 0; z-index: 0; width: 100%; color: rgba(218, 94, 54, .08); transform: rotate(-35deg); text-align: center; font: 700 17px Arial, sans-serif; letter-spacing: .16em; pointer-events: none; }
 .hero-layer, .receipt-meta, .purchase-layer, .thank-art-layer, .codes-layer, .thank-you { position: relative; z-index: 1; }
 .hero-layer { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0 0 6px; }
