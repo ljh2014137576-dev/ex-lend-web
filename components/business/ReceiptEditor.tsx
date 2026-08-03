@@ -143,14 +143,24 @@ export function ReceiptEditor({
   useEffect(() => {
     const svg = barcodeRef.current;
     if (!svg) return;
-    svg.replaceChildren();
-    try {
-      JsBarcode(svg, receiptNo || "000000000000", {
-        format: "CODE128", lineColor: "#111", width: 1.55, height: 41, displayValue: false, margin: 0,
+    const value = receiptNo || "000000000000";
+    const draw = (barWidth: number) => {
+      svg.replaceChildren();
+      JsBarcode(svg, value, {
+        format: "CODE128", lineColor: "#111", width: barWidth, height: 41, displayValue: false, margin: 0,
       });
+    };
+    try {
+      // 先按 barWidth=1 渲染测量自然宽度，再按 目标宽度 = 二维码边长(41) × 1.75 反算 barWidth，
+      // 使条码左右长度与二维码成合理比例、高度同为 41px、且不会超宽。
+      draw(1);
+      const natural = svg.getBBox().width || 1;
+      const targetWidth = 41 * 1.75;
+      const barWidth = Math.max(0.25, Math.min(2.2, targetWidth / natural));
+      draw(barWidth);
       svg.setAttribute("width", "100%");
       svg.setAttribute("height", "100%");
-      svg.setAttribute("preserveAspectRatio", "none");
+      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     } catch {
       svg.setAttribute("aria-label", "条形码内容无效");
     }
