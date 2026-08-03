@@ -15,15 +15,21 @@ type Store = {
   ensure: <T>(key: string, fetcher: () => Promise<T[] | null>, fallback: T[], hasSession: boolean) => ResourceState;
   mutate: (key: string, updater: (prev: unknown[]) => unknown[]) => void;
   invalidate: (key: string) => void;
+  refreshAll: (hasSession: boolean) => Promise<void>;
 };
 
 const DataContext = createContext<Store | null>(null);
 
+type RegistryEntry = { fetcher: () => Promise<unknown[] | null>; fallback: unknown[] };
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [resources, setResources] = useState<Record<string, ResourceState>>({});
   const inflight = useRef<Record<string, boolean>>({});
+  const registry = useRef<Record<string, RegistryEntry>>({});
+  const refreshing = useRef(false);
 
   const ensure: Store["ensure"] = (key, fetcher, fallback, hasSession) => {
+    registry.current[key] = { fetcher: fetcher as () => Promise<unknown[] | null>, fallback: fallback as unknown[] };
     const existing = resources[key];
     if (existing && existing.loaded) return existing;
     if (!inflight.current[key] && !existing) {
@@ -73,8 +79,42 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // 后台全量刷新：静默重新拉取所有已注册资源并覆盖缓存，保持 loaded=true（无加载闪烁）；失败保留旧数据。
+  const refreshAll: Store["refreshAll"] = async (hasSession) => {
+    if (!hasSession || refreshing.current) return;
+    refreshing.current = true;
+    try {
+      const keys = Object.keys(registry.current);
+      await Promise.all(
+        keys.map(async (key) => {
+          if (inflight.current[key]) return; // 该 key 正在首载，跳过本次刷新
+          const entry = registry.current[key];
+          try {
+            const rows = await entry.fetcher();
+            const ok = Array.isArray(rows);
+            setResources((r) => ({
+              ...r,
+              [key]: { data: ok ? rows : [], real: ok, loaded: true, error: ok ? null : "查询返回为空（可能 RLS 权限不足）" },
+            }));
+          } catch (e) {
+            // 刷新失败：保留旧缓存，仅记录错误，不影响展示
+            setResources((r) => ({
+              ...r,
+              [key]: {
+                ...(r[key] ?? { data: entry.fallback, real: false, loaded: true, error: null }),
+                error: e instanceof Error ? e.message : String(e),
+              },
+            }));
+          }
+        }),
+      );
+    } finally {
+      refreshing.current = false;
+    }
+  };
+
   return (
-    <DataContext.Provider value={{ resources, ensure, mutate, invalidate }}>{children}</DataContext.Provider>
+    <DataContext.Provider value={{ resources, ensure, mutate, invalidate, refreshAll }}>{children}</DataContext.Provider>
   );
 }
 

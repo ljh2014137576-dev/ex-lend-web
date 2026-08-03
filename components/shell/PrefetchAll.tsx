@@ -73,5 +73,18 @@ export function PrefetchAll() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  // 后台定时全量刷新：低频率（默认 5 分钟）静默覆盖缓存，页面始终只读缓存、无感更新
+  useEffect(() => {
+    if (!session) return;
+    const timer = window.setInterval(() => {
+      void store.refreshAll(true);
+    }, REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   return null;
 }
+
+// 后台刷新间隔：5 分钟（频率低，避免请求压力；需要更实时可调小）
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
