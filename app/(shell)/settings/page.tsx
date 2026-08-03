@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +10,9 @@ import { Divider } from "@/components/ui/Divider";
 import { SkinSettings } from "@/components/ui/SkinSettings";
 import { FONTS, useSkin } from "@/lib/skin";
 import { useProfile } from "@/lib/profile";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { apiCurrentProfile, apiUpdateMyName, uploadAvatar, rpcUpdateSelfAvatar } from "@/lib/supabase-api";
 
 function SectionTitle({ shape, title, meta }: { shape: string; title: string; meta?: string }) {
   return (
@@ -47,25 +50,89 @@ function FontSettings() {
 }
 
 function ProfileSettings() {
-  const { name, avatar, setName, setAvatar } = useProfile();
-  const [draft, setDraft] = useState(name);
+  const { session } = useAuth();
+  const { name: localName, avatar: localAvatar, setName: setLocalName, setAvatar: setLocalAvatar } = useProfile();
+  const [name, setName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [draft, setDraft] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 真实登录：从 users 表读取自己的姓名/头像；测试模式回退本地
+  useEffect(() => {
+    let mounted = true;
+    if (session) {
+      apiCurrentProfile(session.user.id).then((p) => {
+        if (!mounted) return;
+        if (p) {
+          setName(p.name);
+          setDraft(p.name);
+        }
+        if (p?.avatarPath) {
+          supabase.storage
+            .from("avatars")
+            .createSignedUrl(p.avatarPath, 300)
+            .then(({ data }) => {
+              if (mounted && data?.signedUrl) setAvatarUrl(data.signedUrl);
+            });
+        }
+      });
+    } else {
+      setName(localName);
+      setDraft(localName);
+      setAvatarUrl(localAvatar);
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [session, localName, localAvatar]);
+
+  const saveName = async () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (session) {
+      const { error } = await apiUpdateMyName(session.user.id, v);
+      if (error) return setMsg("保存失败：" + error.message);
+      setName(v);
+      setMsg("姓名已保存到账户");
+    } else {
+      setLocalName(v);
+      setName(v);
+      setMsg("已保存到本机（测试模式）");
+    }
+    window.setTimeout(() => setMsg(null), 2200);
+  };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setAvatar(String(reader.result));
-    reader.readAsDataURL(file);
+    if (session) {
+      try {
+        const path = await uploadAvatar(file, session.user.id);
+        const { error } = await rpcUpdateSelfAvatar(path);
+        if (error) return setMsg("头像保存失败：" + error.message);
+        const { data } = await supabase.storage.from("avatars").createSignedUrl(path, 300);
+        if (data?.signedUrl) setAvatarUrl(data.signedUrl);
+        setMsg("头像已上传");
+      } catch (err) {
+        setMsg("上传失败：" + (err instanceof Error ? err.message : String(err)));
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => setAvatarUrl(String(reader.result));
+      reader.readAsDataURL(file);
+      setMsg("头像已保存到本机（测试模式）");
+    }
+    window.setTimeout(() => setMsg(null), 2200);
   };
 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-surface2 text-xl">
-          {avatar ? (
+          {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatar} alt="头像" className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt="头像" className="h-full w-full object-cover" />
           ) : (
             <span>{name.slice(0, 1) || "?"}</span>
           )}
@@ -74,16 +141,18 @@ function ProfileSettings() {
           <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
             上传头像
           </Button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-          <p className="mt-1 font-mono text-[10px] text-muted">头像保存在本机（Mock）</p>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void handleFile(e)} />
+          <p className="mt-1 font-mono text-[10px] text-muted">{session ? "真实登录：姓名/头像保存至账户" : "测试模式：姓名/头像保存在本机"}</p>
         </div>
       </div>
+
+      {msg && <p className="font-mono text-[11px] text-muted">{msg}</p>}
 
       <label className="block space-y-1">
         <span className="font-mono text-[11px] text-muted">姓名</span>
         <div className="flex gap-2">
           <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="你的姓名" />
-          <Button onClick={() => setName(draft.trim())} disabled={!draft.trim()}>保存</Button>
+          <Button onClick={() => void saveName()} disabled={!draft.trim()}>保存</Button>
         </div>
       </label>
     </div>

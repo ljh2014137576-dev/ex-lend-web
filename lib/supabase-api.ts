@@ -84,6 +84,33 @@ export async function apiCustomers(): Promise<Customer[] | null> {
   }));
 }
 
+export interface CurrentProfile {
+  name: string;
+  avatarPath: string | null;
+}
+
+export async function apiCurrentProfile(userId: string): Promise<CurrentProfile | null> {
+  const { data } = await supabase.from("users").select("name, avatar_path").eq("id", userId).maybeSingle();
+  if (!data) return null;
+  return { name: data.name ?? "", avatarPath: data.avatar_path ?? null };
+}
+
+export async function apiUpdateMyName(userId: string, name: string) {
+  return supabase.from("users").update({ name }).eq("id", userId);
+}
+
+export async function uploadAvatar(file: File, userId: string): Promise<string> {
+  const ext = file.name.split(".").pop() || "png";
+  const path = userId + "/avatar-" + Date.now() + "." + ext;
+  const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: false, contentType: file.type });
+  if (error) throw error;
+  return path;
+}
+
+export function rpcUpdateSelfAvatar(avatarPath: string) {
+  return supabase.rpc("update_self_avatar", { p_avatar_path: avatarPath });
+}
+
 export async function apiEmployees(): Promise<Employee[] | null> {
   const { data } = await supabase
     .from("employee")
