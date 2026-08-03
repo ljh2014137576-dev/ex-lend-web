@@ -125,11 +125,10 @@ export default function FinancePage() {
   const trendData = useMemo(() => {
     const days: { day: string; v: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = dateKey(new Date(Date.now() - i * 86400000));
-      days.push({ day: d.slice(5), v: 0 });
+      days.push({ day: dateKey(new Date(Date.now() - i * 86400000)), v: 0 });
     }
     approvedOrders.forEach((o) => {
-      const hit = days.find((x) => dateKey(o.createdAt) === x.day);
+      const hit = days.find((x) => x.day === dateKey(o.createdAt));
       if (hit) hit.v += o.grossProfit;
     });
     return days;
@@ -260,7 +259,7 @@ export default function FinancePage() {
         </div>
         <div className="mt-1 flex gap-3">
           {trendData.map((g) => (
-            <span key={g.day} className="flex-1 text-center font-mono text-[10px] text-muted">{g.day}</span>
+            <span key={g.day} className="flex-1 text-center font-mono text-[10px] text-muted">{g.day.slice(5)}</span>
           ))}
         </div>
       </Panel>
