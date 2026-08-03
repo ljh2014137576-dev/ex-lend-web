@@ -58,6 +58,14 @@ function ProfileSettings() {
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // 头像预加载后再替换，避免 <img src> 变化导致闪白
+  const applyAvatar = (url: string) => {
+    if (!url) return;
+    const img = new Image();
+    img.onload = () => setAvatarUrl(url);
+    img.src = url;
+  };
+
   // 真实登录：从 users 表读取自己的姓名/头像；测试模式回退本地
   useEffect(() => {
     let mounted = true;
@@ -69,11 +77,30 @@ function ProfileSettings() {
           setDraft(p.name);
         }
         if (p?.avatarPath) {
+          const cacheKey = "avatar-signed:" + p.avatarPath;
+          // 签名 URL 会话内缓存（约 4 分钟），复用同一 URL 可命中浏览器缓存，避免重下图片闪动
+          let cached: { url: string; exp: number } | null = null;
+          try {
+            const raw = sessionStorage.getItem(cacheKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.exp > Date.now()) cached = parsed;
+            }
+          } catch {
+            cached = null;
+          }
+          if (cached) applyAvatar(cached.url);
           supabase.storage
             .from("avatars")
             .createSignedUrl(p.avatarPath, 300)
             .then(({ data }) => {
-              if (mounted && data?.signedUrl) setAvatarUrl(data.signedUrl);
+              if (!mounted || !data?.signedUrl) return;
+              try {
+                sessionStorage.setItem(cacheKey, JSON.stringify({ url: data.signedUrl, exp: Date.now() + 240_000 }));
+              } catch {
+                // 忽略缓存配额等异常
+              }
+              applyAvatar(data.signedUrl);
             });
         }
       });
