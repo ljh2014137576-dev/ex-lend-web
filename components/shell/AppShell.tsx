@@ -5,12 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { useProfile } from "@/lib/profile";
+import { useUserAvatar } from "@/lib/avatar";
 import { useAuth } from "@/lib/auth";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { name, avatar } = useProfile();
+  const { name } = useProfile();
+  const avatarUrl = useUserAvatar();
   const { role } = useAuth();
 
   return (
@@ -25,33 +27,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             ☰
           </button>
+          <Link
+            href="/"
+            title="Ex-Lend 首页"
+            className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-accent text-accent-ink transition-opacity hover:opacity-90"
+          >
+            {/* 应用自身头像（Logo 占位，可替换为图片） */}
+            <span className="text-sm">✦</span>
+          </Link>
           <p className="hidden font-mono text-xs text-muted sm:block">
             Ex-Lend / {pathname}
           </p>
         </div>
                 <div className="flex items-center gap-2">
+          {/* 用户头像：点击进入设置；跨页不闪（AppShell 常驻 + 签名 URL 缓存 + 预加载） */}
           <Link
-            href="/cashier"
-            className="hidden h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 sm:inline-flex"
+            href="/settings"
+            title={name ? "我的 · " + name : "我的"}
+            className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-paper transition-colors hover:bg-surface2"
           >
-            + 新建订单
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="头像" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-xs font-semibold">{name.slice(0, 1) || "设"}</span>
+            )}
           </Link>
           <Link
             href="/settings"
             title={name ? "设置 · " + name : "设置"}
-            className="flex h-8 items-center gap-2 rounded-full border border-line bg-paper pl-0.5 pr-2 transition-colors hover:bg-surface2"
+            className="flex h-8 items-center gap-2 rounded-md border border-line bg-paper px-2 transition-colors hover:bg-surface2"
           >
-            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-surface2 text-xs font-semibold">
-              {avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatar} alt="头像" className="h-full w-full object-cover" />
-              ) : (
-                <span>{name.slice(0, 1) || "设"}</span>
-              )}
-            </span>
-            {name && <span className="hidden text-xs sm:inline">{name}</span>}
+            <span className="hidden text-xs sm:inline">{name || "设置"}</span>
             {role && (
-              <span className="hidden rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[10px] text-muted md:inline">
+              <span className="hidden rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted md:inline">
                 {role === "boss" ? "老板" : "管理岗"}
               </span>
             )}
