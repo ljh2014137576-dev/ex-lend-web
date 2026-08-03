@@ -6,8 +6,8 @@ import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, type Employee } from "@/lib/mock-data";
-import { apiEmployees, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
+import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, ORDERS, CUSTOMERS, type Employee, type Order, type Customer } from "@/lib/mock-data";
+import { apiEmployees, apiOrders, apiCustomers, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
 import { rpcPayoutSalary } from "@/lib/supabase-api";
@@ -54,9 +54,29 @@ export default function FinancePage() {
   };
 
   const { session } = useAuth();
+  const { data: orders } = useResource<Order>("orders", apiOrders, ORDERS);
+  const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: walletLedgers } = useResource("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
   const { data: customerLedgers } = useResource("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
   const { data: deleteLogs } = useResource("deleteLogs", apiDeleteLogs, DELETE_LOGS);
+  const approvedOrders = orders.filter((o) => o.auditStatus === "approved");
+  const grossProfitTotal = approvedOrders.reduce((s, o) => s + o.grossProfit, 0);
+  const commissionTotal = approvedOrders.reduce((s, o) => s + o.commission, 0);
+  const inFlightPending = orders
+    .filter((o) => o.status === "booking" || o.status === "in_progress")
+    .reduce((s, o) => s + (o.pending ?? 0), 0);
+  const customerDeposits = customers.reduce((s, c) => s + c.principal + c.bonus, 0);
+  const customerPending = customers.reduce((s, c) => s + c.pending, 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayOrders = orders.filter((o) => o.createdAt.startsWith(today));
+  const todayIncome = todayOrders.reduce((s, o) => s + o.paid, 0);
+  const todayCommission = todayOrders
+    .filter((o) => o.auditStatus === "approved")
+    .reduce((s, o) => s + o.commission, 0);
+  const pendingAuditCommission = orders
+    .filter((o) => o.auditStatus === "pending")
+    .reduce((s, o) => s + o.commission, 0);
+
 
   const submitPayout = async () => {
     setHint(null);
@@ -98,10 +118,14 @@ export default function FinancePage() {
 
       <div className="grid grid-cols-2 gap-px border border-line bg-line lg:grid-cols-4">
         {[
-          { label: "今日收入", value: money(DASHBOARD_STATS.todayIncome) },
-          { label: "今日提成", value: money(DASHBOARD_STATS.todayCommission) },
+          { label: "今日收入", value: money(todayIncome) },
+          { label: "今日提成", value: money(todayCommission) },
+          { label: "总毛利（已审核）", value: money(grossProfitTotal) },
+          { label: "进行中临时金额", value: money(inFlightPending) },
+          { label: "客户存款总额", value: money(customerDeposits) },
+          { label: "客户待结", value: money(customerPending) },
           { label: "员工钱包合计", value: money(totalWallet) },
-          { label: "待审核佣金", value: money(199.5) },
+          { label: "待审核佣金", value: money(pendingAuditCommission) },
         ].map((s) => (
           <div key={s.label} className="bg-surface p-4">
             <p className="font-mono text-[11px] text-muted">{s.label}</p>

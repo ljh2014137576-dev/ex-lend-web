@@ -73,6 +73,7 @@ export interface Order {
   discount: number;
   commission: number;
   grossProfit: number;
+  pending?: number;
   status: OrderStatus;
   auditStatus: AuditStatus;
   operator: string;
