@@ -11,10 +11,12 @@ import { useResource } from "@/lib/data-store";
 import { apiOrders, apiEmployees } from "@/lib/supabase-api";
 import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
+import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function WorkbenchPage() {
+  const { isBoss } = useAuth();
   const { data: orders, real, loading } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
 
@@ -24,17 +26,26 @@ export default function WorkbenchPage() {
   const pendingAudit = orders.filter((o) => o.auditStatus === "pending");
   const pendingCommission = pendingAudit.reduce((s, o) => s + o.commission, 0);
   const activeEmployees = employees.filter((e) => e.status === "active").length;
+  const inProgressCount = orders.filter((o) => o.status === "in_progress").length;
 
   const recent = [...orders]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
 
-  const stats = [
-    { label: "今日订单", value: todayOrders.length, note: "单" },
-    { label: "今日收入", value: money(todayIncome), note: "实付合计 · 不含已取消" },
-    { label: "待审核提成", value: money(pendingCommission), note: `${pendingAudit.length} 笔` },
-    { label: "在职员工", value: activeEmployees, note: "人" },
-  ];
+  // 按身份展示：老板看全局（含待审核提成），管理员看日常（不含老板视角指标）
+  const stats = isBoss
+    ? [
+        { label: "今日订单", value: todayOrders.length, note: "单" },
+        { label: "今日收入", value: money(todayIncome), note: "实付合计 · 不含已取消" },
+        { label: "待审核提成", value: money(pendingCommission), note: `${pendingAudit.length} 笔` },
+        { label: "在职员工", value: activeEmployees, note: "人" },
+      ]
+    : [
+        { label: "今日订单", value: todayOrders.length, note: "单" },
+        { label: "今日收入", value: money(todayIncome), note: "实付合计 · 不含已取消" },
+        { label: "进行中订单", value: inProgressCount, note: "单" },
+        { label: "在职员工", value: activeEmployees, note: "人" },
+      ];
 
   return (
     <div className="space-y-6">
@@ -69,34 +80,44 @@ export default function WorkbenchPage() {
         />
       </Panel>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="待审核提成" meta={`${pendingAudit.length} 笔 · 仅老板可操作`}>
-          <ul className="divide-y divide-line">
-            {pendingAudit.slice(0, 6).map((o) => (
-              <li key={o.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div>
-                  <p className="font-mono text-xs">{o.orderNo}</p>
-                  <p className="font-mono text-[11px] text-muted">{o.customerName} · {money(o.commission)} 佣金</p>
-                </div>
-                <Link href="/audit">
-                  <Button size="sm" variant="secondary">去审核</Button>
-                </Link>
-              </li>
-            ))}
-            {pendingAudit.length === 0 && <li className="py-4 font-mono text-xs text-muted">暂无待审核</li>}
-          </ul>
-        </Panel>
+      <div className={"grid gap-6 " + (isBoss ? "lg:grid-cols-2" : "")}>
+        {isBoss && (
+          <Panel title="待审核提成" meta={`${pendingAudit.length} 笔 · 仅老板可操作`}>
+            <ul className="divide-y divide-line">
+              {pendingAudit.slice(0, 6).map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div>
+                    <p className="font-mono text-xs">{o.orderNo}</p>
+                    <p className="font-mono text-[11px] text-muted">{o.customerName} · {money(o.commission)} 佣金</p>
+                  </div>
+                  <Link href="/audit">
+                    <Button size="sm" variant="secondary">去审核</Button>
+                  </Link>
+                </li>
+              ))}
+              {pendingAudit.length === 0 && <li className="py-4 font-mono text-xs text-muted">暂无待审核</li>}
+            </ul>
+          </Panel>
+        )}
 
-        <Panel title="快捷入口" meta="页面导航">
+        <Panel title="快捷入口" meta="页面导航 · 按身份显示">
           <div className="grid grid-cols-2 gap-2">
             {[
               { href: "/cashier", label: "新建订单 /cashier" },
               { href: "/orders", label: "订单 /orders" },
-              { href: "/audit", label: "审核台 /audit" },
-              { href: "/finance", label: "财务 /finance" },
+              ...(isBoss
+                ? [
+                    { href: "/audit", label: "审核台 /audit" },
+                    { href: "/finance", label: "财务 /finance" },
+                    { href: "/payroll", label: "工资结算 /payroll" },
+                    { href: "/payouts", label: "结算记录 /payouts" },
+                    { href: "/rules", label: "规则配置 /rules" },
+                  ]
+                : []),
               { href: "/customers", label: "客户 /customers" },
               { href: "/employees", label: "员工 /employees" },
               { href: "/products", label: "商品 /products" },
+              { href: "/categories", label: "商品分类 /categories" },
               { href: "/settings", label: "设置 /settings" },
             ].map((x) => (
               <Link key={x.href} href={x.href} className="border border-line bg-paper px-3 py-2 font-mono text-xs transition-colors hover:bg-surface2">
