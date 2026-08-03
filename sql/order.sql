@@ -469,7 +469,7 @@ begin
   if not found then
     return jsonb_build_object('success', false, 'message', '订单不存在');
   end if;
-  if v_status not in ('in_progress', 'completed') then
+  if v_status not in ('booking', 'in_progress', 'completed') then
     return jsonb_build_object('success', false, 'message', '订单开始后才能编辑支付凭证');
   end if;
 

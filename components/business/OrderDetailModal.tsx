@@ -79,8 +79,12 @@ export function OrderDetailModal({
           ? new File([compressed.blob], "proof." + compressed.extension, { type: compressed.contentType })
           : file;
         const path = await uploadProof(uploadFile, session.user.id, detail.order.id);
-        const { error } = await rpcUpdateOrderProof(detail.order.id, path);
-        if (error) throw new Error(error.message);
+        const { data: rpcData, error } = await rpcUpdateOrderProof(detail.order.id, path);
+        if (error || rpcData?.success === false) {
+          // 数据库未写入：清理已上传的孤儿文件（尽力而为），并显示真实原因
+          await supabase.storage.from("payment-proofs").remove([path]).catch(() => undefined);
+          throw new Error(error?.message ?? (rpcData as { message?: string })?.message ?? "更新凭证失败");
+        }
         setDetail({ ...detail, order: { ...detail.order, proofPath: path } });
         setProofMsg("凭证已上传并保存");
       } else {
