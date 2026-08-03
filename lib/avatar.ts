@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { apiCurrentProfile } from "@/lib/supabase-api";
+import { apiCurrentProfile, apiSystemLogo } from "@/lib/supabase-api";
 
 // 头像签名 URL 会话内缓存（约 4 分钟）：跨页面/组件复用同一 URL，命中浏览器缓存，避免闪动
 const AVATAR_TTL = 240_000;
@@ -70,4 +70,49 @@ export function useUserAvatar() {
   }, [session]);
 
   return avatarUrl;
+}
+
+/**
+ * 系统 Logo（system_setting.system_logo_path → avatars 桶签名 URL）。
+ * 带会话缓存 + 预加载，避免闪烁；无 Logo 时返回空串（由调用方显示占位）。
+ */
+export function useSystemLogo() {
+  const { session } = useAuth();
+  const [logoUrl, setLogoUrl] = useState("");
+
+  useEffect(() => {
+    if (!session) {
+      setLogoUrl("");
+      return;
+    }
+    let mounted = true;
+    apiSystemLogo().then((path) => {
+      if (!mounted || !path) return;
+      if (/^https?:\/\//i.test(path)) {
+        setLogoUrl(path);
+        return;
+      }
+      const cached = cachedAvatar(path);
+      if (cached) setLogoUrl(cached);
+      supabase.storage
+        .from("avatars")
+        .createSignedUrl(path, 900)
+        .then(({ data }) => {
+          if (!mounted || !data) return;
+          const signed = data.signedUrl;
+          if (!signed) return;
+          storeAvatar(path, signed);
+          const img = new Image();
+          img.onload = () => {
+            if (mounted) setLogoUrl(signed);
+          };
+          img.src = signed;
+        });
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [session]);
+
+  return logoUrl;
 }

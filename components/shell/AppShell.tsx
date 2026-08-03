@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { useProfile } from "@/lib/profile";
-import { useUserAvatar } from "@/lib/avatar";
+import { useUserAvatar, useSystemLogo } from "@/lib/avatar";
 import { useAuth } from "@/lib/auth";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { name } = useProfile();
   const avatarUrl = useUserAvatar();
+  const logoUrl = useSystemLogo();
   const { role } = useAuth();
 
   return (
@@ -32,8 +33,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             title="Ex-Lend 首页"
             className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-accent text-accent-ink transition-opacity hover:opacity-90"
           >
-            {/* 应用自身头像（Logo 占位，可替换为图片） */}
-            <span className="text-sm">✦</span>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="系统 Logo" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-sm">✦</span>
+            )}
           </Link>
           <p className="hidden font-mono text-xs text-muted sm:block">
             Ex-Lend / {pathname}

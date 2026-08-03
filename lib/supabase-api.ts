@@ -89,6 +89,15 @@ export interface CurrentProfile {
   avatarPath: string | null;
 }
 
+export async function apiSystemLogo(): Promise<string | null> {
+  const { data } = await supabase
+    .from("system_setting")
+    .select("value")
+    .eq("key", "system_logo_path")
+    .maybeSingle();
+  return data?.value ?? null;
+}
+
 export async function apiCurrentProfile(userId: string): Promise<CurrentProfile | null> {
   const { data } = await supabase.from("users").select("name, avatar_path").eq("id", userId).maybeSingle();
   if (!data) return null;
