@@ -55,6 +55,10 @@ export default function OrdersPage() {
   const [audit, setAudit] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [payMethod, setPayMethod] = useState("all");
+  const [minPaid, setMinPaid] = useState("");
+  const [maxPaid, setMaxPaid] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
@@ -66,13 +70,28 @@ export default function OrdersPage() {
       const day = o.createdAt.slice(0, 10);
       if (dateFrom && day < dateFrom) return false;
       if (dateTo && day > dateTo) return false;
+      if (keyword && !o.orderNo.includes(keyword) && !o.customerName.includes(keyword)) return false;
+      if (payMethod !== "all" && o.payMethod !== payMethod) return false;
+      if (minPaid !== "" && o.paid < Number(minPaid)) return false;
+      if (maxPaid !== "" && o.paid > Number(maxPaid)) return false;
       return true;
     });
-  }, [orders, status, audit, dateFrom, dateTo]);
+  }, [orders, status, audit, dateFrom, dateTo, keyword, payMethod, minPaid, maxPaid]);
 
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => orders.some((o) => o.id === id)));
   }, [orders]);
+
+  const resetFilters = () => {
+    setStatus("all");
+    setAudit("all");
+    setDateFrom("");
+    setDateTo("");
+    setKeyword("");
+    setPayMethod("all");
+    setMinPaid("");
+    setMaxPaid("");
+  };
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -121,34 +140,57 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <FilterTabs
-          tabs={[
-            { id: "all", label: "全部", count: orders.length },
-            { id: "booking", label: "待开始", count: countBy("status", "booking") },
-            { id: "in_progress", label: "进行中", count: countBy("status", "in_progress") },
-            { id: "completed", label: "已完成", count: countBy("status", "completed") },
-            { id: "cancelled", label: "已取消", count: countBy("status", "cancelled") },
-          ]}
-          active={status}
-          onChange={setStatus}
-        />
-        <FilterTabs
-          tabs={[
-            { id: "all", label: "审核-全部" },
-            { id: "pending", label: "待审核", count: countBy("auditStatus", "pending") },
-            { id: "approved", label: "已通过" },
-            { id: "rejected", label: "已拒绝" },
-          ]}
-          active={audit}
-          onChange={setAudit}
-        />
-        <div className="flex items-center gap-2">
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36" />
-          <span className="font-mono text-[10px] text-muted">至</span>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" />
+      <Panel title="筛选条件" meta={`命中 ${filtered.length} 笔`}>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              placeholder="搜索订单号 / 客户名…"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              className="w-56"
+            />
+            <FilterTabs
+              tabs={[
+                { id: "all", label: "状态-全部" },
+                { id: "booking", label: "待开始", count: countBy("status", "booking") },
+                { id: "in_progress", label: "进行中", count: countBy("status", "in_progress") },
+                { id: "completed", label: "已完成", count: countBy("status", "completed") },
+                { id: "cancelled", label: "已取消", count: countBy("status", "cancelled") },
+              ]}
+              active={status}
+              onChange={setStatus}
+            />
+            <FilterTabs
+              tabs={[
+                { id: "all", label: "审核-全部" },
+                { id: "pending", label: "待审核", count: countBy("auditStatus", "pending") },
+                { id: "approved", label: "已通过" },
+                { id: "rejected", label: "已拒绝" },
+              ]}
+              active={audit}
+              onChange={setAudit}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <FilterTabs
+              tabs={[
+                { id: "all", label: "支付-全部" },
+                { id: "wallet", label: "钱包" },
+                { id: "cash", label: "现金" },
+              ]}
+              active={payMethod}
+              onChange={setPayMethod}
+            />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36" />
+            <span className="font-mono text-[10px] text-muted">至</span>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" />
+            <Input type="number" placeholder="实付 ≥" value={minPaid} onChange={(e) => setMinPaid(e.target.value)} className="w-24" />
+            <span className="font-mono text-[10px] text-muted">至</span>
+            <Input type="number" placeholder="实付 ≤" value={maxPaid} onChange={(e) => setMaxPaid(e.target.value)} className="w-24" />
+            <Button size="sm" variant="ghost" onClick={resetFilters}>重置</Button>
+          </div>
         </div>
-      </div>
+      </Panel>
 
       {selected.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 border border-line bg-surface p-3">
