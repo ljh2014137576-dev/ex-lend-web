@@ -9,6 +9,7 @@ import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatu
 import { apiOrderDetail, rpcUpdateOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { compressPaymentProof } from "@/lib/image-compression";
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
 import { ReceiptEditor } from "@/components/business/ReceiptEditor";
 
@@ -72,7 +73,12 @@ export function OrderDetailModal({
     setProofMsg(null);
     try {
       if (session && detail) {
-        const path = await uploadProof(file, session.user.id, detail.order.id);
+        // 先压缩（HEIC/过小/无法解码时返回 null，原样上传）
+        const compressed = await compressPaymentProof(file);
+        const uploadFile = compressed
+          ? new File([compressed.blob], "proof." + compressed.extension, { type: compressed.contentType })
+          : file;
+        const path = await uploadProof(uploadFile, session.user.id, detail.order.id);
         const { error } = await rpcUpdateOrderProof(detail.order.id, path);
         if (error) throw new Error(error.message);
         setDetail({ ...detail, order: { ...detail.order, proofPath: path } });
