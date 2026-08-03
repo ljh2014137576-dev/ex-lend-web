@@ -259,6 +259,7 @@ create index if not exists idx_customer_adjustment_customer
 create index if not exists idx_customer_adjustment_created
   on customer_account_adjustment(created_at);
 alter table "order" add column if not exists proof_path text;
+alter table "order" add column if not exists proof_paths text[] not null default '{}';
 alter table customer_wallet_ledger add column if not exists proof_path text;
 alter table users add column if not exists avatar_path text;
 alter table employee add column if not exists avatar_path text;

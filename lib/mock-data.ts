@@ -82,6 +82,7 @@ export interface Order {
   operator: string;
   createdAt: string;
   proofPath?: string | null;
+  proofPaths?: string[];
   items: OrderItem[];
   members: OrderMember[];
 }

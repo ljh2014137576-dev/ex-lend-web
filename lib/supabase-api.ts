@@ -174,7 +174,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
   const { data } = await supabase
     .from("order")
     .select(
-      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, proof_path, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))",
+      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, proof_path, proof_paths, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -214,6 +214,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
     operator: "—",
     createdAt: data.created_at ? new Date(data.created_at).toLocaleString("zh-CN") : "—",
     proofPath: data.proof_path ?? null,
+    proofPaths: Array.isArray(data.proof_paths) ? data.proof_paths : data.proof_path ? [data.proof_path] : [],
     items,
     members,
   };
@@ -493,6 +494,14 @@ export function rpcBatchApproveOrders(p_order_ids: string[]) {
 
 export function rpcUpdateOrderProof(p_order_id: string, p_proof_path: string) {
   return supabase.rpc("update_order_proof", { p_order_id, p_proof_path });
+}
+
+export function rpcAddOrderProof(p_order_id: string, p_proof_path: string) {
+  return supabase.rpc("add_order_proof", { p_order_id, p_proof_path });
+}
+
+export function rpcRemoveOrderProof(p_order_id: string, p_proof_path: string) {
+  return supabase.rpc("remove_order_proof", { p_order_id, p_proof_path });
 }
 
 export async function uploadProof(file: File, userId: string, orderId: string): Promise<string> {

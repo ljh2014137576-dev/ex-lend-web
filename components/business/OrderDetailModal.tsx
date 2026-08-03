@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { apiOrderDetail, rpcUpdateOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, uploadProof } from "@/lib/supabase-api";
+import { apiOrderDetail, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { compressPaymentProof } from "@/lib/image-compression";
@@ -25,7 +25,7 @@ export function OrderDetailModal({
   const { session } = useAuth();
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
   const [mockOrder, setMockOrder] = useState<Order | null>(null);
-  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofs, setProofs] = useState<{ path: string; url: string }[]>([]);
   const [proofMsg, setProofMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -38,7 +38,7 @@ export function OrderDetailModal({
     if (!orderId) return;
     setDetail(null);
     setMockOrder(null);
-    setProofUrl(null);
+    setProofs([]);
     setProofMsg(null);
     if (session) {
       apiOrderDetail(orderId).then((d) => {
@@ -49,17 +49,25 @@ export function OrderDetailModal({
     }
   }, [orderId, session]);
 
-  // 真实凭证：私有桶 → 签名 URL 展示
+  // 真实凭证：私有桶 → 签名 URL 展示（支持多张）
   useEffect(() => {
     let mounted = true;
-    const path = detail?.order.proofPath;
-    if (session && path) {
-      supabase.storage
-        .from("payment-proofs")
-        .createSignedUrl(path, 300)
-        .then(({ data }) => {
-          if (mounted && data?.signedUrl) setProofUrl(data.signedUrl);
-        });
+    const paths =
+      detail?.order.proofPaths && detail.order.proofPaths.length > 0
+        ? detail.order.proofPaths
+        : detail?.order.proofPath
+          ? [detail.order.proofPath]
+          : [];
+    setProofs([]);
+    if (session && paths.length > 0) {
+      Promise.all(
+        paths.map(async (path) => {
+          const { data } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 300);
+          return data?.signedUrl ? { path, url: data.signedUrl } : null;
+        }),
+      ).then((list) => {
+        if (mounted) setProofs(list.filter(Boolean) as { path: string; url: string }[]);
+      });
     }
     return () => {
       mounted = false;
@@ -67,33 +75,43 @@ export function OrderDetailModal({
   }, [detail, session]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setUploading(true);
     setProofMsg(null);
     try {
       if (session && detail) {
-        // 先压缩（HEIC/过小/无法解码时返回 null，原样上传）
-        const compressed = await compressPaymentProof(file);
-        const uploadFile = compressed
-          ? new File([compressed.blob], "proof." + compressed.extension, { type: compressed.contentType })
-          : file;
-        const path = await uploadProof(uploadFile, session.user.id, detail.order.id);
-        const { data: rpcData, error } = await rpcUpdateOrderProof(detail.order.id, path);
-        if (error || rpcData?.success === false) {
-          // 数据库未写入：清理已上传的孤儿文件（尽力而为），并显示真实原因
-          await supabase.storage.from("payment-proofs").remove([path]).catch(() => undefined);
-          throw new Error(error?.message ?? (rpcData as { message?: string })?.message ?? "更新凭证失败");
+        // 逐张压缩上传（HEIC/过小/无法解码时原样上传），一个订单可挂多张凭证
+        const added: string[] = [];
+        for (const file of files) {
+          const compressed = await compressPaymentProof(file);
+          const uploadFile = compressed
+            ? new File([compressed.blob], "proof." + compressed.extension, { type: compressed.contentType })
+            : file;
+          const path = await uploadProof(uploadFile, session.user.id, detail.order.id);
+          const { data: rpcData, error } = await rpcAddOrderProof(detail.order.id, path);
+          if (error || rpcData?.success === false) {
+            // 数据库未写入：清理已上传的孤儿文件（尽力而为），并显示真实原因
+            await supabase.storage.from("payment-proofs").remove([path]).catch(() => undefined);
+            throw new Error(error?.message ?? (rpcData as { message?: string })?.message ?? "更新凭证失败");
+          }
+          added.push(path);
         }
-        setDetail({ ...detail, order: { ...detail.order, proofPath: path } });
-        setProofMsg("凭证已上传并保存");
+        const existing =
+          detail.order.proofPaths && detail.order.proofPaths.length > 0
+            ? detail.order.proofPaths
+            : detail.order.proofPath
+              ? [detail.order.proofPath]
+              : [];
+        setDetail({ ...detail, order: { ...detail.order, proofPath: added[added.length - 1], proofPaths: [...existing, ...added] } });
+        setProofMsg("已上传 " + added.length + " 张凭证");
       } else {
         const reader = new FileReader();
         reader.onload = () => {
-          setProofUrl(String(reader.result));
+          setProofs([{ path: "", url: String(reader.result) }]);
           setProofMsg("Mock 模式：凭证仅本地预览");
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(files[0]);
       }
     } catch (err) {
       setProofMsg("上传失败：" + (err instanceof Error ? err.message : String(err)));
@@ -101,6 +119,26 @@ export function OrderDetailModal({
       setUploading(false);
       e.target.value = "";
     }
+  };
+
+  const removeProof = async (path: string) => {
+    if (!detail || !session) return;
+    setProofMsg(null);
+    const { data: rpcData, error } = await rpcRemoveOrderProof(detail.order.id, path);
+    if (error || rpcData?.success === false) {
+      return setProofMsg(error?.message ?? (rpcData as { message?: string })?.message ?? "删除凭证失败");
+    }
+    await supabase.storage.from("payment-proofs").remove([path]).catch(() => undefined);
+    const prev =
+      detail.order.proofPaths && detail.order.proofPaths.length > 0
+        ? detail.order.proofPaths
+        : detail.order.proofPath
+          ? [detail.order.proofPath]
+          : [];
+    const next = prev.filter((x) => x !== path);
+    setDetail({ ...detail, order: { ...detail.order, proofPaths: next, proofPath: next.length ? next[next.length - 1] : null } });
+    setProofs((list) => list.filter((x) => x.path !== path));
+    setProofMsg("已删除一张凭证");
   };
 
   const o = detail?.order ?? mockOrder;
@@ -234,10 +272,25 @@ export function OrderDetailModal({
           {modalMsg && <p className="font-mono text-[11px] text-danger">{modalMsg}</p>}
 
           <div className="border border-line bg-paper p-3">
-            <p className="mb-2 font-mono text-[11px] text-muted">支付凭证</p>
-            {proofUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={proofUrl} alt="支付凭证" className="max-h-48 border border-line bg-surface object-contain" />
+            <p className="mb-2 font-mono text-[11px] text-muted">支付凭证（{proofs.length} 张）</p>
+            {proofs.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {proofs.map((pr) => (
+                  <div key={pr.url} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={pr.url} alt="支付凭证" className="max-h-40 w-full border border-line bg-surface object-contain" />
+                    {pr.path && session && (
+                      <button
+                        type="button"
+                        onClick={() => void removeProof(pr.path)}
+                        className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/80"
+                      >
+                        删除
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="font-mono text-xs text-muted">暂无凭证</p>
             )}
@@ -246,8 +299,8 @@ export function OrderDetailModal({
               <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 {uploading ? "上传中…" : "上传支付凭证"}
               </Button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-              <span className="font-mono text-[10px] text-muted">支持 jpg/png；真实模式下保存至 payment-proofs</span>
+              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+              <span className="font-mono text-[10px] text-muted">支持多张 jpg/png；真实模式下保存至 payment-proofs</span>
             </div>
           </div>
         </div>
