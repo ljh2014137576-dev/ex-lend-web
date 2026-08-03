@@ -10,7 +10,7 @@ import { apiNotifications } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 
 export default function NotificationsPage() {
-  const { data: items, mutate: setItems } = useResource<NotificationItem>("notifications", apiNotifications, NOTIFICATIONS);
+  const { data: items, real, mutate: setItems } = useResource<NotificationItem>("notifications", apiNotifications, NOTIFICATIONS);
   const unread = items.filter((n) => !n.read).length;
 
   const markRead = (id: string) => setItems((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -19,7 +19,7 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="通知" meta={`/notifications · ${unread} 条未读（Mock）`} />
+        <PageHeader title="通知" meta={`/notifications · ${unread} 条未读${real ? " · 真实数据" : "（Mock）"}`} />
         <Button size="sm" variant="secondary" onClick={markAll} disabled={unread === 0}>全部已读</Button>
       </div>
 

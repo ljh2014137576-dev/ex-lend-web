@@ -43,7 +43,7 @@ export default function EmployeesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="员工" meta={`/employees · ${employees.length} 人（Mock）`} />
+        <PageHeader title="员工" meta={`/employees · ${employees.length} 人${real ? " · 真实数据" : "（Mock）"}`} />
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>批量导入</Button>
           <DataSourceBadge real={real} error={error} />

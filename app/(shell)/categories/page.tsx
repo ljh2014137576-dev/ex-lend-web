@@ -41,7 +41,7 @@ export default function CategoriesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="商品分类" meta={`/categories · ${categories.length} 个（Mock）`} />
+        <PageHeader title="商品分类" meta={`/categories · ${categories.length} 个${real ? " · 真实数据" : "（Mock）"}`} />
         <DataSourceBadge real={real} error={error} />
         <Button size="sm" onClick={() => setOpen(true)}>新建分类</Button>
       </div>

@@ -76,7 +76,7 @@ export default function FinancePage() {
   };
 
   const { session, name } = useAuth();
-  const { data: orders } = useResource<Order>("orders", apiOrders, ORDERS);
+  const { data: orders, real } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: walletLedgers } = useResource("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
   const { data: customerLedgers } = useResource("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
@@ -174,7 +174,7 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="财务" meta="/finance · Mock 数据 · 老板可操作，管理岗只读" />
+      <PageHeader title="财务" meta={`/finance · ${real ? "真实数据" : "Mock 数据"} · 老板可操作，管理岗只读`} />
 
       <Panel title="营业额" meta={`${range.from || "最早"} ~ ${range.to || "今天"} · 名义=字面金额 · 真实=实付且不含已取消`}>
         <div className="space-y-4">
@@ -249,7 +249,7 @@ export default function FinancePage() {
         ))}
       </div>
 
-      <Panel title="毛利趋势（近 7 日）" meta="元 · Mock">
+      <Panel title="毛利趋势（近 7 日）" meta={`元 · ${real ? "真实" : "Mock"}`}>
         <div className="flex h-40 items-end gap-3 border-b border-line">
           {trendData.map((g) => (
             <div key={g.day} className="flex flex-1 flex-col items-center gap-1">
@@ -265,7 +265,7 @@ export default function FinancePage() {
         </div>
       </Panel>
 
-      <Panel title="打款批次" meta="payout（Mock）">
+      <Panel title="打款批次" meta={`payout${real ? "（真实）" : "（Mock）"}`}>
         <DataTable<PayoutRow>
           rowKey={(r) => r.id}
           columns={[
@@ -280,7 +280,7 @@ export default function FinancePage() {
         />
       </Panel>
 
-      <Panel title="员工钱包流水" meta="wallet_ledger（Mock）">
+      <Panel title="员工钱包流水" meta={`wallet_ledger${real ? "（真实）" : "（Mock）"}`}>
         <DataTable
           rowKey={(r) => r.id}
           columns={[
@@ -295,7 +295,7 @@ export default function FinancePage() {
         />
       </Panel>
 
-      <Panel title="客户钱包流水" meta="customer_wallet_ledger（Mock）">
+      <Panel title="客户钱包流水" meta={`customer_wallet_ledger${real ? "（真实）" : "（Mock）"}`}>
         <DataTable
           rowKey={(r) => r.id}
           columns={[
@@ -310,7 +310,7 @@ export default function FinancePage() {
         />
       </Panel>
 
-      <Panel title="订单删除审计" meta="order_delete_log（Mock）">
+      <Panel title="订单删除审计" meta={`order_delete_log${real ? "（真实）" : "（Mock）"}`}>
         <DataTable
           rowKey={(r) => r.id}
           columns={[
@@ -324,14 +324,14 @@ export default function FinancePage() {
         />
       </Panel>
 
-      <Panel title="工资发放" meta="payout_salary（Mock）">
+      <Panel title="工资发放" meta={`payout_salary${real ? "（真实）" : "（Mock）"}`}>
         <div className="flex items-center justify-between gap-4">
           <p className="font-mono text-xs text-muted">按批次扣减员工钱包；非欠款员工余额不足将整体中断</p>
           <BossOnly fallback={<span className="font-mono text-[11px] text-muted">仅老板可操作</span>}><Button onClick={openPayout}>发起工资发放</Button></BossOnly>
         </div>
       </Panel>
 
-      <Modal open={payoutOpen} title="工资发放（Mock）" onClose={() => setPayoutOpen(false)} wide>
+      <Modal open={payoutOpen} title={`工资发放${real ? "" : "（Mock）"}`} onClose={() => setPayoutOpen(false)} wide>
         <div className="space-y-4">
           {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}
           <div className="max-h-[50vh] overflow-y-auto">

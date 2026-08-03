@@ -18,7 +18,7 @@ import { NoPermission } from "@/components/business/RequireRole";
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function AuditPage() {
-  const { data: orders, mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
+  const { data: orders, real, mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="提成审核台" meta="/audit · Mock 数据 · 仅老板可操作" />
+      <PageHeader title="提成审核台" meta={`/audit · ${real ? "真实数据" : "Mock 数据"} · 仅老板可操作`} />
 
       <div className="grid gap-6 lg:grid-cols-5">
         <Panel title={`待审核队列（${pending.length}）`} className="lg:col-span-2">
@@ -164,7 +164,7 @@ export default function AuditPage() {
         </Panel>
       </div>
 
-      <Panel title="操作记录" meta="Mock 本地状态">
+      <Panel title="操作记录" meta={real ? "本次操作记录" : "Mock 本地状态"}>
         <ul className="space-y-1">
           {log.map((l, i) => (
             <li key={i} className="font-mono text-xs text-muted">{l}</li>

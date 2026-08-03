@@ -13,7 +13,7 @@ import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
 
 export default function AnnouncementsPage() {
-  const { data: items, mutate: setItems } = useResource<Announcement>("announcements", apiAnnouncements, ANNOUNCEMENTS);
+  const { data: items, real, mutate: setItems } = useResource<Announcement>("announcements", apiAnnouncements, ANNOUNCEMENTS);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", pinned: false });
 
@@ -35,7 +35,7 @@ export default function AnnouncementsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="公告" meta={`/announcements · ${items.length} 条（Mock）· 仅老板可发布`} />
+        <PageHeader title="公告" meta={`/announcements · ${items.length} 条${real ? " · 真实数据" : "（Mock）"} · 仅老板可发布`} />
         <BossOnly fallback={<span className="font-mono text-[11px] text-muted">仅老板可发布</span>}><Button size="sm" onClick={() => setOpen(true)}>发布公告</Button></BossOnly>
       </div>
 

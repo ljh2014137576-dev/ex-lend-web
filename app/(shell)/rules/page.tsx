@@ -17,7 +17,7 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 const pct = (n: number) => (n * 100).toFixed(0) + "%";
 
 export default function RulesPage() {
-  const { data: grades, mutate: setGrades } = useResource<GradeRule>("gradeRules", apiGradeRules, GRADE_RULES);
+  const { data: grades, real, mutate: setGrades } = useResource<GradeRule>("gradeRules", apiGradeRules, GRADE_RULES);
   const { data: vipDiscounts, mutate: setVipDiscounts } = useResource<VipDiscountRule>("vipDiscounts", apiVipDiscountRules, VIP_DISCOUNT_RULES);
   const { data: upgrades, mutate: setUpgrades } = useResource<VipUpgradeRule>("vipUpgrades", apiVipUpgradeRules, VIP_UPGRADE_RULES);
   const { data: packages, mutate: setPackages } = useResource<RechargePackage>("rechargePackages", apiRechargePackages, RECHARGE_PACKAGES);
@@ -37,7 +37,7 @@ export default function RulesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="规则配置" meta="/rules · Mock · 仅老板可修改" />
+      <PageHeader title="规则配置" meta={`/rules · ${real ? "真实数据" : "Mock"} · 仅老板可修改`} />
 
       <Panel title="等级提成规则" meta="grade_commission_rule">
         <div className="space-y-4">

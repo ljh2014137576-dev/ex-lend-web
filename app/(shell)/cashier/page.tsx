@@ -30,7 +30,7 @@ export default function CashierPage() {
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
-  const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
+  const { data: customers, real } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { session } = useAuth();
@@ -108,11 +108,11 @@ export default function CashierPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="新建订单" meta="/cashier · 收银台 · Mock 下单交互" />
+      <PageHeader title="新建订单" meta={`/cashier · 收银台 · ${real ? "真实下单交互" : "Mock 下单交互"}`} />
 
       {receipt && (
         <div className="border border-line bg-surface p-4">
-          <p className="text-sm font-medium">下单成功（Mock）</p>
+          <p className="text-sm font-medium">下单成功{real ? "" : "（Mock）"}</p>
           <p className="mt-1 font-mono text-xs text-muted">
             订单号 {receipt.no} · 实付 {money(receipt.paid)} · 折扣 {money(receipt.discount)} · {receipt.at}
           </p>

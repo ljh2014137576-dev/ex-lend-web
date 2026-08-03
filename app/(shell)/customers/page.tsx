@@ -123,7 +123,7 @@ export default function CustomersPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="客户" meta={`/customers · ${customers.length} 人（Mock）`} />
+        <PageHeader title="客户" meta={`/customers · ${customers.length} 人${real ? " · 真实数据" : "（Mock）"}`} />
         <DataSourceBadge real={real} error={error} />`n        <Button size="sm" onClick={() => setCreateOpen(true)}>新建客户</Button>
       </div>
 

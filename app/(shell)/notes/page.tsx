@@ -12,7 +12,7 @@ import { apiNotes } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 
 export default function NotesPage() {
-  const { data: notes, mutate: setNotes } = useResource<Note>("notes", apiNotes, NOTES);
+  const { data: notes, real, mutate: setNotes } = useResource<Note>("notes", apiNotes, NOTES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", published: false });
 
@@ -32,7 +32,7 @@ export default function NotesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="笔记" meta={`/notes · ${notes.length} 条（Mock）· 发布后全员可见`} />
+        <PageHeader title="笔记" meta={`/notes · ${notes.length} 条${real ? " · 真实数据" : "（Mock）"} · 发布后全员可见`} />
         <Button size="sm" onClick={() => setOpen(true)}>新建笔记</Button>
       </div>
 

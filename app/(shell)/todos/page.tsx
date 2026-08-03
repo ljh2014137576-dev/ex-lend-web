@@ -18,7 +18,7 @@ const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | 
 };
 
 export default function TodosPage() {
-  const { data: todos, mutate: setTodos } = useResource<Todo>("todos", apiTodos, TODOS);
+  const { data: todos, real, mutate: setTodos } = useResource<Todo>("todos", apiTodos, TODOS);
   const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", mentions: [] as string[] });
@@ -45,7 +45,7 @@ export default function TodosPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="待办" meta={`/todos · ${todos.length} 条（Mock）`} />
+        <PageHeader title="待办" meta={`/todos · ${todos.length} 条${real ? " · 真实数据" : "（Mock）"}`} />
         <Button size="sm" onClick={() => setOpen(true)}>新建待办</Button>
       </div>
 
