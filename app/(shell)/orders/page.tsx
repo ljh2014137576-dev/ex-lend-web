@@ -12,8 +12,8 @@ import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatu
 import { OrderDetailModal } from "@/components/business/OrderDetailModal";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
-import { apiOrders, rpcBatchStartOrders, rpcBatchApproveOrders } from "@/lib/supabase-api";
-import { ORDERS, type Order } from "@/lib/mock-data";
+import { apiOrders, apiEmployees, rpcBatchStartOrders, rpcBatchApproveOrders } from "@/lib/supabase-api";
+import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -59,6 +59,8 @@ export default function OrdersPage() {
   const [payMethod, setPayMethod] = useState("all");
   const [minPaid, setMinPaid] = useState("");
   const [maxPaid, setMaxPaid] = useState("");
+  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
   const [selected, setSelected] = useState<string[]>([]);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
@@ -71,12 +73,13 @@ export default function OrdersPage() {
       if (dateFrom && day < dateFrom) return false;
       if (dateTo && day > dateTo) return false;
       if (keyword && !o.orderNo.includes(keyword) && !o.customerName.includes(keyword)) return false;
+      if (employeeFilter !== "all" && !o.members.some((m) => m.employeeId === employeeFilter)) return false;
       if (payMethod !== "all" && o.payMethod !== payMethod) return false;
       if (minPaid !== "" && o.paid < Number(minPaid)) return false;
       if (maxPaid !== "" && o.paid > Number(maxPaid)) return false;
       return true;
     });
-  }, [orders, status, audit, dateFrom, dateTo, keyword, payMethod, minPaid, maxPaid]);
+  }, [orders, status, audit, dateFrom, dateTo, keyword, payMethod, minPaid, maxPaid, employeeFilter]);
 
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => orders.some((o) => o.id === id)));
@@ -91,6 +94,7 @@ export default function OrdersPage() {
     setPayMethod("all");
     setMinPaid("");
     setMaxPaid("");
+    setEmployeeFilter("all");
   };
 
   const toggleSelect = (id: string) =>
@@ -172,6 +176,14 @@ export default function OrdersPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <FilterTabs
+              tabs={[
+                { id: "all", label: "员工-全部" },
+                ...employees.map((e) => ({ id: e.id, label: e.name })),
+              ]}
+              active={employeeFilter}
+              onChange={setEmployeeFilter}
+            />
             <FilterTabs
               tabs={[
                 { id: "all", label: "支付-全部" },
