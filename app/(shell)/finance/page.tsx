@@ -38,7 +38,6 @@ const INITIAL_PAYOUTS: PayoutRow[] = [
 ];
 
 export default function FinancePage() {
-  const totalWallet = EMPLOYEES.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
   const maxTrend = Math.max(...GROSS_TREND.map((g) => g.v));
 
   const { data: employees, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
@@ -78,6 +77,8 @@ export default function FinancePage() {
   const pendingAuditCommission = orders
     .filter((o) => o.auditStatus === "pending")
     .reduce((s, o) => s + o.commission, 0);
+  // 员工钱包合计 = 所有在职员工的 wallet_balance 之和（来自缓存，真实模式为线上数据）
+  const totalWallet = employees.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
 
 
   const submitPayout = async () => {
