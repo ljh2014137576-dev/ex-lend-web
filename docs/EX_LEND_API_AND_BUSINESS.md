@@ -324,4 +324,6 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 
 **导出：** 复制 PNG（剪贴板）、下载 PNG/JPEG（html-to-image，pixelRatio 3）、PDF（jsPDF，按纸宽换算高度）。资源位于 public/receipt/，样式位于 app/globals.css（.receipt 系列），字体复用 YouSheBiaoTiHei。
 
+**布局：** 默认 80mm 纸宽；票码区左锚定：二维码靠左 → 分割线 → 条形码按剩余宽度自适应加长（高度与二维码一致，不超宽），条码下方不显示编号（订单号在小票头部 #编号 处）。
+
 **注意：** 小票含"样例水印"默认值（SAMPLE / 样例），如需正式小票请自行确认合规后再去除。
