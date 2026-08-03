@@ -15,7 +15,7 @@ type Store = {
   ensure: <T>(key: string, fetcher: () => Promise<T[] | null>, fallback: T[], hasSession: boolean) => ResourceState;
   mutate: (key: string, updater: (prev: unknown[]) => unknown[]) => void;
   invalidate: (key: string) => void;
-  refreshAll: (hasSession: boolean) => Promise<void>;
+  refreshAll: (hasSession: boolean, force?: boolean) => Promise<void>;
 };
 
 const DataContext = createContext<Store | null>(null);
@@ -31,8 +31,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const ensure: Store["ensure"] = (key, fetcher, fallback, hasSession) => {
     registry.current[key] = { fetcher: fetcher as () => Promise<unknown[] | null>, fallback: fallback as unknown[] };
     const existing = resources[key];
-    if (existing && existing.loaded) return existing;
-    if (!inflight.current[key] && !existing) {
+    // 页面刷新后若有会话，但缓存仍是“无会话时写入的 Mock 兜底”，视为过期，强制重拉真实数据
+    const staleFallback = !!existing && existing.loaded && hasSession && !existing.real;
+    if (existing && existing.loaded && !staleFallback) return existing;
+    if (!inflight.current[key] && (!existing || staleFallback)) {
       inflight.current[key] = true;
       (async () => {
         try {
@@ -80,7 +82,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 后台全量刷新：静默重新拉取所有已注册资源并覆盖缓存，保持 loaded=true（无加载闪烁）；失败保留旧数据。
-  const refreshAll: Store["refreshAll"] = async (hasSession) => {
+  const refreshAll: Store["refreshAll"] = async (hasSession, force = false) => {
     if (!hasSession || refreshing.current) return;
     refreshing.current = true;
     try {
@@ -88,6 +90,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await Promise.all(
         keys.map(async (key) => {
           if (inflight.current[key]) return; // 该 key 正在首载，跳过本次刷新
+          if (!force && resources[key]?.real) return; // 非强制刷新：已新鲜的真实数据跳过，避免页面加载时重复请求
           const entry = registry.current[key];
           try {
             const rows = await entry.fetcher();

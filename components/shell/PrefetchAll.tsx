@@ -70,6 +70,10 @@ export function PrefetchAll() {
     jobs.forEach(([key, fetcher, fallback]) => {
       store.ensure(key, fetcher as () => Promise<unknown[] | null>, fallback as unknown[], has);
     });
+    // 页面（重新）加载时：兜底重拉任何过期/未拉数据，保证“刷新后全部数据被请求一次”（已新鲜数据跳过，不重复请求）
+    if (has) {
+      void store.refreshAll(true, false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -77,7 +81,7 @@ export function PrefetchAll() {
   useEffect(() => {
     if (!session) return;
     const timer = window.setInterval(() => {
-      void store.refreshAll(true);
+      void store.refreshAll(true, true);
     }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
