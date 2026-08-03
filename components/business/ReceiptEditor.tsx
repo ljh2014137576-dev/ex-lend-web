@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toJpeg, toPng } from "html-to-image";
-import { jsPDF } from "jspdf";
-import JsBarcode from "jsbarcode";
-import QRCode from "qrcode";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -135,9 +131,15 @@ export function ReceiptEditor({
 
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(qrText || " ", { margin: 1, width: 260, errorCorrectionLevel: "M" })
-      .then((url) => { if (active) setQrImage(url); })
-      .catch(() => { if (active) setQrImage(""); });
+    (async () => {
+      try {
+        const QRCode = (await import("qrcode")).default;
+        const url = await QRCode.toDataURL(qrText || " ", { margin: 1, width: 260, errorCorrectionLevel: "M" });
+        if (active) setQrImage(url);
+      } catch {
+        if (active) setQrImage("");
+      }
+    })();
     return () => { active = false; };
   }, [qrText]);
 
@@ -145,27 +147,32 @@ export function ReceiptEditor({
     const svg = barcodeRef.current;
     if (!svg) return;
     const value = receiptNo || "000000000000";
-    const draw = (barWidth: number) => {
-      svg.replaceChildren();
-      JsBarcode(svg, value, {
-        format: "CODE128", lineColor: "#111", width: barWidth, height: 41, displayValue: false, margin: 0,
-      });
-    };
-    try {
-      // 两遍渲染：先按 barWidth=1 量自然宽度，再按容器实际宽度（条码区 flex 撑满剩余宽度）反算 barWidth，
-      // 使条码长度自适应纸宽（80mm 更长、58mm 较短），高度恒为 41px，且不超宽。
-      draw(1);
-      const natural = svg.getBBox().width || 1;
-      const targetWidth = Math.max(60, (barcodeWrapRef.current?.clientWidth || 120) * 0.75);
-      const barWidth = Math.max(0.25, Math.min(2.2, targetWidth / natural));
-      draw(barWidth);
-      const renderedW = Math.round(svg.getBBox().width);
-      svg.setAttribute("width", String(renderedW));
-      svg.setAttribute("height", "41");
-      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-    } catch {
-      svg.setAttribute("aria-label", "条形码内容无效");
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const JsBarcode = (await import("jsbarcode")).default;
+        if (cancelled) return;
+        const draw = (barWidth: number) => {
+          svg.replaceChildren();
+          JsBarcode(svg, value, {
+            format: "CODE128", lineColor: "#111", width: barWidth, height: 41, displayValue: false, margin: 0,
+          });
+        };
+        // 两遍渲染：先按 barWidth=1 量自然宽度，再按容器实际宽度反算 barWidth，使条码长度自适应且不超宽
+        draw(1);
+        const natural = svg.getBBox().width || 1;
+        const targetWidth = Math.max(60, (barcodeWrapRef.current?.clientWidth || 120) * 0.75);
+        const barWidth = Math.max(0.25, Math.min(2.2, targetWidth / natural));
+        draw(barWidth);
+        const renderedW = Math.round(svg.getBBox().width);
+        svg.setAttribute("width", String(renderedW));
+        svg.setAttribute("height", "41");
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      } catch {
+        svg.setAttribute("aria-label", "条形码内容无效");
+      }
+    })();
+    return () => { cancelled = true; };
   }, [receiptNo, paperWidth]);
 
   function notify(message: string) {
@@ -207,6 +214,7 @@ export function ReceiptEditor({
   async function renderPng() {
     if (!receiptRef.current) throw new Error("小票预览尚未准备好");
     await waitForReceiptAssets(receiptRef.current);
+    const { toPng } = await import("html-to-image");
     return toPng(receiptRef.current, { pixelRatio: 3, cacheBust: true });
   }
 
@@ -234,10 +242,12 @@ export function ReceiptEditor({
       notify("正在生成文件…");
       await waitForReceiptAssets(receiptRef.current);
       const options = { pixelRatio: 3, cacheBust: true };
+      const { toJpeg, toPng } = await import("html-to-image");
       const dataUrl = format === "jpeg"
         ? await toJpeg(receiptRef.current, { ...options, backgroundColor: "#f8f8f5", quality: 0.94 })
         : await toPng(receiptRef.current, options);
       if (format === "pdf") {
+        const { jsPDF } = await import("jspdf");
         const height = (receiptRef.current.offsetHeight / receiptRef.current.offsetWidth) * paperWidth;
         const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [paperWidth, height] });
         pdf.setFillColor(248, 248, 245);

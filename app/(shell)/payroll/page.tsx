@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
@@ -149,8 +148,9 @@ export default function PayrollPage() {
     }
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     try {
+      const XLSX = await import("xlsx");
       const sumRows: (string | number)[][] = [
         ["工资结算汇总", ""],
         ["生成时间", new Date().toLocaleString("zh-CN")],
