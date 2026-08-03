@@ -99,7 +99,7 @@ export function ReceiptEditor({
   const [qrLabel, setQrLabel] = useState("扫码查询");
   const [barcodeLabel, setBarcodeLabel] = useState("小票条码");
   const [note, setNote] = useState("感谢您的光临");
-  const [paperWidth, setPaperWidth] = useState<58 | 80>(80);
+  const [paperWidth, setPaperWidth] = useState<58 | 68 | 80>(68);
   const [density, setDensity] = useState<Density>("normal");
   const [textureStrength, setTextureStrength] = useState(0.75);
   const [fontFamily, setFontFamily] = useState(DEFAULT_FONT);
@@ -156,11 +156,12 @@ export function ReceiptEditor({
       // 使条码长度自适应纸宽（80mm 更长、58mm 较短），高度恒为 41px，且不超宽。
       draw(1);
       const natural = svg.getBBox().width || 1;
-      const targetWidth = Math.max(60, barcodeWrapRef.current?.clientWidth || 120);
+      const targetWidth = Math.max(60, (barcodeWrapRef.current?.clientWidth || 120) * 0.75);
       const barWidth = Math.max(0.25, Math.min(2.2, targetWidth / natural));
       draw(barWidth);
-      svg.setAttribute("width", "100%");
-      svg.setAttribute("height", "100%");
+      const renderedW = Math.round(svg.getBBox().width);
+      svg.setAttribute("width", String(renderedW));
+      svg.setAttribute("height", "41");
       svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     } catch {
       svg.setAttribute("aria-label", "条形码内容无效");
@@ -181,7 +182,7 @@ export function ReceiptEditor({
     const d = orderToReceipt(order);
     setItems(d.items); setCustomer(d.customer); setReceiptNo(d.receiptNo); setDate(d.date);
     setQrText(d.qrText); setQrLabel(d.qrLabel); setBarcodeLabel(d.barcodeLabel); setNote(d.note);
-    setWatermark(d.watermark); setPaperWidth(80); setDensity("normal"); setTextureStrength(0.75);
+    setWatermark(d.watermark); setPaperWidth(68); setDensity("normal"); setTextureStrength(0.75);
     setFontFamily(DEFAULT_FONT); setCaptionFontSize(13);
     notify("已恢复订单默认");
   }
@@ -372,7 +373,7 @@ export function ReceiptEditor({
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-mono text-[11px] text-muted">纸宽</span>
               <div className="flex overflow-hidden rounded-md border border-line">
-                {([58, 80] as const).map((w) => (
+                {([58, 68, 80] as const).map((w) => (
                   <button key={w} type="button" onClick={() => setPaperWidth(w)} className={paperWidth === w ? "bg-nav-active px-3 py-1 text-xs text-nav-active-text" : "bg-paper px-3 py-1 text-xs text-muted hover:bg-surface2"}>{w}mm</button>
                 ))}
               </div>
