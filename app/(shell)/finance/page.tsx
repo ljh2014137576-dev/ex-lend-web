@@ -10,6 +10,7 @@ import { DASHBOARD_STATS, WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LO
 import { apiEmployees, apiOrders, apiCustomers, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
+import { OrderNoPreview } from "@/components/business/OrderPreview";
 import { rpcPayoutSalary } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
 
@@ -173,7 +174,7 @@ export default function FinancePage() {
             { key: "type", label: "类型", mono: true },
             { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
             { key: "balance", label: "变动后余额", align: "right", mono: true, render: (r) => money(r.balance) },
-            { key: "orderNo", label: "关联", mono: true },
+            { key: "orderNo", label: "关联", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
             { key: "at", label: "时间", mono: true },
           ]}
           rows={walletLedgers}
