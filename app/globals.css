@@ -333,3 +333,45 @@ body {
   background: var(--accent);
   border-radius: var(--radius-sm-v);
 }
+
+/* ===== 小票生成（迁移自 G:/img-cre Receipt Studio，仅预览/导出所需） ===== */
+.receipt-shadow { width: max-content; height: max-content; filter: drop-shadow(0 18px 22px rgba(62, 52, 35, .18)); }
+.receipt { --paper: #f8f4ea; position: relative; overflow: hidden; padding: 9px 10px 31px; color: #252525; background-color: var(--paper); background-image: radial-gradient(rgba(111, 106, 93, calc(var(--texture-strength, .75) * .11)) .55px, transparent .7px), linear-gradient(115deg, rgba(255, 255, 255, .38), transparent 44%, rgba(226, 226, 218, calc(var(--texture-strength, .75) * .14))); background-size: 4px 4px, 100% 100%; font-size: 10px; line-height: 1.4; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), 95% 100%, 90% calc(100% - 10px), 85% 100%, 80% calc(100% - 10px), 75% 100%, 70% calc(100% - 10px), 65% 100%, 60% calc(100% - 10px), 55% 100%, 50% calc(100% - 10px), 45% 100%, 40% calc(100% - 10px), 35% 100%, 30% calc(100% - 10px), 25% 100%, 20% calc(100% - 10px), 15% 100%, 10% calc(100% - 10px), 5% 100%, 0 calc(100% - 10px)); }
+.receipt[data-density="compact"] { padding-top: 6px; font-size: 9px; }
+.receipt-watermark { position: absolute; top: 43%; left: 0; z-index: 0; width: 100%; color: rgba(218, 94, 54, .08); transform: rotate(-35deg); text-align: center; font: 700 17px Arial, sans-serif; letter-spacing: .16em; pointer-events: none; }
+.hero-layer, .receipt-meta, .purchase-layer, .thank-art-layer, .codes-layer, .thank-you { position: relative; z-index: 1; }
+.hero-layer { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0 0 6px; }
+.fixed-asset { display: block; user-select: none; pointer-events: none; }
+.fixed-asset.banner-asset { width: 90%; height: auto; }
+.fixed-asset.title-asset { width: 72%; height: auto; transform: translateX(9%); }
+.hero-caption { color: #111; font-weight: 700; line-height: 1.2; letter-spacing: .1em; white-space: nowrap; }
+.receipt-meta { display: flex; justify-content: space-between; margin: 7px 4px 10px; padding-top: 7px; border-top: 1px solid #777; color: #666; font-size: 8px; }
+.purchase-layer { margin: 0 4px; padding: 7px 0 3px; border-top: 1px dotted #777; border-bottom: 1px dotted #777; }
+.purchase-head, .purchase-row, .purchase-total { display: grid; grid-template-columns: 1fr 29px 54px; align-items: center; gap: 4px; margin: 5px 0; }
+.purchase-head { color: #777; font-size: 7px; }
+.purchase-row { font-size: 8px; }
+.purchase-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-row span:nth-child(2), .purchase-row span:last-child, .purchase-head span:nth-child(2), .purchase-head span:last-child { text-align: right; }
+.purchase-total { margin-top: 9px; font-size: 10px; }
+.purchase-total strong { grid-column: 3; text-align: right; font-weight: 700; }
+.customer-row { display: flex; justify-content: space-between; margin-top: 7px; color: #777; font-size: 8px; }
+.customer-row strong { color: #111; font-weight: 700; }
+.thank-art-layer { display: flex; justify-content: center; margin: 0 4px 3px; padding: 0 2px 5px; border-bottom: 1px dotted #777; }
+.thank-art-layer img { display: block; width: 92%; height: auto; object-fit: contain; }
+.codes-layer { --code-visual-height: 41px; display: grid; grid-template-columns: .78fr 1px 1.22fr; align-items: start; gap: 8px; min-height: 78px; padding: 2px 2px 1px; }
+.qr-side, .barcode-side { padding-top: 0; text-align: center; }
+.code-title { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 3px; color: #111; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.code-title i { color: #a3dc3b; font-size: 12px; font-style: normal; }
+.code-divider { width: 1px; height: 72px; background: repeating-linear-gradient(to bottom, #676767 0 2px, transparent 2px 5px); opacity: .7; }
+.code-visual { height: var(--code-visual-height); overflow: hidden; }
+.qr-visual { width: var(--code-visual-height); margin: 0 auto 2px; }
+.qr-visual img { display: block; width: 100%; height: 100%; margin: 0; image-rendering: pixelated; }
+.barcode-visual { width: 100%; margin: 0 auto 2px; }
+.barcode { display: block; width: 100% !important; height: 100% !important; margin: 0; overflow: hidden; }
+.code-caption, .barcode-number { color: #222; font-size: 9px; }
+.barcode-number { margin-top: 1px; letter-spacing: .05em; }
+.thank-you { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 2px; padding-top: 5px; }
+.thank-you span { color: #111; font-size: 11px; }
+.thank-you p { margin: 0; color: #262626; font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+.toast { position: fixed; left: 50%; top: 20px; z-index: 60; transform: translateX(-50%); padding: 8px 16px; border-radius: 8px; background: rgba(20, 20, 20, .85); color: #fff; font-size: 12px; }
+/* ===== /小票生成 ===== */

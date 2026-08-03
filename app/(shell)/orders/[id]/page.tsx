@@ -12,6 +12,7 @@ import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatu
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
 import { apiOrders, apiOrderDetail, rpcRefundOrder, rpcDeleteOrder, updateOrderStatus } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
+import { ReceiptEditor } from "@/components/business/ReceiptEditor";
 import { useAuth } from "@/lib/auth";
 import { BossOnly } from "@/components/business/RequireRole";
 
@@ -52,6 +53,7 @@ export default function OrderDetailPage() {
   const [refundMethod, setRefundMethod] = useState<"wallet" | "cash">("wallet");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const o = localOrder;
   const items = realDetail?.items ?? o?.items ?? [];
@@ -139,6 +141,7 @@ export default function OrderDetailPage() {
           <Button size="sm" variant="secondary" onClick={() => setStatus("booking")} disabled={o.status === "booking"}>待开始</Button>
           <Button size="sm" variant="secondary" onClick={() => setStatus("in_progress")} disabled={o.status === "in_progress"}>开始</Button>
           <Button size="sm" variant="secondary" onClick={() => setStatus("completed")} disabled={o.status === "completed"}>完成</Button>
+          <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
           <Link href="/audit"><Button size="sm">去审核</Button></Link>
           <BossOnly><Button size="sm" variant="danger" onClick={() => setRefundOpen(true)} disabled={o.status === "cancelled"}>退款</Button></BossOnly>
           <BossOnly><Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={o.status !== "booking" || o.auditStatus !== "pending"}>删除</Button></BossOnly>
@@ -217,6 +220,7 @@ export default function OrderDetailPage() {
         <Link href="/orders" className="underline underline-offset-2 hover:text-accent">← 返回订单列表</Link>
         {real ? " · 状态/退款/删除直连数据库 RPC" : " · 状态/退款/删除为本地 Mock 交互"}
       </p>
+      <ReceiptEditor order={o} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
     </div>
   );
 }

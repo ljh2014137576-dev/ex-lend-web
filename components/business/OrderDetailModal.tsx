@@ -10,6 +10,7 @@ import { apiOrderDetail, rpcUpdateOrderProof, rpcSetPendingOrderCommissions, rpc
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
+import { ReceiptEditor } from "@/components/business/ReceiptEditor";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -30,6 +31,7 @@ export function OrderDetailModal({
   const [editCommissions, setEditCommissions] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [modalMsg, setModalMsg] = useState<string | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -143,6 +145,9 @@ export function OrderDetailModal({
             <OrderStatusTag status={o.status} />
             <AuditStatusTag status={o.auditStatus} />
             <span className="font-mono text-[11px] text-muted">{o.createdAt}</span>
+            <div className="ml-auto">
+              <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
+            </div>
           </div>
 
           <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
@@ -239,6 +244,7 @@ export function OrderDetailModal({
       ) : (
         <p className="py-8 text-center font-mono text-xs text-muted">订单不存在</p>
       )}
+      <ReceiptEditor order={o} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
     </Modal>
   );
 }
