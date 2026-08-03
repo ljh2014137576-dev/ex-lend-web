@@ -13,6 +13,7 @@ type ResourceState = {
 type Store = {
   resources: Record<string, ResourceState>;
   ensure: <T>(key: string, fetcher: () => Promise<T[] | null>, fallback: T[], hasSession: boolean) => ResourceState;
+  load: <T>(key: string, fetcher: () => Promise<T[] | null>, fallback: T[], hasSession: boolean) => Promise<void>;
   mutate: (key: string, updater: (prev: unknown[]) => unknown[]) => void;
   invalidate: (key: string) => void;
   refreshAll: (hasSession: boolean, force?: boolean) => Promise<void>;
@@ -27,6 +28,35 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const inflight = useRef<Record<string, boolean>>({});
   const registry = useRef<Record<string, RegistryEntry>>({});
   const refreshing = useRef(false);
+
+  const doFetch = async (key: string, fetcher: () => Promise<unknown[] | null>, fallback: unknown[], hasSession: boolean) => {
+    try {
+      if (!hasSession) {
+        setResources((r) => ({ ...r, [key]: { data: fallback, real: false, loaded: true, error: null } }));
+        return;
+      }
+      const rows = await fetcher();
+      const ok = Array.isArray(rows);
+      setResources((r) => ({
+        ...r,
+        [key]: { data: ok ? rows : [], real: ok, loaded: true, error: ok ? null : "查询返回为空（可能 RLS 权限不足）" },
+      }));
+    } catch (e) {
+      setResources((r) => ({
+        ...r,
+        [key]: { data: fallback, real: false, loaded: true, error: e instanceof Error ? e.message : String(e) },
+      }));
+    }
+  };
+
+  const load: Store["load"] = (key, fetcher, fallback, hasSession) => {
+    registry.current[key] = { fetcher: fetcher as () => Promise<unknown[] | null>, fallback: fallback as unknown[] };
+    if (inflight.current[key]) return Promise.resolve();
+    inflight.current[key] = true;
+    return doFetch(key, fetcher as () => Promise<unknown[] | null>, fallback as unknown[], hasSession).finally(() => {
+      delete inflight.current[key];
+    });
+  };
 
   const ensure: Store["ensure"] = (key, fetcher, fallback, hasSession) => {
     registry.current[key] = { fetcher: fetcher as () => Promise<unknown[] | null>, fallback: fallback as unknown[] };
@@ -117,7 +147,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ resources, ensure, mutate, invalidate, refreshAll }}>{children}</DataContext.Provider>
+    <DataContext.Provider value={{ resources, ensure, load, mutate, invalidate, refreshAll }}>{children}</DataContext.Provider>
   );
 }
 
