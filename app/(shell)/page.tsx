@@ -19,7 +19,7 @@ export default function WorkbenchPage() {
 
   const today = new Date().toISOString().slice(0, 10);
   const todayOrders = orders.filter((o) => o.createdAt.startsWith(today));
-  const todayIncome = todayOrders.reduce((s, o) => s + o.paid, 0);
+  const todayIncome = todayOrders.filter((o) => o.status !== "cancelled").reduce((s, o) => s + o.paid, 0);
   const pendingAudit = orders.filter((o) => o.auditStatus === "pending");
   const pendingCommission = pendingAudit.reduce((s, o) => s + o.commission, 0);
   const activeEmployees = employees.filter((e) => e.status === "active").length;
@@ -30,7 +30,7 @@ export default function WorkbenchPage() {
 
   const stats = [
     { label: "今日订单", value: todayOrders.length, note: "单" },
-    { label: "今日收入", value: money(todayIncome), note: "实付合计" },
+    { label: "今日收入", value: money(todayIncome), note: "实付合计 · 不含已取消" },
     { label: "待审核提成", value: money(pendingCommission), note: `${pendingAudit.length} 笔` },
     { label: "在职员工", value: activeEmployees, note: "人" },
   ];

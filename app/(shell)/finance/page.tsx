@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { FilterTabs } from "@/components/ui/FilterTabs";
 import { Modal } from "@/components/ui/Modal";
 import { WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, ORDERS, CUSTOMERS, type Employee, type Order, type Customer } from "@/lib/mock-data";
 import { apiEmployees, apiOrders, apiCustomers, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
@@ -26,6 +28,30 @@ interface PayoutRow {
   status: string;
   at: string;
 }
+
+const fmtDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const startOfWeek = (d: Date) => {
+  const x = new Date(d);
+  const day = x.getDay();
+  x.setDate(x.getDate() - (day === 0 ? 6 : day - 1));
+  return x;
+};
+const addDays = (d: Date, n: number) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+};
+
+const RANGE_PRESETS: { id: string; label: string; range: () => { from: string; to: string } }[] = [
+  { id: "today", label: "今日", range: () => { const t = new Date(); return { from: fmtDay(t), to: fmtDay(t) }; } },
+  { id: "week", label: "本周", range: () => { const t = new Date(); return { from: fmtDay(startOfWeek(t)), to: fmtDay(t) }; } },
+  { id: "lastWeek", label: "上周", range: () => { const t = new Date(); const m = startOfWeek(t); return { from: fmtDay(addDays(m, -7)), to: fmtDay(addDays(m, -1)) }; } },
+  { id: "month", label: "本月", range: () => { const t = new Date(); return { from: fmtDay(new Date(t.getFullYear(), t.getMonth(), 1)), to: fmtDay(t) }; } },
+  { id: "d7", label: "近7天", range: () => { const t = new Date(); return { from: fmtDay(addDays(t, -6)), to: fmtDay(t) }; } },
+  { id: "d30", label: "近30天", range: () => { const t = new Date(); return { from: fmtDay(addDays(t, -29)), to: fmtDay(t) }; } },
+  { id: "all", label: "全部", range: () => ({ from: "", to: "" }) },
+];
 
 const INITIAL_PAYOUTS: PayoutRow[] = [
   { id: "pa1", batchNo: "PB20260731", operator: "灰晨", total: 3200, count: 3, status: "completed", at: "2026-07-31 20:00" },
@@ -62,12 +88,33 @@ export default function FinancePage() {
     .reduce((s, o) => s + (o.pending ?? 0), 0);
   const customerDeposits = customers.reduce((s, c) => s + c.principal + c.bonus, 0);
   const customerPending = customers.reduce((s, c) => s + c.pending, 0);
+  const [preset, setPreset] = useState("week");
+  const [range, setRange] = useState(() => RANGE_PRESETS.find((p) => p.id === "week")!.range());
+  const pickPreset = (id: string) => {
+    setPreset(id);
+    const r = RANGE_PRESETS.find((p) => p.id === id)?.range();
+    if (r) setRange(r);
+  };
+
   const today = new Date().toISOString().slice(0, 10);
   const todayOrders = orders.filter((o) => o.createdAt.startsWith(today));
-  const todayIncome = todayOrders.reduce((s, o) => s + o.paid, 0);
   const todayCommission = todayOrders
     .filter((o) => o.auditStatus === "approved")
     .reduce((s, o) => s + o.commission, 0);
+  // 营业额：按日期范围筛选（默认本周）；名义收入=订单字面金额（未减折扣），真实收入=实付（已去折扣）且不含已取消订单
+  const rangeOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        const d = o.createdAt.slice(0, 10);
+        return (!range.from || d >= range.from) && (!range.to || d <= range.to);
+      }),
+    [orders, range],
+  );
+  const nominalRevenue = rangeOrders.reduce((s, o) => s + o.original, 0);
+  const activeRangeOrders = rangeOrders.filter((o) => o.status !== "cancelled");
+  const realRevenue = activeRangeOrders.reduce((s, o) => s + o.paid, 0);
+  const rangeDiscount = activeRangeOrders.reduce((s, o) => s + o.discount, 0);
+  const rangeCancelled = rangeOrders.length - activeRangeOrders.length;
   const pendingAuditCommission = orders
     .filter((o) => o.auditStatus === "pending")
     .reduce((s, o) => s + o.commission, 0);
@@ -128,9 +175,64 @@ export default function FinancePage() {
     <div className="space-y-6">
       <PageHeader title="财务" meta="/finance · Mock 数据 · 老板可操作，管理岗只读" />
 
+      <Panel title="营业额" meta={`${range.from || "最早"} ~ ${range.to || "今天"} · 名义=字面金额 · 真实=实付且不含已取消`}>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <FilterTabs
+              tabs={RANGE_PRESETS.map((p) => ({ id: p.id, label: p.label }))}
+              active={preset}
+              onChange={pickPreset}
+            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={range.from}
+                onChange={(e) => {
+                  setPreset("");
+                  setRange((r) => ({ ...r, from: e.target.value }));
+                }}
+                className="w-36"
+              />
+              <span className="font-mono text-[10px] text-muted">至</span>
+              <Input
+                type="date"
+                value={range.to}
+                onChange={(e) => {
+                  setPreset("");
+                  setRange((r) => ({ ...r, to: e.target.value }));
+                }}
+                className="w-36"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+            <div className="bg-surface p-4">
+              <p className="font-mono text-[11px] text-muted">名义收入</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{money(nominalRevenue)}</p>
+              <p className="font-mono text-[10px] text-muted">{rangeOrders.length} 单 · 订单字面金额合计（未减折扣）</p>
+            </div>
+            <div className="bg-surface p-4">
+              <p className="font-mono text-[11px] text-muted">真实收入</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{money(realRevenue)}</p>
+              <p className="font-mono text-[10px] text-muted">{activeRangeOrders.length} 单 · 实付合计（已去折扣，不含已取消）</p>
+            </div>
+            <div className="bg-surface p-4">
+              <p className="font-mono text-[11px] text-muted">折扣金额</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{money(rangeDiscount)}</p>
+              <p className="font-mono text-[10px] text-muted">区间内非取消订单折扣合计</p>
+            </div>
+            <div className="bg-surface p-4">
+              <p className="font-mono text-[11px] text-muted">已取消订单</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{rangeCancelled} 单</p>
+              <p className="font-mono text-[10px] text-muted">已从真实收入中排除</p>
+            </div>
+          </div>
+        </div>
+      </Panel>
+
       <div className="grid grid-cols-2 gap-px border border-line bg-line lg:grid-cols-4">
         {[
-          { label: "今日收入", value: money(todayIncome) },
           { label: "今日提成", value: money(todayCommission) },
           { label: "总毛利（已审核）", value: money(grossProfitTotal) },
           { label: "进行中临时金额", value: money(inFlightPending) },
