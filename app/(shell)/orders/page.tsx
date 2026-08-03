@@ -115,6 +115,23 @@ export default function OrdersPage() {
     setEmpKeyword("");
   };
 
+  const [sortKey, setSortKey] = useState<"createdAt" | "paid" | "commission">("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      const av = (a[sortKey] ?? 0) as string | number;
+      const bv = (b[sortKey] ?? 0) as string | number;
+      const cmp =
+        typeof av === "string"
+          ? String(av).localeCompare(String(bv))
+          : Number(av) - Number(bv);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
+
   const toggleSelect = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -262,6 +279,23 @@ export default function OrdersPage() {
             <span className="font-mono text-[10px] text-muted">至</span>
             <Input type="number" placeholder="实付 ≤" value={maxPaid} onChange={(e) => setMaxPaid(e.target.value)} className="w-24" />
             <Button size="sm" variant="ghost" onClick={resetFilters}>重置</Button>
+            <span className="ml-2 border-l border-line pl-3 font-mono text-[10px] text-muted">排序</span>
+            <FilterTabs
+              tabs={[
+                { id: "createdAt", label: "日期" },
+                { id: "paid", label: "金额" },
+                { id: "commission", label: "佣金" },
+              ]}
+              active={sortKey}
+              onChange={(id) => setSortKey(id as "createdAt" | "paid" | "commission")}
+            />
+            <button
+              type="button"
+              onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+              className="rounded-md border border-line bg-paper px-2 py-1 font-mono text-[11px] transition-colors hover:bg-surface2"
+            >
+              {sortDir === "asc" ? "↑ 升序" : "↓ 降序"}
+            </button>
           </div>
         </div>
       </Panel>
@@ -305,7 +339,7 @@ export default function OrdersPage() {
             { key: "audit", label: "审核", render: (r) => <AuditStatusTag status={r.auditStatus} /> },
             { key: "createdAt", label: "时间", mono: true, render: (r) => r.createdAt },
           ]}
-          rows={filtered}
+          rows={sorted}
           empty={loading ? "加载中…" : "暂无数据"}
         />
       </Panel>
