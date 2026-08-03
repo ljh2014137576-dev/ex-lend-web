@@ -338,3 +338,9 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 - 双击员工行：弹窗展示其参与订单（订单号/客户/金额/该员工提成/状态/审核/时间）与底部汇总（订单数/已完成/订单总额/提成合计）。
 - 排除无工资员工（结余/累计佣金/已发/调整全为 0 且无欠款）。
 - 权限：仅老板；侧边栏入口位于财务之后。
+
+## 16. 结算记录（老板专用 /payouts）
+
+- /payroll“结算工资”：勾选在职员工并填金额（默认=当前结余）→ payout_salary 扣钱包、写 wallet_ledger(type=payout) 与 payout_detail，生成批次；可同时上传支付凭证（Excel/图片/PDF）到批次。
+- /payouts：结算批次列表（批次号/时间/操作人/员工数/总额/状态/凭证），双击查看明细（员工/金额/结算前/结算后）与凭证（图片预览或文件下载）。
+- payout 表新增 proof_path 列（需执行：alter table public.payout add column if not exists proof_path text;）。
