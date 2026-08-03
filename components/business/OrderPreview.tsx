@@ -20,7 +20,10 @@ export function OrderNoPreview({ orderNo, orders }: { orderNo: string; orders: O
         className="cursor-pointer font-mono text-xs text-accent underline decoration-line underline-offset-2"
         onMouseEnter={(e) => {
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          setPos({ x: r.right + 8, y: Math.max(8, r.top) });
+          // 贴订单号左侧显示；空间不足时回退右侧
+          const left = r.left - 8 - 320;
+          const x = left >= 8 ? left : r.right + 8;
+          setPos({ x, y: Math.max(8, Math.min(r.top, window.innerHeight - 320)) });
         }}
         onMouseLeave={() => setPos(null)}
       >

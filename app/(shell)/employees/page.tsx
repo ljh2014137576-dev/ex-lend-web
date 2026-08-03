@@ -13,6 +13,7 @@ import { apiEmployees, apiWalletLedgers, type WalletLedgerRow } from "@/lib/supa
 import { useResource } from "@/lib/data-store";
 import { WALLET_LEDGERS, ORDERS, type Order } from "@/lib/mock-data";
 import { OrderNoPreview } from "@/components/business/OrderPreview";
+import { LedgerPartners } from "@/components/business/LedgerPartners";
 import { apiOrders } from "@/lib/supabase-api";
 import { DataSourceBadge } from "@/lib/use-real-data";
 
@@ -107,10 +108,10 @@ export default function EmployeesPage() {
             <DataTable<WalletLedgerRow>
               rowKey={(r) => r.id}
               columns={[
-                { key: "type", label: "类型", mono: true },
                 { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
                 { key: "balance", label: "变动后余额", align: "right", mono: true, render: (r) => money(r.balance) },
-                { key: "orderNo", label: "关联", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
+                { key: "orderNo", label: "关联订单", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
+                { key: "partner", label: "协作", render: (r) => <LedgerPartners orderNo={r.orderNo} currentEmployee={ledgerEmployee?.name} orders={orders} /> },
                 { key: "at", label: "时间", mono: true },
               ]}
               rows={ledgers.filter((l) => l.employee === ledgerEmployee?.name)}

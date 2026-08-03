@@ -11,6 +11,7 @@ import { apiEmployees, apiOrders, apiCustomers, apiWalletLedgers, apiCustomerLed
 import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
 import { OrderNoPreview } from "@/components/business/OrderPreview";
+import { LedgerPartners } from "@/components/business/LedgerPartners";
 import { rpcPayoutSalary } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
 
@@ -171,10 +172,10 @@ export default function FinancePage() {
           rowKey={(r) => r.id}
           columns={[
             { key: "employee", label: "员工" },
-            { key: "type", label: "类型", mono: true },
             { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
             { key: "balance", label: "变动后余额", align: "right", mono: true, render: (r) => money(r.balance) },
-            { key: "orderNo", label: "关联", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
+            { key: "orderNo", label: "关联订单", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
+            { key: "partner", label: "协作", render: (r) => <LedgerPartners orderNo={r.orderNo} currentEmployee={r.employee} orders={orders} /> },
             { key: "at", label: "时间", mono: true },
           ]}
           rows={walletLedgers}

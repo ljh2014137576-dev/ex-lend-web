@@ -123,7 +123,7 @@ export async function apiCategories(): Promise<ProductCategory[] | null> {
 export async function apiOrders(): Promise<Order[] | null> {
   const { data } = await supabase
     .from("order")
-    .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, pending_amount, created_at, customer(name), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))")
+    .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, pending_amount, created_at, customer(name), creator:operator_id(name), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
@@ -141,7 +141,7 @@ export async function apiOrders(): Promise<Order[] | null> {
     grossProfit: Number(r.gross_profit ?? 0),
     status: r.status as Order["status"],
     auditStatus: r.audit_status as Order["auditStatus"],
-    operator: "—",
+    operator: (r.creator as { name?: string } | null)?.name ?? "—",
     createdAt: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
     proofPath: null,
     items: [],
