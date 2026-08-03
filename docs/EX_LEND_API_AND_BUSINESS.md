@@ -334,7 +334,7 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 
 - 汇总每个员工的：累计佣金（wallet_ledger type=commission 累计）、已发放（type=payout 绝对值累计）、调整/扣减、当前工资结余（employee.wallet_balance）。
 - 统计卡：在职员工数 / 工资总额 / 累计佣金合计 / 已发放合计 / 欠款员工数。
-- 导出 Excel：SheetJS，含“工资结算”与“发放批次”两个 sheet。
+- 导出 Excel：SheetJS，含“工资结算”与“发放批次”两个 sheet；工资结算明细带 员工(昵称)/真实姓名/支付宝账号/银行卡号（取自 employee.name/alipay_account/bank_card）。
 - 双击员工行：弹窗展示其参与订单（订单号/客户/金额/该员工提成/状态/审核/时间）与底部汇总（订单数/已完成/订单总额/提成合计）。
 - 排除无工资员工（结余/累计佣金/已发/调整全为 0 且无欠款）。
 - 权限：仅老板；侧边栏入口位于财务之后。
