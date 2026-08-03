@@ -3,27 +3,36 @@
 import { useEffect, useState } from "react";
 import { useBoot } from "@/lib/boot";
 
+/** 最短展示时长：即使数据瞬间加载完成，启动界面也至少显示这么久，避免一闪而过 */
+const MIN_BOOT_MS = 1200;
+
 /**
  * 启动加载界面：展示初始化进度条 + 动效预留区。
- * 常用数据优先加载完成后 phase=ready，淡出并卸载；其余数据后台继续加载。
+ * 常用数据优先加载完成后 phase=ready；为保证可见性，至少展示 MIN_BOOT_MS 后再淡出并卸载。
  */
 export function BootLoading() {
   const { progress, phase } = useBoot();
+  const [started] = useState(() => Date.now());
+  const [leaving, setLeaving] = useState(false);
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    if (phase === "ready") {
-      const timer = window.setTimeout(() => setHidden(true), 350);
-      return () => window.clearTimeout(timer);
-    }
-  }, [phase]);
+    if (phase !== "ready") return;
+    const remaining = Math.max(0, MIN_BOOT_MS - (Date.now() - started));
+    const t1 = window.setTimeout(() => setLeaving(true), remaining);
+    const t2 = window.setTimeout(() => setHidden(true), remaining + 350);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [phase, started]);
 
   if (hidden) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-paper"
-      style={{ opacity: phase === "ready" ? 0 : 1, transition: "opacity 0.3s ease" }}
+      style={{ opacity: leaving ? 0 : 1, transition: "opacity 0.35s ease" }}
     >
       <div className="w-full max-w-xs px-6 text-center">
         {/* ===== 动效预留区 1：品牌 / Logo 动效 ===== */}
