@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { useResource } from "@/lib/data-store";
-import { apiEmployees, apiOrders, apiWalletLedgers, apiPayouts } from "@/lib/supabase-api";
+import { apiEmployees, apiOrders, apiWalletLedgers, apiPayouts, rpcPayoutSalary, uploadPayoutProof, apiUpdatePayoutProof } from "@/lib/supabase-api";
 import { EMPLOYEES, ORDERS, WALLET_LEDGERS, type Employee, type Order } from "@/lib/mock-data";
 import type { WalletLedgerRow } from "@/lib/supabase-api";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
@@ -35,10 +36,10 @@ interface PayrollRow {
 }
 
 export default function PayrollPage() {
-  const { isBoss } = useAuth();
-  const { data: employees, real } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
-  const { data: ledgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
-  const { data: payouts } = useResource("payouts", apiPayouts, []);
+  const { isBoss, session } = useAuth();
+  const { data: employees, real, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
+  const { data: ledgers, invalidate: invalidateLedgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
+  const { data: payouts, invalidate: invalidatePayouts } = useResource("payouts", apiPayouts, []);
   const { data: orders } = useResource<Order>("orders", apiOrders, ORDERS);
   const [hint, setHint] = useState<string | null>(null);
   const [detailEmp, setDetailEmp] = useState<PayrollRow | null>(null);
@@ -88,6 +89,65 @@ export default function PayrollPage() {
     0,
   );
   const empCompleted = empOrders.filter((o) => o.status === "completed").length;
+
+  const [settleOpen, setSettleOpen] = useState(false);
+  const [settleDrafts, setSettleDrafts] = useState<Record<string, { checked: boolean; amount: string }>>({});
+  const [settleProof, setSettleProof] = useState<File | null>(null);
+  const [settleMsg, setSettleMsg] = useState<string | null>(null);
+  const [settling, setSettling] = useState(false);
+
+  const openSettle = () => {
+    const drafts: Record<string, { checked: boolean; amount: string }> = {};
+    for (const e of employees) {
+      if (e.status === "active") drafts[e.id] = { checked: true, amount: String(e.wallet) };
+    }
+    setSettleDrafts(drafts);
+    setSettleProof(null);
+    setSettleMsg(null);
+    setSettleOpen(true);
+  };
+
+  const settleItems = active
+    .filter((e) => settleDrafts[e.id]?.checked && Number(settleDrafts[e.id]?.amount || 0) > 0)
+    .map((e) => ({ employee_id: e.id, amount: Number(settleDrafts[e.id].amount) }));
+  const settleTotal = settleItems.reduce((s2, i) => s2 + i.amount, 0);
+
+  const submitSettle = async () => {
+    setSettleMsg(null);
+    if (settleItems.length === 0) return setSettleMsg("请至少勾选一名员工并填写结算金额");
+    for (const it of settleItems) {
+      const emp = employees.find((x) => x.id === it.employee_id);
+      if (emp && !emp.isDebt && emp.wallet < it.amount) return setSettleMsg("员工 " + emp.name + " 余额不足（当前 " + money(emp.wallet) + "）");
+    }
+    const batchNo = "PB" + new Date().toISOString().replace(/\D/g, "").slice(0, 8) + "-" + String(Date.now()).slice(-4);
+    setSettling(true);
+    try {
+      const { data, error } = await rpcPayoutSalary(settleItems, batchNo);
+      if (error || data?.success === false) {
+        setSettleMsg((error?.message ?? (data as { message?: string })?.message) || "结算失败");
+        return;
+      }
+      if (settleProof && session) {
+        const path = await uploadPayoutProof(settleProof, session.user.id, batchNo);
+        await apiUpdatePayoutProof(String(data?.batch_id ?? ""), path);
+      }
+      setEmployees((prev) =>
+        prev.map((e) => {
+          const it = settleItems.find((x) => x.employee_id === e.id);
+          return it ? { ...e, wallet: +(e.wallet - it.amount).toFixed(2) } : e;
+        }),
+      );
+      invalidateLedgers();
+      invalidatePayouts();
+      setSettleOpen(false);
+      setHint("已结算批次 " + batchNo + " · " + settleItems.length + " 人 · " + money(settleTotal));
+      window.setTimeout(() => setHint(null), 3000);
+    } catch (err) {
+      setSettleMsg("结算失败：" + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setSettling(false);
+    }
+  };
 
   const exportExcel = () => {
     try {
@@ -140,6 +200,7 @@ export default function PayrollPage() {
         <PageHeader title="工资结算" meta="/payroll · 老板专用 · 汇总员工工资与发放记录" />
         <div className="flex items-center gap-3">
           <DataSourceBadge real={real} />
+          <Button onClick={openSettle}>结算工资</Button>
           <Button onClick={exportExcel} disabled={visibleRows.length === 0}>导出 Excel</Button>
         </div>
       </div>
@@ -236,6 +297,55 @@ export default function PayrollPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal open={settleOpen} title="结算工资" onClose={() => setSettleOpen(false)} xwide>
+        <div className="space-y-4">
+          {settleMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{settleMsg}</p>}
+          <p className="font-mono text-[11px] text-muted">勾选员工并填写结算金额（默认=当前工资结余）。确认后将扣减钱包余额、写入员工流水，并生成一条结算批次记录。</p>
+          <div className="max-h-[45vh] overflow-y-auto">
+            <DataTable<Employee>
+              rowKey={(r) => r.id}
+              columns={[
+                {
+                  key: "check", label: "", render: (r) => (
+                    <input
+                      type="checkbox"
+                      checked={!!settleDrafts[r.id]?.checked}
+                      onChange={(e) => setSettleDrafts((d) => ({ ...d, [r.id]: { ...(d[r.id] ?? { amount: String(r.wallet) }), checked: e.target.checked } }))}
+                    />
+                  ),
+                },
+                { key: "name", label: "员工" },
+                { key: "wallet", label: "当前结余", align: "right", mono: true, render: (r) => money(r.wallet) },
+                {
+                  key: "amount", label: "结算金额", align: "right",
+                  render: (r) => (
+                    <input
+                      type="number" min={0} step="0.01"
+                      value={settleDrafts[r.id]?.amount ?? ""}
+                      onChange={(e) => setSettleDrafts((d) => ({ ...d, [r.id]: { ...(d[r.id] ?? { checked: true }), amount: e.target.value } }))}
+                      className="w-24 rounded-md border border-line bg-paper px-2 py-1 text-right font-mono text-xs outline-none focus:border-ink"
+                    />
+                  ),
+                },
+              ]}
+              rows={employees.filter((e) => e.status === "active")}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-mono text-[11px] text-muted">合计：{settleItems.length} 人 · {money(settleTotal)}</span>
+            <label className="ml-auto flex cursor-pointer items-center gap-2">
+              <span className="font-mono text-[11px] text-muted">支付凭证（Excel/图片）：</span>
+              <input type="file" accept="image/*,.xlsx,.xls,.csv,.pdf" onChange={(e) => setSettleProof(e.target.files?.[0] ?? null)} className="max-w-[220px] text-xs" />
+            </label>
+          </div>
+          {settleProof && <p className="font-mono text-[11px] text-muted">已选择凭证：{settleProof.name}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setSettleOpen(false)}>取消</Button>
+            <Button onClick={() => void submitSettle()} disabled={settling}>{settling ? "结算中…" : "确认结算"}</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

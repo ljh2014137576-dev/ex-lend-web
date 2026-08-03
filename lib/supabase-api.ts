@@ -47,6 +47,16 @@ export interface PayoutRow {
   count: number;
   status: string;
   at: string;
+  proofPath?: string | null;
+}
+
+export interface PayoutDetailRow {
+  id: string;
+  employeeId: string;
+  employee: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
 }
 
 // ============================================================
@@ -409,18 +419,51 @@ export async function apiCustomerLedgers(): Promise<CustomerLedgerRow[] | null> 
 export async function apiPayouts(): Promise<PayoutRow[] | null> {
   const { data } = await supabase
     .from("payout")
-    .select("id, batch_no, operator_id, total_amount, detail_count, status, created_at")
+    .select("id, batch_no, operator_id, total_amount, detail_count, status, proof_path, created_at, creator:operator_id(name)")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
     batchNo: r.batch_no,
-    operator: "—",
+    operator: (r.creator as { name?: string } | null)?.name ?? "—",
     total: Number(r.total_amount ?? 0),
     count: r.detail_count ?? 0,
     status: r.status,
     at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+    proofPath: r.proof_path ?? null,
   }));
+}
+
+export async function apiPayoutDetails(payoutId: string): Promise<PayoutDetailRow[] | null> {
+  const { data } = await supabase
+    .from("payout_detail")
+    .select("id, employee_id, amount, balance_before, balance_after, created_at, employee(nickname, name)")
+    .eq("payout_id", payoutId)
+    .order("created_at", { ascending: true });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    employeeId: r.employee_id,
+    employee: (r.employee as { nickname?: string; name?: string } | null)?.nickname || (r.employee as { name?: string } | null)?.name || "—",
+    amount: Number(r.amount ?? 0),
+    balanceBefore: Number(r.balance_before ?? 0),
+    balanceAfter: Number(r.balance_after ?? 0),
+  }));
+}
+
+export async function uploadPayoutProof(file: File, userId: string, batchNo: string): Promise<string> {
+  const ext = file.name.split(".").pop() || "dat";
+  const safe = batchNo.replace(/[^\w-]/g, "");
+  const path = userId + "/payout-" + safe + "-" + Date.now() + "." + ext;
+  const { error } = await supabase.storage
+    .from("payment-proofs")
+    .upload(path, file, { upsert: false, contentType: file.type || "application/octet-stream" });
+  if (error) throw error;
+  return path;
+}
+
+export async function apiUpdatePayoutProof(payoutId: string, proofPath: string) {
+  return supabase.from("payout").update({ proof_path: proofPath }).eq("id", payoutId);
 }
 
 export async function apiDeleteLogs(): Promise<DeleteLog[] | null> {

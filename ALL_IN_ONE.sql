@@ -277,8 +277,9 @@ create table if not exists payout (
   total_amount numeric(12,2) not null default 0,
   detail_count int not null default 0,
   status payout_status not null default 'processing',
+  proof_path text,
   created_at timestamptz not null default now()
-);
+));
 create index if not exists idx_payout_operator on payout(operator_id);
 
 -- 补员工流水的外键（payout 表建好后）
@@ -968,6 +969,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 alter table public.employee add column if not exists nickname text not null default '';
+alter table public.payout add column if not exists proof_path text;
 alter table public.employee add column if not exists gender gender;
 alter table public.employee add column if not exists alipay_account text;
 alter table public.employee add column if not exists bank_name text;
