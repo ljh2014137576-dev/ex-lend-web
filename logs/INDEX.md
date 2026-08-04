@@ -5,4 +5,4 @@
 
 | 文件 | 条目范围 | 日期范围 | 摘要 |
 |---|---|---|---|
-| log-001.md | 0001-0100 | 2026-08-01 ~ | 日志系统建立；Ex-Lend 01-06 恢复（02_rpcs/03_seed/04_employee_ext/ALL_IN_ONE）；ALL_IN_ONE 备份至本仓库 |
+| log-001.md | 0001-0100 | 2026-08-01 ~ 2026-08-05 | 日志系统建立；Ex-Lend 01-06 恢复（02_rpcs/03_seed/04_employee_ext/ALL_IN_ONE）；ALL_IN_ONE 备份至本仓库 |
