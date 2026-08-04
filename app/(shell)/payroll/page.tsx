@@ -95,10 +95,15 @@ export default function PayrollPage() {
   const [settleMsg, setSettleMsg] = useState<string | null>(null);
   const [settling, setSettling] = useState(false);
 
-  const openSettle = () => {
+  const openSettle = (employeeId?: string) => {
     const drafts: Record<string, { checked: boolean; amount: string }> = {};
-    for (const e of employees) {
-      if (e.status === "active") drafts[e.id] = { checked: true, amount: String(e.wallet) };
+    if (employeeId) {
+      const emp = employees.find((e) => e.id === employeeId);
+      if (emp) drafts[emp.id] = { checked: true, amount: String(emp.wallet) };
+    } else {
+      for (const e of employees) {
+        if (e.status === "active") drafts[e.id] = { checked: true, amount: String(e.wallet) };
+      }
     }
     setSettleDrafts(drafts);
     setSettleProof(null);
@@ -106,6 +111,13 @@ export default function PayrollPage() {
     setSettleOpen(true);
   };
 
+  const settleSelectedNames = active.filter((e) => settleDrafts[e.id]?.checked).map((e) => e.name);
+  const settleTitle =
+    settleSelectedNames.length === 1
+      ? settleSelectedNames[0] + " 结算"
+      : settleSelectedNames.length > 1
+        ? "批量结算"
+        : "结算工资";
   const settleItems = active
     .filter((e) => settleDrafts[e.id]?.checked && Number(settleDrafts[e.id]?.amount || 0) > 0)
     .map((e) => ({ employee_id: e.id, amount: Number(settleDrafts[e.id].amount) }));
@@ -207,7 +219,7 @@ export default function PayrollPage() {
         <PageHeader title="工资结算" meta="/payroll · 老板专用 · 汇总员工工资与发放记录" />
         <div className="flex items-center gap-3">
           <DataSourceBadge real={real} />
-          <Button onClick={openSettle}>结算工资</Button>
+          <Button onClick={() => openSettle()}>全部结算</Button>
           <Button onClick={exportExcel} disabled={visibleRows.length === 0}>导出 Excel</Button>
         </div>
       </div>
@@ -242,6 +254,7 @@ export default function PayrollPage() {
             { key: "other", label: "调整/扣减", align: "right", mono: true, render: (r) => money(r.other) },
             { key: "wallet", label: "当前工资结余", align: "right", mono: true, render: (r) => <span className={r.wallet < 0 ? "text-danger" : ""}>{money(r.wallet)}</span> },
             { key: "isDebt", label: "欠款", mono: true, render: (r) => (r.isDebt || r.wallet < 0 ? "是" : "否") },
+            { key: "ops", label: "操作", render: (r) => <Button size="sm" variant="secondary" onClick={() => openSettle(r.id)}>扣款</Button> },
           ]}
           rows={visibleRows}
           onRowDoubleClick={(r) => setDetailEmp(r)}
@@ -306,7 +319,7 @@ export default function PayrollPage() {
         )}
       </Modal>
 
-      <Modal open={settleOpen} title="结算工资" onClose={() => setSettleOpen(false)} xwide>
+      <Modal open={settleOpen} title={settleTitle} onClose={() => setSettleOpen(false)} xwide>
         <div className="space-y-4">
           {settleMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{settleMsg}</p>}
           <p className="font-mono text-[11px] text-muted">勾选员工并填写结算金额（默认=当前工资结余）。确认后将扣减钱包余额、写入员工流水，并生成一条结算批次记录。</p>
