@@ -94,12 +94,21 @@ export default function PayrollPage() {
   const [settleProof, setSettleProof] = useState<File | null>(null);
   const [settleMsg, setSettleMsg] = useState<string | null>(null);
   const [settling, setSettling] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
 
-  const openSettle = (employeeId?: string) => {
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selected.includes(r.id));
+  const toggleSelectAll = () => setSelected(allSelected ? [] : visibleRows.map((r) => r.id));
+
+  // ids：指定员工批量结算；不传 = 全部在职员工
+  const openSettle = (ids?: string[]) => {
     const drafts: Record<string, { checked: boolean; amount: string }> = {};
-    if (employeeId) {
-      const emp = employees.find((e) => e.id === employeeId);
-      if (emp) drafts[emp.id] = { checked: true, amount: String(emp.wallet) };
+    if (ids && ids.length > 0) {
+      for (const id of ids) {
+        const emp = employees.find((e) => e.id === id);
+        if (emp) drafts[emp.id] = { checked: true, amount: String(emp.wallet) };
+      }
     } else {
       for (const e of employees) {
         if (e.status === "active") drafts[e.id] = { checked: true, amount: String(e.wallet) };
@@ -242,10 +251,27 @@ export default function PayrollPage() {
       </div>
 
       <Panel title="员工工资汇总" meta={visibleRows.length + " 人（已排除无工资）" + (real ? " · 真实数据" : " · Mock") + " · 双击查看订单明细"}>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+            <span className="font-mono text-[11px] text-muted">全选（{visibleRows.length} 人）</span>
+          </label>
+          <Button size="sm" onClick={() => openSettle(selected)} disabled={selected.length === 0}>
+            结算选中（{selected.length} 人）
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setSelected([])} disabled={selected.length === 0}>
+            清空选择
+          </Button>
+        </div>
         <DataTable<PayrollRow>
           rowKey={(r) => r.id}
           empty="暂无员工"
           columns={[
+            {
+              key: "sel", label: "", render: (r) => (
+                <input type="checkbox" checked={selected.includes(r.id)} onChange={() => toggleSelect(r.id)} />
+              ),
+            },
             { key: "name", label: "员工" },
             { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
             { key: "status", label: "状态", mono: true, render: (r) => (r.status === "active" ? "在职" : "离职") },
@@ -254,7 +280,7 @@ export default function PayrollPage() {
             { key: "other", label: "调整/扣减", align: "right", mono: true, render: (r) => money(r.other) },
             { key: "wallet", label: "当前工资结余", align: "right", mono: true, render: (r) => <span className={r.wallet < 0 ? "text-danger" : ""}>{money(r.wallet)}</span> },
             { key: "isDebt", label: "欠款", mono: true, render: (r) => (r.isDebt || r.wallet < 0 ? "是" : "否") },
-            { key: "ops", label: "操作", render: (r) => <Button size="sm" variant="secondary" onClick={() => openSettle(r.id)}>扣款</Button> },
+            { key: "ops", label: "操作", render: (r) => <Button size="sm" variant="secondary" onClick={() => openSettle([r.id])}>扣款</Button> },
           ]}
           rows={visibleRows}
           onRowDoubleClick={(r) => setDetailEmp(r)}
