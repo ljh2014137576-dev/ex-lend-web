@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, uploadProof } from "@/lib/supabase-api";
+import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, rpcCorrectOrder, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { compressPaymentProof } from "@/lib/image-compression";
@@ -221,13 +221,22 @@ export function OrderDetailModal({
     if (editItems.length === 0) return setEditMsg("请至少保留一个商品");
     if (editEmps.length === 1) return setEditMsg("接单员工需选 0 或 2 名");
     if (!editCust) return setEditMsg("请选择客户");
-    const { data, error } = await rpcEditOrder({
-      p_order_id: detail.order.id,
-      p_customer_id: editCust,
-      p_items: editItems,
-      p_employee_ids: editEmps,
-      p_pay_method: editPay,
-    });
+    const isBooking = detail.order.status === "booking";
+    const { data, error } = isBooking
+      ? await rpcEditOrder({
+          p_order_id: detail.order.id,
+          p_customer_id: editCust,
+          p_items: editItems,
+          p_employee_ids: editEmps,
+          p_pay_method: editPay,
+        })
+      : await rpcCorrectOrder({
+          p_order_id: detail.order.id,
+          p_customer_id: editCust,
+          p_items: editItems,
+          p_employee_ids: editEmps,
+          p_pay_method: editPay,
+        });
     if (error || data?.success === false) {
       return setEditMsg("保存失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
     }
@@ -235,7 +244,11 @@ export function OrderDetailModal({
     if (fresh) setDetail(fresh);
     setEditOpen(false);
     setEditMsg(null);
-    setModalMsg("订单已更新（金额/客户/商品已按新口径重算）");
+    setModalMsg(
+      isBooking
+        ? "订单已更新（金额/客户/商品已按新口径重算）"
+        : "已更正：原单已取消，新订单号 " + (data?.order_no ?? ""),
+    );
   };
 
   return (
@@ -243,6 +256,11 @@ export function OrderDetailModal({
       {o ? (editOpen ? (
         <div className="space-y-4">
           {editMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{editMsg}</p>}
+          {o && o.status !== "booking" && (
+            <p className="rounded-md border border-line bg-paper p-2 font-mono text-[11px] text-muted">
+              保存将对原单执行退款冲正（客户钱包/员工提成回退，可能产生欠款），并以新内容重建一张更正单。
+            </p>
+          )}
           <div className="space-y-1">
             <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
             <CustomerSelect value={editCust} onChange={setEditCust} customers={customers} />
@@ -297,8 +315,10 @@ export function OrderDetailModal({
             <span className="font-mono text-[11px] text-muted">{o.createdAt}</span>
             <div className="ml-auto">
               <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
-              {o.status === "booking" && (
-                <Button size="sm" variant="secondary" onClick={openEdit}>编辑订单</Button>
+              {(o.status === "booking" || o.status === "in_progress" || o.status === "completed") && (
+                <Button size="sm" variant="secondary" onClick={openEdit}>
+                  {o.status === "booking" ? "编辑订单" : "更正订单"}
+                </Button>
               )}
             </div>
           </div>

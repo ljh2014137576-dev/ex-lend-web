@@ -669,6 +669,60 @@ $$;
 revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
 grant execute on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) to authenticated;
 
+create or replace function public.correct_order(
+  p_order_id uuid,
+  p_customer_id uuid,
+  p_items jsonb,
+  p_employee_ids uuid[],
+  p_pay_method pay_method
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ord public."order"%rowtype;
+  v_refund jsonb;
+  v_new jsonb;
+begin
+  if not public.is_staff() then
+    return jsonb_build_object('success', false, 'message', '无权限');
+  end if;
+
+  select * into v_ord from public."order" where id = p_order_id for update;
+  if not found then
+    return jsonb_build_object('success', false, 'message', '订单不存在');
+  end if;
+  if v_ord.status = 'cancelled' or v_ord.audit_status = 'rejected' then
+    return jsonb_build_object('success', false, 'message', '已取消/已拒绝的订单不能更正');
+  end if;
+  if v_ord.status = 'booking' then
+    return jsonb_build_object('success', false, 'message', '待开始订单请使用编辑订单（原地修改）');
+  end if;
+
+  -- 按原支付方式退款冲正（已完成/已审核订单的“仅老板”保护由 refund_order 自带）
+  v_refund := public.refund_order(
+    p_order_id,
+    case when v_ord.pay_method = 'wallet' then 'wallet' else 'cash' end
+  );
+  if (v_refund ->> 'success') <> 'true' then
+    return v_refund;
+  end if;
+
+  -- 用正确信息重建订单；失败则整体回滚（原单退款也被撤销）
+  v_new := public.create_order_multi(p_customer_id, p_items, p_employee_ids, p_pay_method, null);
+  if (v_new ->> 'success') <> 'true' then
+    raise exception '更正失败：%', coalesce(v_new ->> 'message', '重建订单失败');
+  end if;
+  return v_new;
+end;
+$$;
+
+revoke all on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
+grant execute on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method) to authenticated;
+
+
 
 create or replace function public.list_order_creator_profiles()
 returns table(id uuid, username text, name text, role user_role)
