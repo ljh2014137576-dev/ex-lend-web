@@ -111,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <main className="min-w-0 flex-1 p-6 lg:p-8">{children}</main>
+        <main className="min-w-0 flex-1 p-3 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );

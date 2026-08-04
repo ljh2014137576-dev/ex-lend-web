@@ -28,7 +28,7 @@ export function Modal({
       />
       <div
         className={[
-          "glass relative w-full rounded-md border border-line p-5 shadow-lg",
+          "glass relative w-full max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-md border border-line p-5 shadow-lg",
           xwide ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md",
         ].join(" ")}
         style={{ animation: "ex-slide-up var(--transition-mid-v) cubic-bezier(0.22,1,0.36,1)" }}
