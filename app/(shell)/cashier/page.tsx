@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { CustomerSelect } from "@/components/business/CustomerSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
-import { CUSTOMERS, EMPLOYEES, PRODUCTS, type Customer, type Employee, type Product, type PayMethod } from "@/lib/mock-data";
-import { apiCustomers, apiEmployees, apiProducts, rpcCreateOrderMulti } from "@/lib/supabase-api";
+import { CUSTOMERS, EMPLOYEES, ORDERS, PRODUCTS, type Customer, type Employee, type Product, type PayMethod, type Order } from "@/lib/mock-data";
+import { apiCustomers, apiEmployees, apiOrders, apiProducts, rpcCreateOrderMulti } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 
@@ -29,8 +30,10 @@ export default function CashierPage() {
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [fail, setFail] = useState<string | null>(null);
 
   const { data: customers, real } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
+  const { mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { session } = useAuth();
@@ -80,10 +83,47 @@ export default function CashierPage() {
 
   const submit = async () => {
     setHint(null);
+    setFail(null);
     if (!customer) return setHint("请选择客户");
     if (cart.length === 0) return setHint("请先添加商品");
     if (employeeIds.length === 1) return setHint("接单员工需选 0 或 2 名");
     if (payMethod === "wallet" && walletTotal < paid) return setHint("客户钱包余额不足（本金+赠送）");
+
+    // 先构造乐观订单入缓存，前端立即展示；同时后台提交；失败则回滚并弹窗
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: Order = {
+      id: optimisticId,
+      orderNo: "ORD" + new Date().toISOString().replace(/\D/g, "").slice(0, 14),
+      customerName: customer.name,
+      customerType: customer.type,
+      vipLevel: customer.vipLevel,
+      payMethod,
+      original,
+      paid,
+      discount,
+      commission: 0,
+      grossProfit: 0,
+      pending: paid,
+      status: "booking",
+      auditStatus: "pending",
+      operator: "—",
+      createdAt: new Date().toLocaleString("zh-CN"),
+      proofPath: null,
+      proofPaths: [],
+      items: cart.map((l) => ({
+        productName: l.product.name,
+        category: l.product.category,
+        unitPrice: l.product.price,
+        quantity: l.quantity,
+        original: l.product.price * l.quantity,
+        discount: 0,
+        paid: l.product.price * l.quantity,
+        commissionType: l.product.commissionType,
+      })),
+      members: [],
+    };
+    setOrders((prev) => [optimistic, ...prev]);
+    setReceipt(null);
 
     if (session) {
       // 真实会话：调用 create_order_multi RPC
@@ -95,12 +135,28 @@ export default function CashierPage() {
         p_paid_amount: null,
       });
       if (error || data?.success === false) {
-        return setHint("下单失败：" + (error?.message ?? data?.message ?? "未知错误"));
+        // 失败：从缓存删除该条，并弹窗提醒
+        setOrders((prev) => prev.filter((o) => o.id !== optimisticId));
+        setFail("下单失败：" + (error?.message ?? data?.message ?? "未知错误"));
+        return;
       }
+      // 成功：用真实 order_id/order_no 替换乐观条目（后续后台刷新会同步完整数据）
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === optimisticId
+            ? {
+                ...o,
+                id: data.order_id ?? o.id,
+                orderNo: data.order_no ?? o.orderNo,
+                paid: Number(data.paid_amount ?? o.paid),
+                discount: Number(data.discount ?? o.discount),
+              }
+            : o,
+        ),
+      );
       setReceipt({ no: data.order_no, paid: Number(data.paid_amount), discount: Number(data.discount ?? 0), at: new Date().toLocaleString("zh-CN") });
     } else {
-      const no = "ORD" + new Date().toISOString().replace(/\D/g, "").slice(0, 14);
-      setReceipt({ no, paid, discount, at: new Date().toLocaleString("zh-CN") });
+      setReceipt({ no: optimistic.orderNo, paid, discount, at: new Date().toLocaleString("zh-CN") });
     }
     setCart([]);
     setEmployeeIds([]);
@@ -223,6 +279,16 @@ export default function CashierPage() {
           </Button>
         </div>
       </div>
+      {/* 下单失败弹窗 */}
+      <Modal open={!!fail} title="下单失败" onClose={() => setFail(null)}>
+        <div className="space-y-4">
+          <p className="text-sm text-danger">{fail}</p>
+          <p className="font-mono text-[11px] text-muted">该订单已从列表中移除，请重试。</p>
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setFail(null)}>关闭</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
