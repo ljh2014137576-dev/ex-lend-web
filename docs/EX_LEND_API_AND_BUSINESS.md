@@ -347,6 +347,7 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 - 顶栏头像：左侧应用头像（logo 占位 ✦）、右侧用户头像（替换 +新建订单，点击进设置）；AppShell 常驻 + 签名 URL 缓存，跨页不闪。
 - 启动加载：BootProvider + BootLoading（进度条+动效预留区）；常用 7 类数据优先加载，其余后台续载；10s 安全超时。
 - 个人信息：设置页从 users 表读取/保存当前用户姓名与头像（avatars 桶），真实登录生效；测试模式回退本机。
+- 订单二次编辑：详情弹窗对“待开始”订单可编辑 客户/商品/数量/支付方式/员工（edit_order RPC，仅老板，冲正+重算+重新入账）。
 - 订单支付凭证支持多张：order.proof_paths 数组，add_order_proof/remove_order_proof RPC（需执行对应 SQL）；前端多选上传、网格展示、单张删除。
 
 ## 16. 结算记录（老板专用 /payouts）
