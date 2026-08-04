@@ -162,15 +162,13 @@ export default function PayrollPage() {
         ["欠款员工数", debtRows.length],
       ];
       const header = ["员工(昵称)", "真实姓名", "支付宝账号", "银行卡号", "等级", "状态", "累计佣金", "已发放", "调整/扣减", "当前工资结余", "欠款"];
-      // 导出排序：支付宝已填 > 未填；再按 真实姓名已填 > 未填（未填的留空排在后面）
-      const sortedRows = [...visibleRows].sort((a, b) => {
-        const ka = a.alipay && a.alipay.trim() ? 1 : 0;
-        const kb = b.alipay && b.alipay.trim() ? 1 : 0;
-        if (ka !== kb) return kb - ka;
-        const na = a.realName && a.realName.trim() ? 1 : 0;
-        const nb = b.realName && b.realName.trim() ? 1 : 0;
-        return nb - na;
-      });
+      // 导出排序：支付宝+姓名都填 > 只填支付宝 > 只填姓名 > 都没填（未填的留空排在后面）
+      const sortScore = (r: PayrollRow) => {
+        const a = r.alipay && r.alipay.trim() ? 1 : 0;
+        const n = r.realName && r.realName.trim() ? 1 : 0;
+        return a * 2 + n; // 都填=3，只支付宝=2，只姓名=1，都没=0
+      };
+      const sortedRows = [...visibleRows].sort((a, b) => sortScore(b) - sortScore(a));
       const body = sortedRows.map((r) => [
         r.name,
         r.realName ?? "",
