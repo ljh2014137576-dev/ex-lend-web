@@ -116,6 +116,14 @@ export default function FinancePage() {
   const realRevenue = activeRangeOrders.reduce((s, o) => s + o.paid, 0);
   const rangeDiscount = activeRangeOrders.reduce((s, o) => s + o.discount, 0);
   const rangeCancelled = rangeOrders.length - activeRangeOrders.length;
+  // 用户预存真实金额：区间内 recharge_principal（充值本金）合计
+  const customerRechargeReal = customerLedgers
+    .filter((l) => {
+      if (l.type !== "recharge_principal") return false;
+      const d = dateKey(l.at);
+      return (!range.from || d >= range.from) && (!range.to || d <= range.to);
+    })
+    .reduce((s, l) => s + l.amount, 0);
   const pendingAuditCommission = orders
     .filter((o) => o.auditStatus === "pending")
     .reduce((s, o) => s + o.commission, 0);
@@ -216,6 +224,16 @@ export default function FinancePage() {
               <p className="font-mono text-[11px] text-muted">真实收入</p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{money(realRevenue)}</p>
               <p className="font-mono text-[10px] text-muted">{activeRangeOrders.length} 单 · 实付合计（已去折扣，不含已取消）</p>
+            </div>
+            <div className="bg-surface p-4">
+              <p className="font-mono text-[11px] text-muted">用户预存（真实）</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{money(customerRechargeReal)}</p>
+              <p className="font-mono text-[10px] text-muted">区间内充值本金合计（不含赠送）</p>
+            </div>
+            <div className="bg-surface p-4">
+              <p className="font-mono text-[11px] text-muted">订单真实金额</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{money(realRevenue)}</p>
+              <p className="font-mono text-[10px] text-muted">区间内非取消订单实付合计</p>
             </div>
             <div className="bg-surface p-4">
               <p className="font-mono text-[11px] text-muted">折扣金额</p>
