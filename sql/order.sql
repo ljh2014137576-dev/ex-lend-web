@@ -445,7 +445,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_ord public."order"%rowtype;
   v_old_cust public.customer%rowtype;
@@ -664,7 +664,7 @@ begin
     'pending_amount', v_paid
   );
 end;
-$;
+$$;
 
 revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
 grant execute on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) to authenticated;
@@ -725,7 +725,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_status order_status;
   v_path text;
@@ -761,14 +761,14 @@ begin
 
   return jsonb_build_object('success', true);
 end;
-$;
+$$;
 
 create or replace function public.remove_order_proof(p_order_id uuid, p_proof_path text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_status order_status;
   v_path text;
@@ -810,7 +810,7 @@ begin
 
   return jsonb_build_object('success', true);
 end;
-$;
+$$;
 
 revoke all on function public.add_order_proof(uuid, text) from public;
 grant execute on function public.add_order_proof(uuid, text) to authenticated;
