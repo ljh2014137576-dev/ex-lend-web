@@ -120,6 +120,13 @@ export function rpcUpdateSelfAvatar(avatarPath: string) {
   return supabase.rpc("update_self_avatar", { p_avatar_path: avatarPath });
 }
 
+export async function apiUpdateEmployee(
+  id: string,
+  fields: { name?: string; alipay_account?: string | null; bank_card?: string | null; grade?: number; status?: string },
+) {
+  return supabase.from("employee").update(fields).eq("id", id);
+}
+
 export async function apiEmployees(): Promise<Employee[] | null> {
   const { data } = await supabase
     .from("employee")
