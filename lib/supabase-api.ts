@@ -275,6 +275,16 @@ export const rpc = {
   }) => supabase.rpc("create_order_multi", params),
 };
 // RPC：写入类（真实会话下调用，错误返回 {success:false,message}）
+export function rpcEditOrder(params: {
+  p_order_id: string;
+  p_customer_id: string;
+  p_items: { product_id: string; quantity: number }[];
+  p_employee_ids: string[];
+  p_pay_method: "wallet" | "cash";
+}) {
+  return supabase.rpc("edit_order", params);
+}
+
 export async function rpcCreateOrderMulti(params: {
   p_customer_id: string;
   p_items: { product_id: string; quantity: number }[];

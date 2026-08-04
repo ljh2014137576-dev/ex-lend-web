@@ -6,11 +6,14 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { apiOrderDetail, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, uploadProof } from "@/lib/supabase-api";
+import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { compressPaymentProof } from "@/lib/image-compression";
-import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock-data";
+import { useResource } from "@/lib/data-store";
+import { CustomerSelect } from "@/components/business/CustomerSelect";
+import { EmployeePicker } from "@/components/business/EmployeePicker";
+import { ORDERS, CUSTOMERS, EMPLOYEES, PRODUCTS, type Order, type OrderItem, type OrderMember, type Customer, type Employee, type Product } from "@/lib/mock-data";
 import { ReceiptEditor } from "@/components/business/ReceiptEditor";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -23,6 +26,15 @@ export function OrderDetailModal({
   onClose: () => void;
 }) {
   const { session } = useAuth();
+  const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
+  const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
+  const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editCust, setEditCust] = useState("");
+  const [editPay, setEditPay] = useState<"wallet" | "cash">("wallet");
+  const [editItems, setEditItems] = useState<{ product_id: string; quantity: number }[]>([]);
+  const [editEmps, setEditEmps] = useState<string[]>([]);
+  const [editMsg, setEditMsg] = useState<string | null>(null);
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
   const [mockOrder, setMockOrder] = useState<Order | null>(null);
   const [proofs, setProofs] = useState<{ path: string; url: string }[]>([]);
@@ -185,9 +197,99 @@ export function OrderDetailModal({
     setModalMsg("已驳回审核，订单恢复为待审核");
   };
 
+  const openEdit = () => {
+    if (!o) return;
+    const cust = customers.find((c) => c.name === o.customerName);
+    setEditCust(cust?.id ?? customers[0]?.id ?? "");
+    setEditPay(o.payMethod);
+    setEditItems(
+      o.items
+        .map((it) => {
+          const prod = products.find((p) => p.name === it.productName);
+          return { product_id: prod?.id ?? "", quantity: it.quantity };
+        })
+        .filter((x) => x.product_id),
+    );
+    setEditEmps(o.members.map((m) => m.employeeId));
+    setEditMsg(null);
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!detail) return;
+    setEditMsg(null);
+    if (editItems.length === 0) return setEditMsg("请至少保留一个商品");
+    if (editEmps.length === 1) return setEditMsg("接单员工需选 0 或 2 名");
+    if (!editCust) return setEditMsg("请选择客户");
+    const { data, error } = await rpcEditOrder({
+      p_order_id: detail.order.id,
+      p_customer_id: editCust,
+      p_items: editItems,
+      p_employee_ids: editEmps,
+      p_pay_method: editPay,
+    });
+    if (error || data?.success === false) {
+      return setEditMsg("保存失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+    }
+    const fresh = await apiOrderDetail(detail.order.id);
+    if (fresh) setDetail(fresh);
+    setEditOpen(false);
+    setEditMsg(null);
+    setModalMsg("订单已更新（金额/客户/商品已按新口径重算）");
+  };
+
   return (
     <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} xwide>
-      {o ? (
+      {o ? (editOpen ? (
+        <div className="space-y-4">
+          {editMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{editMsg}</p>}
+          <div className="space-y-1">
+            <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
+            <CustomerSelect value={editCust} onChange={setEditCust} customers={customers} />
+          </div>
+          <div className="space-y-1">
+            <span className="font-mono text-[11px] text-muted">商品明细（{editItems.length} 项）</span>
+            {editItems.map((it, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <select
+                  value={it.product_id}
+                  onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, product_id: e.target.value } : x)))}
+                  className="h-[var(--control-h)] min-w-0 flex-1 rounded-md border border-line bg-paper px-3 text-sm text-ink outline-none focus:border-ink"
+                >
+                  {products.filter((p) => p.status === "on_sale").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <Input type="number" min={1} value={it.quantity}
+                  onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))}
+                  className="w-20" />
+                <Button size="sm" variant="secondary" onClick={() => setEditItems((prev) => prev.filter((_, i) => i !== idx))}>×</Button>
+              </div>
+            ))}
+            <Button size="sm" variant="secondary"
+              onClick={() => setEditItems((prev) => [...prev, { product_id: products.find((p) => p.status === "on_sale")?.id ?? "", quantity: 1 }])}>
+              ＋ 添加商品
+            </Button>
+          </div>
+          <div className="space-y-1">
+            <span className="font-mono text-[11px] text-muted">支付方式</span>
+            <div className="flex gap-1">
+              {(["wallet", "cash"] as const).map((m) => (
+                <button key={m} type="button" onClick={() => setEditPay(m)} aria-pressed={editPay === m}
+                  className={["flex-1 rounded-md px-3 py-2 text-xs transition-colors", editPay === m ? "bg-nav-active text-nav-active-text" : "border border-line bg-paper hover:bg-surface2"].join(" ")}>
+                  {m === "wallet" ? "钱包（质押）" : "现金（预收）"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <span className="font-mono text-[11px] text-muted">接单员工（0–2 人）</span>
+            <EmployeePicker value={editEmps} onChange={setEditEmps} employees={employees} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => { setEditOpen(false); setEditMsg(null); }}>取消</Button>
+            <Button onClick={() => void saveEdit()}>保存修改</Button>
+          </div>
+        </div>
+      ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <OrderStatusTag status={o.status} />
@@ -195,6 +297,9 @@ export function OrderDetailModal({
             <span className="font-mono text-[11px] text-muted">{o.createdAt}</span>
             <div className="ml-auto">
               <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
+              {o.status === "booking" && (
+                <Button size="sm" variant="secondary" onClick={openEdit}>编辑订单</Button>
+              )}
             </div>
           </div>
 
@@ -304,7 +409,8 @@ export function OrderDetailModal({
             </div>
           </div>
         </div>
-      ) : (
+        ))
+      : (
         <p className="py-8 text-center font-mono text-xs text-muted">订单不存在</p>
       )}
       <ReceiptEditor order={o} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
