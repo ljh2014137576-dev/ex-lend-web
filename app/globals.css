@@ -171,6 +171,79 @@
   --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
 }
 
+[data-skin="hero"] {
+  /* HeroUI 风格 · 白天 */
+  --paper: #fafafa;
+  --surface: #ffffff;
+  --surface2: #f4f4f5;
+  --ink: #18181b;
+  --muted: #71717a;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --accent: #7828c8;
+  --accent-ink: #ffffff;
+  --danger: #e5484d;
+  --danger-ink: #ffffff;
+  --success: #30a46c;
+  --success-ink: #ffffff;
+  --warning: #f76808;
+  --warning-ink: #ffffff;
+  --sidebar: #ffffff;
+  --nav-active: #7828c8;
+  --nav-active-text: #ffffff;
+  --overlay: rgb(0 0 0 / 0.45);
+  --focus-ring: #7828c8;
+  --radius-sm-v: 8px;
+  --radius-md-v: 10px;
+  --radius-lg-v: 12px;
+  --shadow-sm-v: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.06);
+  --shadow-md-v: 0 4px 14px -2px rgb(0 0 0 / 0.1), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg-v: 0 16px 40px -8px rgb(0 0 0 / 0.16);
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-blur-v: 16px;
+  --glass-border: rgb(255 255 255 / 0.7);
+  --border-w-v: 1px;
+  --border-w-strong-v: 1.5px;
+  --control-h: 40px;
+  --row-h: 44px;
+  --panel-pad: 20px;
+  --page-pad: 28px;
+  --control-gap: 8px;
+  --panel-gap: 16px;
+  --transition-fast-v: 150ms;
+  --transition-mid-v: 220ms;
+  --nav-anim-dur: 420ms;
+  --font-sans-v: "Inter Variable", "Noto Sans CJK", "Noto Sans SC", sans-serif;
+  --font-mono-v: "JetBrains Mono Variable", "Noto Sans CJK", "Noto Sans SC", ui-monospace, Menlo, Consolas, monospace;
+}
+
+[data-skin="hero"][data-theme="dark"] {
+  /* HeroUI 风格 · 黑夜 */
+  --paper: #18181b;
+  --surface: #27272a;
+  --surface2: #3f3f46;
+  --ink: #fafafa;
+  --muted: #a1a1aa;
+  --line: #3f3f46;
+  --line-strong: #52525b;
+  --accent: #9353d3;
+  --accent-ink: #ffffff;
+  --danger: #f2555a;
+  --danger-ink: #ffffff;
+  --success: #46a758;
+  --success-ink: #ffffff;
+  --warning: #ff9a3d;
+  --warning-ink: #ffffff;
+  --sidebar: #202022;
+  --nav-active: #9353d3;
+  --nav-active-text: #ffffff;
+  --overlay: rgb(0 0 0 / 0.6);
+  --focus-ring: #9353d3;
+  --glass-bg: rgb(39 39 42 / 0.72);
+  --glass-blur-v: 16px;
+  --glass-border: rgb(82 82 91 / 0.6);
+}
+
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);

@@ -2,12 +2,14 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type SkinName = "editorial" | "monochrome" | "modern";
+export type SkinName = "editorial" | "monochrome" | "modern" | "hero";
+export type ThemeMode = "light" | "dark";
 
 export const SKINS: { name: SkinName; label: string }[] = [
   { name: "editorial", label: "Editorial 财务" },
   { name: "monochrome", label: "Monochrome 黑白" },
   { name: "modern", label: "Modern 现代" },
+  { name: "hero", label: "Hero 现代UI" },
 ];
 
 // 自托管字体（public/fonts/，fonts.net.cn 免费商用）
@@ -30,6 +32,7 @@ export const FONTS: { family: string; label: string }[] = [
 
 const STORAGE_KEY = "exlend-skin";
 const FONT_STORAGE_KEY = "exlend-font";
+const THEME_STORAGE_KEY = "exlend-theme";
 const DEFAULT_SKIN: SkinName = "editorial";
 
 type SkinContextValue = {
@@ -37,6 +40,8 @@ type SkinContextValue = {
   setSkin: (s: SkinName) => void;
   font: string;
   setFont: (f: string) => void;
+  mode: ThemeMode;
+  setMode: (m: ThemeMode) => void;
 };
 
 const SkinContext = createContext<SkinContextValue>({
@@ -44,23 +49,33 @@ const SkinContext = createContext<SkinContextValue>({
   setSkin: () => {},
   font: "",
   setFont: () => {},
+  mode: "light",
+  setMode: () => {},
 });
 
 export function SkinProvider({ children }: { children: React.ReactNode }) {
   const [skin, setSkin] = useState<SkinName>(DEFAULT_SKIN);
   const [font, setFont] = useState("");
+  const [mode, setModeState] = useState<ThemeMode>("light");
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as SkinName | null;
     if (saved && SKINS.some((s) => s.name === saved)) setSkin(saved);
     const savedFont = localStorage.getItem(FONT_STORAGE_KEY);
     if (savedFont) setFont(savedFont);
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "dark" || savedTheme === "light") setModeState(savedTheme);
   }, []);
 
   useEffect(() => {
     document.documentElement.dataset.skin = skin;
     localStorage.setItem(STORAGE_KEY, skin);
   }, [skin]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = mode;
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  }, [mode]);
 
   useEffect(() => {
     const q = String.fromCharCode(34);
@@ -85,7 +100,7 @@ export function SkinProvider({ children }: { children: React.ReactNode }) {
   }, [font]);
 
   return (
-    <SkinContext.Provider value={{ skin, setSkin, font, setFont }}>
+    <SkinContext.Provider value={{ skin, setSkin, font, setFont, mode, setMode: setModeState }}>
       {children}
     </SkinContext.Provider>
   );
