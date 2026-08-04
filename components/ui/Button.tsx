@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes } from "react";
+﻿import { ButtonHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
@@ -24,7 +24,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={[
+      className={["ui-btn ui-btn--" + variant + " ui-btn--" + size,
         "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors",
         "outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50",
         VARIANTS[variant],

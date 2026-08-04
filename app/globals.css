@@ -1,6 +1,5 @@
-/* ============================================================
-   自托管免费商用字体（来自 fonts.net.cn，public/fonts/）
-   ============================================================ */
+﻿/* ============================================================
+   鑷墭绠″厤璐瑰晢鐢ㄥ瓧浣擄紙鏉ヨ嚜 fonts.net.cn锛宲ublic/fonts/锛?   ============================================================ */
 @font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-thin.otf") format("opentype"); font-weight: 100; font-display: swap; }
 @font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-light.otf") format("opentype"); font-weight: 200; font-display: swap; }
 @font-face { font-family: "Noto Sans CJK"; src: url("/fonts/noto-sans-cjk-demilight.otf") format("opentype"); font-weight: 300; font-display: swap; }
@@ -23,14 +22,12 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Skin System v2：设计令牌全集（颜色/形状/效果/材质/描边/尺寸/间距/动效）
-   三层架构：皮肤(token) → 控件组件库(components/ui) → 页面
-   切换皮肤只改 data-skin 下的 token，组件与页面零改动
-   ============================================================ */
+   Skin System v2锛氳璁′护鐗屽叏闆嗭紙棰滆壊/褰㈢姸/鏁堟灉/鏉愯川/鎻忚竟/灏哄/闂磋窛/鍔ㄦ晥锛?   涓夊眰鏋舵瀯锛氱毊鑲?token) 鈫?鎺т欢缁勪欢搴?components/ui) 鈫?椤甸潰
+   鍒囨崲鐨偆鍙敼 data-skin 涓嬬殑 token锛岀粍浠朵笌椤甸潰闆舵敼鍔?   ============================================================ */
 
 :root,
 [data-skin="editorial"] {
-  /* 颜色 */
+  /* 棰滆壊 */
   --paper: #f4f1ea;
   --surface: #ffffff;
   --surface2: #ece8df;
@@ -51,29 +48,29 @@
   --nav-active-text: #ffffff;
   --overlay: rgb(26 26 26 / 0.45);
   --focus-ring: #1e4fd8;
-  /* 形状 */
+  /* 褰㈢姸 */
   --radius-sm-v: 2px;
   --radius-md-v: 4px;
   --radius-lg-v: 6px;
-  /* 效果：阴影 */
+  /* 鏁堟灉锛氶槾褰?*/
   --shadow-sm-v: none;
   --shadow-md-v: 0 1px 3px rgb(0 0 0 / 0.08);
   --shadow-lg-v: 0 8px 24px rgb(0 0 0 / 0.12);
-  /* 效果：材质（毛玻璃/亚克力） */
+  /* 鏁堟灉锛氭潗璐紙姣涚幓鐠?浜氬厠鍔涳級 */
   --glass-bg: rgb(255 255 255 / 0.72);
   --glass-blur-v: 8px;
   --glass-border: rgb(255 255 255 / 0.6);
-  /* 描边 */
+  /* 鎻忚竟 */
   --border-w-v: 1px;
   --border-w-strong-v: 2px;
-  /* 尺寸与间距 */
+  /* 灏哄涓庨棿璺?*/
   --control-h: 36px;
   --row-h: 40px;
   --panel-pad: 20px;
   --page-pad: 32px;
   --control-gap: 8px;
   --panel-gap: 16px;
-  /* 动效 */
+  /* 鍔ㄦ晥 */
   --transition-fast-v: 120ms;
   --transition-mid-v: 180ms;
   --nav-anim-dur: 320ms;
@@ -172,7 +169,7 @@
 }
 
 [data-skin="hero"] {
-  /* HeroUI 风格 · 白天 */
+  /* HeroUI 椋庢牸 路 鐧藉ぉ */
   --paper: #fafafa;
   --surface: #ffffff;
   --surface2: #f4f4f5;
@@ -191,8 +188,47 @@
   --sidebar: #ffffff;
   --nav-active: #7828c8;
   --nav-active-text: #ffffff;
-  --overlay: rgb(0 0 0 / 0.45);
+  --overlay: rgb(0 0 0 / 0.5);
   --focus-ring: #7828c8;
+  --accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-ink) 10%);
+  --accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
+  --accent-soft-foreground: color-mix(in oklab, var(--accent) 70%, var(--ink) 30%);
+  --accent-soft-hover: color-mix(in oklab, var(--accent) 20%, transparent);
+  --danger-hover: color-mix(in oklab, var(--danger) 90%, var(--danger-ink) 10%);
+  --danger-soft: color-mix(in oklab, var(--danger) 15%, transparent);
+  --danger-soft-foreground: color-mix(in oklab, var(--danger) 70%, var(--ink) 40%);
+  --danger-soft-hover: color-mix(in oklab, var(--danger) 20%, transparent);
+  --success-hover: color-mix(in oklab, var(--success) 90%, var(--success-ink) 10%);
+  --warning-hover: color-mix(in oklab, var(--warning) 90%, var(--warning-ink) 10%);
+  --default: #ececee;
+  --default-foreground: #18181b;
+  --default-hover: color-mix(in oklab, var(--default) 96%, var(--default-foreground) 4%);
+  --segment: #ffffff;
+  --segment-foreground: #18181b;
+  --separator: #e9e9ec;
+  --separator-secondary: color-mix(in oklab, var(--surface) 85%, var(--ink) 15%);
+  --separator-tertiary: color-mix(in oklab, var(--surface) 81%, var(--ink) 19%);
+  --border: #e4e4e7;
+  --backdrop: rgb(0 0 0 / 0.5);
+  --field-background: #ffffff;
+  --field-foreground: #18181b;
+  --field-placeholder: #71717a;
+  --field-border: transparent;
+  --field-hover: color-mix(in oklab, var(--field-background) 90%, var(--field-foreground) 10%);
+  --field-focus: var(--field-background);
+  --field-border-hover: color-mix(in oklab, var(--border) 88%, var(--field-foreground) 10%);
+  --field-border-focus: color-mix(in oklab, var(--border) 74%, var(--field-foreground) 22%);
+  --radius-field-v: 12px;
+  --radius-2xl-v: 16px;
+  --radius-3xl-v: 24px;
+  --shadow-surface-v: 0 2px 4px 0 rgb(0 0 0 / 0.04), 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 0 1px 0 rgb(0 0 0 / 0.06);
+  --shadow-overlay-v: 0 2px 8px 0 rgb(0 0 0 / 0.06), 0 -6px 12px 0 rgb(0 0 0 / 0.03), 0 14px 28px 0 rgb(0 0 0 / 0.08);
+  --shadow-field-v: 0 2px 4px 0 rgb(0 0 0 / 0.04), 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 0 1px 0 rgb(0 0 0 / 0.06);
+  --scrollbar-width: thin;
+  --scrollbar-thumb: color-mix(in oklab, var(--ink) 15%, transparent);
+  --scrollbar-track: transparent;
+  --ease-smooth-v: ease;
+  --ease-out-fluid-v: cubic-bezier(0.32, 0.72, 0, 1);
   --radius-sm-v: 8px;
   --radius-md-v: 10px;
   --radius-lg-v: 12px;
@@ -218,10 +254,10 @@
 }
 
 [data-skin="hero"][data-theme="dark"] {
-  /* HeroUI 风格 · 黑夜 */
+  /* HeroUI 椋庢牸 路 榛戝 */
   --paper: #18181b;
   --surface: #27272a;
-  --surface2: #3f3f46;
+  --surface2: #323236;
   --ink: #fafafa;
   --muted: #a1a1aa;
   --line: #3f3f46;
@@ -239,6 +275,42 @@
   --nav-active-text: #ffffff;
   --overlay: rgb(0 0 0 / 0.6);
   --focus-ring: #9353d3;
+  --accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-ink) 10%);
+  --accent-soft: color-mix(in oklab, var(--accent) 12%, transparent);
+  --accent-soft-foreground: color-mix(in oklab, var(--accent) 80%, var(--ink) 30%);
+  --accent-soft-hover: color-mix(in oklab, var(--accent) 16%, transparent);
+  --danger-hover: color-mix(in oklab, var(--danger) 90%, var(--danger-ink) 10%);
+  --danger-soft: color-mix(in oklab, var(--danger) 15%, transparent);
+  --danger-soft-foreground: color-mix(in oklab, var(--danger) 80%, var(--ink) 30%);
+  --danger-soft-hover: color-mix(in oklab, var(--danger) 20%, transparent);
+  --success-hover: color-mix(in oklab, var(--success) 90%, var(--success-ink) 10%);
+  --warning-hover: color-mix(in oklab, var(--warning) 90%, var(--warning-ink) 10%);
+  --default: #3f3f46;
+  --default-foreground: #fafafa;
+  --default-hover: color-mix(in oklab, var(--default) 96%, var(--default-foreground) 4%);
+  --segment: #52525b;
+  --segment-foreground: #fafafa;
+  --separator: #3a3a40;
+  --separator-secondary: color-mix(in oklab, var(--surface) 85%, var(--ink) 15%);
+  --separator-tertiary: color-mix(in oklab, var(--surface) 81%, var(--ink) 19%);
+  --border: #3f3f46;
+  --backdrop: rgb(0 0 0 / 0.6);
+  --field-background: #27272a;
+  --field-foreground: #fafafa;
+  --field-placeholder: #a1a1aa;
+  --field-border: transparent;
+  --field-hover: color-mix(in oklab, var(--field-background) 90%, var(--field-foreground) 10%);
+  --field-focus: var(--field-background);
+  --field-border-hover: color-mix(in oklab, var(--border) 88%, var(--field-foreground) 10%);
+  --field-border-focus: color-mix(in oklab, var(--border) 74%, var(--field-foreground) 22%);
+  --shadow-surface-v: 0 0 0 0 transparent;
+  --shadow-overlay-v: 0 0 1px 0 rgb(255 255 255 / 0.3) inset;
+  --shadow-field-v: 0 0 0 0 transparent;
+  --scrollbar-width: thin;
+  --scrollbar-thumb: color-mix(in oklab, var(--ink) 15%, transparent);
+  --scrollbar-track: transparent;
+  --ease-smooth-v: ease;
+  --ease-out-fluid-v: cubic-bezier(0.32, 0.72, 0, 1);
   --glass-bg: rgb(39 39 42 / 0.72);
   --glass-blur-v: 16px;
   --glass-border: rgb(82 82 91 / 0.6);
@@ -272,6 +344,30 @@
   --shadow-md: var(--shadow-md-v);
   --shadow-lg: var(--shadow-lg-v);
   --blur-glass: var(--glass-blur-v);
+  --radius-field: var(--radius-field-v);
+  --radius-2xl: var(--radius-2xl-v);
+  --radius-3xl: var(--radius-3xl-v);
+  --shadow-surface: var(--shadow-surface-v);
+  --shadow-overlay: var(--shadow-overlay-v);
+  --shadow-field: var(--shadow-field-v);
+  --color-default: var(--default);
+  --color-default-foreground: var(--default-foreground);
+  --color-default-hover: var(--default-hover);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-segment: var(--segment);
+  --color-segment-foreground: var(--segment-foreground);
+  --color-separator: var(--separator);
+  --color-separator-secondary: var(--separator-secondary);
+  --color-border: var(--border);
+  --color-backdrop: var(--backdrop);
+  --color-field: var(--field-background);
+  --color-field-hover: var(--field-hover);
+  --color-field-foreground: var(--field-foreground);
+  --color-field-placeholder: var(--field-placeholder);
+  --color-field-border: var(--field-border);
+  --color-field-border-focus: var(--field-border-focus);
 }
 
 body {
@@ -281,14 +377,14 @@ body {
   transition: background-color var(--transition-mid-v) ease, color var(--transition-mid-v) ease;
 }
 
-/* 基础材质工具类：毛玻璃 / 亚克力 */
+/* 鍩虹鏉愯川宸ュ叿绫伙細姣涚幓鐠?/ 浜氬厠鍔?*/
 .glass {
   background-color: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur-v));
   backdrop-filter: blur(var(--glass-blur-v));
   border: var(--border-w-v) solid var(--glass-border);
 }
-/* 抽屉/弹层动画 */
+/* 鎶藉眽/寮瑰眰鍔ㄧ敾 */
 @keyframes ex-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -301,14 +397,14 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* 强制运行时字体变量（覆盖 Tailwind 默认主题，配合皮肤/字体选择器切换） */
+/* 寮哄埗杩愯鏃跺瓧浣撳彉閲忥紙瑕嗙洊 Tailwind 榛樿涓婚锛岄厤鍚堢毊鑲?瀛椾綋閫夋嫨鍣ㄥ垏鎹級 */
 :root {
   --font-sans: var(--font-sans-v);
   --font-mono: var(--font-mono-v);
 }
 /* ============================================================
-   侧边栏标签切换动画（按皮肤）
-   结构：.nav-indicator（定位+平移过渡）> .nav-indicator-inner（皮肤视觉）
+   渚ц竟鏍忔爣绛惧垏鎹㈠姩鐢伙紙鎸夌毊鑲わ級
+   缁撴瀯锛?nav-indicator锛堝畾浣?骞崇Щ杩囨浮锛? .nav-indicator-inner锛堢毊鑲よ瑙夛級
    ============================================================ */
 .nav-indicator {
   will-change: transform;
@@ -320,7 +416,7 @@ body {
   height: 100%;
 }
 
-/* monochrome：黑色横条。新条从左到右伸出；旧条残影从右到左快速褪去 */
+/* monochrome锛氶粦鑹叉í鏉°€傛柊鏉′粠宸﹀埌鍙充几鍑猴紱鏃ф潯娈嬪奖浠庡彸鍒板乏蹇€熻お鍘?*/
 [data-skin="monochrome"] .nav-indicator {
   transition: none;
 }
@@ -336,20 +432,20 @@ body {
   animation: ex-bar-exit 300ms cubic-bezier(0.77, 0, 0.175, 1) forwards;
 }
 
-/* modern：底部强调条，纯平移（无进出动画） */
+/* modern锛氬簳閮ㄥ己璋冩潯锛岀函骞崇Щ锛堟棤杩涘嚭鍔ㄧ敾锛?*/
 [data-skin="modern"] .nav-indicator-inner {
   background: var(--accent);
   border-radius: var(--radius-md-v);
 }
 
-/* editorial：左侧强调条 + 快速淡入 */
+/* editorial锛氬乏渚у己璋冩潯 + 蹇€熸贰鍏?*/
 [data-skin="editorial"] .nav-indicator-inner {
   background: var(--accent);
   width: 3px;
   animation: ex-bar-fade var(--transition-fast-v) ease-out;
 }
 
-/* 激活项文字颜色按皮肤 */
+/* 婵€娲婚」鏂囧瓧棰滆壊鎸夌毊鑲?*/
 .nav-link[data-active] {
   color: var(--nav-active-text);
   font-weight: 500;
@@ -372,8 +468,7 @@ body {
   to { opacity: 1; }
 }
 /* ============================================================
-   筛选条（FilterTabs）选中指示：横向平移 + 按皮肤
-   ============================================================ */
+   绛涢€夋潯锛團ilterTabs锛夐€変腑鎸囩ず锛氭í鍚戝钩绉?+ 鎸夌毊鑲?   ============================================================ */
 .tab-indicator {
   position: absolute;
   top: 4px;
@@ -407,11 +502,11 @@ body {
   border-radius: var(--radius-sm-v);
 }
 
-/* ===== 小票生成（迁移自 G:/img-cre Receipt Studio，仅预览/导出所需） ===== */
+/* ===== 灏忕エ鐢熸垚锛堣縼绉昏嚜 G:/img-cre Receipt Studio锛屼粎棰勮/瀵煎嚭鎵€闇€锛?===== */
 .receipt-shadow { width: max-content; height: max-content; filter: drop-shadow(0 18px 22px rgba(62, 52, 35, .18)); }
 .receipt { --paper: #f8f4ea; position: relative; overflow: hidden; padding: 9px 10px 31px; color: #252525; background-color: var(--paper); background-image: radial-gradient(rgba(111, 106, 93, calc(var(--texture-strength, .75) * .11)) .55px, transparent .7px), linear-gradient(115deg, rgba(255, 255, 255, .38), transparent 44%, rgba(226, 226, 218, calc(var(--texture-strength, .75) * .14))); background-size: 4px 4px, 100% 100%; font-size: 10px; line-height: 1.4; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), 95% 100%, 90% calc(100% - 10px), 85% 100%, 80% calc(100% - 10px), 75% 100%, 70% calc(100% - 10px), 65% 100%, 60% calc(100% - 10px), 55% 100%, 50% calc(100% - 10px), 45% 100%, 40% calc(100% - 10px), 35% 100%, 30% calc(100% - 10px), 25% 100%, 20% calc(100% - 10px), 15% 100%, 10% calc(100% - 10px), 5% 100%, 0 calc(100% - 10px)); }
 .receipt[data-density="compact"] { padding-top: 6px; font-size: 9px; }
-/* 小票票面字体固定，不随皮肤/主题字体变化 */
+/* 灏忕エ绁ㄩ潰瀛椾綋鍥哄畾锛屼笉闅忕毊鑲?涓婚瀛椾綋鍙樺寲 */
 .receipt { font-family: "YouSheBiaoTiHei", "Noto Sans CJK", sans-serif !important; }
 
 .receipt-watermark { position: absolute; top: 43%; left: 0; z-index: 0; width: 100%; color: rgba(218, 94, 54, .08); transform: rotate(-35deg); text-align: center; font: 700 17px Arial, sans-serif; letter-spacing: .16em; pointer-events: none; }
@@ -452,13 +547,248 @@ body {
 .thank-you span { color: #111; font-size: 11px; }
 .thank-you p { margin: 0; color: #262626; font-size: 9px; font-weight: 700; letter-spacing: .08em; }
 .toast { position: fixed; left: 50%; top: 20px; z-index: 60; transform: translateX(-50%); padding: 8px 16px; border-radius: 8px; background: rgba(20, 20, 20, .85); color: #fff; font-size: 12px; }
-/* ===== /小票生成 ===== */
+/* ===== /灏忕エ鐢熸垚 ===== */
 
-/* ===== 移动端适配（Chrome / Safari） ===== */
+/* ===== 绉诲姩绔€傞厤锛圕hrome / Safari锛?===== */
 html { -webkit-text-size-adjust: 100%; }
 body { overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
-/* iOS Safari：输入框字号 <16px 聚焦时会自动放大，统一提到 16px 避免误触缩放 */
+/* iOS Safari锛氳緭鍏ユ瀛楀彿 <16px 鑱氱劍鏃朵細鑷姩鏀惧ぇ锛岀粺涓€鎻愬埌 16px 閬垮厤璇Е缂╂斁 */
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
 }
-/* ===== /移动端适配 ===== */
+/* ===== /绉诲姩绔€傞厤 ===== */
+
+
+
+
+/* ============================================================
+   Hero 皮肤 路 HeroUI v3 组件规范覆盖
+   对齐 heroui.com：按钮 / 卡片 / 表单域 / 弹窗 / 表格 / 标签页 / 导航 / 滚动条
+   说明：以下规则位于未分层（unlayered）位置，优先级高于 Tailwind 工具类，
+   且仅作用于 [data-skin="hero"]，不影响其他皮肤。
+   ============================================================ */
+
+/* 弹窗进入动画基础类（原内联样式迁移至此，供所有皮肤使用） */
+.ui-modal-anim {
+  animation: ex-slide-up var(--transition-mid-v) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- 按钮 Button（HeroUI .button：h-10 / rounded-3xl / 按下缩放 / hover 换色） ---------- */
+[data-skin="hero"] .ui-btn {
+  height: 2.5rem;                                  /* h-10 */
+  padding-inline: 1rem;                            /* px-4 */
+  border-radius: min(32px, var(--radius-3xl-v));   /* rounded-3xl */
+  transition:
+    transform 250ms var(--ease-out-fluid-v),
+    background-color 100ms ease-out,
+    box-shadow 100ms ease-out,
+    opacity 100ms ease-out;
+}
+[data-skin="hero"] .ui-btn:active { transform: scale(0.97); }
+[data-skin="hero"] .ui-btn--sm {
+  height: 2rem;                                    /* h-8 */
+  padding-inline: 0.75rem;                         /* px-3 */
+  font-size: 0.75rem;
+}
+[data-skin="hero"] .ui-btn--sm:active { transform: scale(0.98); }
+[data-skin="hero"] .ui-btn--primary { background-color: var(--accent); color: var(--accent-ink); }
+[data-skin="hero"] .ui-btn--primary:hover { background-color: var(--accent-hover); opacity: 1; }
+[data-skin="hero"] .ui-btn--secondary {
+  background-color: var(--default);
+  color: var(--default-foreground);
+  border-color: transparent;
+}
+[data-skin="hero"] .ui-btn--secondary:hover { background-color: var(--default-hover); }
+[data-skin="hero"] .ui-btn--ghost { background-color: transparent; }
+[data-skin="hero"] .ui-btn--ghost:hover { background-color: var(--default); }
+[data-skin="hero"] .ui-btn--danger { background-color: var(--danger); color: var(--danger-ink); }
+[data-skin="hero"] .ui-btn--danger:hover { background-color: var(--danger-hover); opacity: 1; }
+
+/* ---------- 卡片 / 面板 Panel（HeroUI Card：无边框 · 阴影分层 · 24px 圆角） ---------- */
+[data-skin="hero"] .ui-panel {
+  background-color: var(--surface);
+  border-color: transparent;
+  border-radius: min(32px, var(--radius-3xl-v));
+  box-shadow: var(--shadow-surface-v);
+}
+[data-skin="hero"] .ui-panel > header {
+  padding-inline: 1.25rem;
+  border-bottom-color: var(--separator);
+}
+[data-skin="hero"] .ui-panel > div { padding: 1.25rem; }
+
+/* 页面级“表面卡片”（带四周内边距的 bg-surface 容器）同样改为无边框 + 阴影 */
+[data-skin="hero"] :is(
+  .border.border-line.bg-surface.p-3,
+  .border.border-line.bg-surface.p-4,
+  .border.border-line.bg-surface.p-5,
+  .border.border-line.bg-surface.p-6
+) {
+  border-color: transparent;
+  border-radius: min(32px, var(--radius-3xl-v));
+  box-shadow: var(--shadow-surface-v);
+}
+
+/* 下拉弹层（客户/员工选择、订单筛选菜单）：HeroUI popover 观感 */
+[data-skin="hero"] :is(
+  .absolute.z-30.mt-1.w-full.rounded-md.border.border-line.bg-surface.shadow-md,
+  .absolute.z-30.mt-1.w-56.rounded-md.border.border-line.bg-surface.shadow-md
+) {
+  background-color: var(--surface);
+  border-color: transparent;
+  border-radius: var(--radius-2xl-v);
+  box-shadow: var(--shadow-overlay-v);
+}
+
+/* ---------- 表单域 Input（HeroUI .input：flat 无边框 · field 底色 · 12px 圆角 · 聚焦 ring） ---------- */
+[data-skin="hero"] .ui-input {
+  height: 2.5rem;
+  background-color: var(--field-background);
+  border-color: var(--field-border);
+  border-radius: var(--radius-field-v);
+  box-shadow: var(--shadow-field-v);
+}
+[data-skin="hero"] .ui-input:hover:not(:focus) {
+  background-color: var(--field-hover);
+  border-color: var(--field-border-hover);
+}
+[data-skin="hero"] .ui-input:focus {
+  background-color: var(--field-focus);
+  border-color: var(--field-border-focus);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* ---------- 弹窗 Modal（HeroUI .modal__dialog：bg-overlay · 无玻璃 · 24px · 缩放进入） ---------- */
+[data-skin="hero"] .ui-modal {
+  background-color: var(--surface);
+  border-color: transparent;
+  border-radius: min(32px, var(--radius-3xl-v));
+  box-shadow: var(--shadow-overlay-v);
+  padding: 1.5rem;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-skin="hero"] .ui-modal-anim {
+  animation: ex-hero-modal-in 250ms var(--ease-out-fluid-v);
+}
+@keyframes ex-hero-modal-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* 其他玻璃容器（移动端抽屉等）也改为实色表面 */
+[data-skin="hero"] .glass:not(.ui-modal) {
+  background-color: var(--surface);
+  border-color: var(--separator);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---------- 表格 DataTable（HeroUI table 主变体：灰底容器 · 白卡片表体 · 低对比分隔线） ---------- */
+[data-skin="hero"] .ui-table {
+  background-color: var(--surface2);
+  border-color: transparent;
+  border-radius: min(32px, calc(var(--radius-md-v) * 2.5));
+  padding: 0.25rem 0.25rem 0.5rem;
+  box-shadow: none;
+}
+[data-skin="hero"] .ui-table table { background-color: var(--surface); }
+[data-skin="hero"] .ui-table thead tr {
+  background-color: var(--surface2);
+  font-family: var(--font-sans-v);
+  letter-spacing: normal;
+  text-transform: none;
+}
+[data-skin="hero"] .ui-table th {
+  font-family: var(--font-sans-v);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--muted);
+}
+[data-skin="hero"] .ui-table tbody tr { border-bottom-color: var(--separator); }
+[data-skin="hero"] .ui-table tbody tr:hover { background-color: transparent; }
+[data-skin="hero"] .ui-table tbody tr:hover td {
+  background-color: color-mix(in oklab, var(--default) 50%, transparent);
+}
+[data-skin="hero"] .ui-table tbody tr:first-child td:first-child { border-start-start-radius: min(32px, var(--radius-2xl-v)); }
+[data-skin="hero"] .ui-table tbody tr:first-child td:last-child { border-start-end-radius: min(32px, var(--radius-2xl-v)); }
+[data-skin="hero"] .ui-table tbody tr:last-child td:first-child { border-end-start-radius: min(32px, var(--radius-2xl-v)); }
+[data-skin="hero"] .ui-table tbody tr:last-child td:last-child { border-end-end-radius: min(32px, var(--radius-2xl-v)); }
+[data-skin="hero"] .ui-table thead th:first-child { border-start-start-radius: min(32px, var(--radius-2xl-v)); }
+[data-skin="hero"] .ui-table thead th:last-child { border-start-end-radius: min(32px, var(--radius-2xl-v)); }
+
+/* ---------- 标签页 FilterTabs（HeroUI v3 默认：default 底色容器 · segment 指示器滑动） ---------- */
+[data-skin="hero"] .ui-tabs {
+  background-color: var(--default);
+  border-color: transparent;
+  border-radius: min(32px, calc(var(--radius-md-v) * 2.5));
+  gap: 0;
+}
+[data-skin="hero"] .ui-tabs > button {
+  height: 2rem;
+  padding-inline: 1rem;
+  border-radius: min(32px, var(--radius-3xl-v));
+  font-size: 0.8125rem;
+  transition:
+    color 150ms var(--ease-smooth-v),
+    opacity 150ms var(--ease-smooth-v);
+}
+[data-skin="hero"] .ui-tabs > button[aria-pressed="true"] { color: var(--segment-foreground); }
+[data-skin="hero"] .ui-tabs > button:not([aria-pressed="true"]):hover { background-color: transparent; opacity: 0.7; }
+[data-skin="hero"] .tab-indicator {
+  transition-duration: 250ms;
+  transition-timing-function: var(--ease-out-fluid-v);
+}
+[data-skin="hero"] .tab-indicator-inner {
+  background-color: var(--segment);
+  border-radius: min(32px, var(--radius-3xl-v));
+  box-shadow: var(--shadow-surface-v);
+}
+
+/* ---------- 侧边栏导航（HeroUI：圆角项 · default hover · segment 选中胶囊） ---------- */
+[data-skin="hero"] .nav-link { border-radius: var(--radius-lg-v); }
+[data-skin="hero"] .nav-link:hover { background-color: var(--default); }
+[data-skin="hero"] .nav-link[data-active] { color: var(--ink); font-weight: 600; }
+[data-skin="hero"] .nav-indicator { transition-duration: 250ms; transition-timing-function: var(--ease-out-fluid-v); }
+[data-skin="hero"] .nav-indicator-inner {
+  background-color: var(--segment);
+  border-radius: var(--radius-lg-v);
+  box-shadow: var(--shadow-surface-v);
+}
+
+/* ---------- 滚动条（HeroUI：标准 scrollbar-width/color，非 webkit） ---------- */
+[data-skin="hero"] * {
+  scrollbar-width: var(--scrollbar-width, thin);
+  scrollbar-color: var(--scrollbar-thumb, transparent) var(--scrollbar-track, transparent);
+}
+
+/* ---------- 页面级原生表单（未走共享 Input 组件的 input/select/textarea） ---------- */
+[data-skin="hero"] :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="color"]) {
+  background-color: var(--field-background);
+  border-color: var(--field-border);
+  border-radius: var(--radius-field-v);
+  box-shadow: var(--shadow-field-v);
+}
+[data-skin="hero"] :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="color"]):hover:not(:focus):not(:disabled) {
+  background-color: var(--field-hover);
+  border-color: var(--field-border-hover);
+}
+[data-skin="hero"] :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="color"]):focus {
+  background-color: var(--field-focus);
+  border-color: var(--field-border-focus);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* ---------- 登录页主按钮（原始 class，未走 Button 组件） ---------- */
+[data-skin="hero"] button.w-full.bg-accent {
+  height: 2.5rem;
+  border-radius: min(32px, var(--radius-3xl-v));
+  transition:
+    background-color 100ms ease-out,
+    transform 250ms var(--ease-out-fluid-v),
+    opacity 100ms ease-out;
+}
+[data-skin="hero"] button.w-full.bg-accent:hover { background-color: var(--accent-hover); opacity: 1; }
+[data-skin="hero"] button.w-full.bg-accent:active { transform: scale(0.98); }
+

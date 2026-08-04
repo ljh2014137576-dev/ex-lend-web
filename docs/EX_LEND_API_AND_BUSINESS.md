@@ -357,3 +357,28 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 - /payroll“结算工资”：勾选在职员工并填金额（默认=当前结余）→ payout_salary 扣钱包、写 wallet_ledger(type=payout) 与 payout_detail，生成批次；可同时上传支付凭证（Excel/图片/PDF）到批次。
 - /payouts：结算批次列表（批次号/时间/操作人/员工数/总额/状态/凭证），双击查看明细（员工/金额/结算前/结算后）与凭证（图片预览或文件下载）。
 - payout 表新增 proof_path 列（需执行：alter table public.payout add column if not exists proof_path text;）。
+
+## 17. Hero 皮肤（HeroUI v3 组件规范）说明
+
+- 目标：`hero` 皮肤不只是换色调，而是把整站改造成 HeroUI（原 NextUI）v3 的组件规范。
+- 实现方式（沿用三层架构：token → 组件 → 页面，其他皮肤零影响）：
+  1. 组件语义钩子：Button/Input/Panel/Modal/DataTable/FilterTabs 分别追加 `ui-btn`/`ui-input`/`ui-panel`/`ui-modal`/`ui-table`/`ui-tabs` 类（纯增量，其他皮肤不受影响）。
+  2. hero token 扩展（app/globals.css `[data-skin="hero"]` 亮/暗两套）：
+     - 派生色：`--accent-hover`、`--accent-soft(-foreground/-hover)`、`--default(-foreground/-hover)`、`--danger-hover` 等，用 color-mix 按 HeroUI 公式计算；
+     - 分段/分隔：`--segment`、`--separator`、`--separator-secondary`、`--border`、`--backdrop`；
+     - 表单域：`--field-background/-foreground/-placeholder/-border/-hover/-focus/-border-hover/-border-focus`（HeroUI `--field-*` 规范）；
+     - 圆角阶梯：`--radius-field-v`(12px)、`--radius-2xl-v`(16px)、`--radius-3xl-v`(24px)；
+     - 阴影：`--shadow-surface-v` / `--shadow-overlay-v` / `--shadow-field-v`（暗色下 surface/field 阴影透明，overlay 内描边——与 HeroUI 暗色一致）；
+     - 滚动条：`--scrollbar-width/thumb/track`（标准 scrollbar-*，非 webkit）。
+  3. 组件覆盖（仅 `[data-skin="hero"]` 作用域，未分层规则覆盖 Tailwind 工具类）：
+     - 按钮：h-10 / rounded-3xl(24px) / 按下 scale(0.97) / primary·secondary·ghost·danger 用 HeroUI 变体配色（hover 换色而非透明度）；
+     - 卡片/面板：无边框 + shadow-surface + 24px 圆角；页面级 `border border-line bg-surface p-3~6` 容器同样转无边框+阴影；下拉弹层转 popover 观感；
+     - 输入框：无边框 + field 底色 + 12px 圆角 + field 阴影，hover/focus 用 field-border-* 与 2px focus ring；页面级原生 input/select/textarea 同样覆盖；
+     - 弹窗：无毛玻璃（实色 surface）+ overlay 阴影 + 24px + HeroUI 缩放进入动画（ex-hero-modal-in，原内联动画迁移为 .ui-modal-anim 类）；
+     - 表格：surface2 灰底容器(20px)+白色表体卡片、表头 surface2 + 12px 非大写字体、行分隔 separator、hover 用 default/50，首尾单元格圆角；
+     - 标签页：HeroUI v3 默认分段控件（default 底色容器 + 白色 segment 指示器滑动，250ms ease-out-fluid）；
+     - 侧边栏：nav 项圆角 + default hover，选中项为 segment 白色胶囊指示器；
+     - 滚动条：整站 thin + 15% foreground 色 thumb。
+- 白天/黑夜：`data-theme="light|dark"` 切换（设置页 ☀/🌙 按钮，localStorage `exlend-theme`），暗色 token 覆盖 surface2=#323236 等 HeroUI 暗色值。
+- 验证：tsc + npm run build + 生产重启；puppeteer 实测登录页按钮(24px/40px)、输入框(12px/白底/无边框/field 阴影)、卡片(24px/无边框/阴影)、表格/标签页/弹窗(缩放动画/无毛玻璃) 均符合 HeroUI 规范，日夜双模式正确。
+- 后续调整入口：全部在 app/globals.css 的 `[data-skin="hero"]` 两套 token 与 HeroUI 覆盖段，组件零改动。

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode } from "react";
 
@@ -28,10 +28,9 @@ export function Modal({
       />
       <div
         className={[
-          "glass relative w-full max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-md border border-line p-5 shadow-lg",
+          "ui-modal ui-modal-anim glass relative w-full max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-md border border-line p-5 shadow-lg",
           xwide ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md",
         ].join(" ")}
-        style={{ animation: "ex-slide-up var(--transition-mid-v) cubic-bezier(0.22,1,0.36,1)" }}
       >
         <header className="mb-4 flex items-center justify-between gap-4">
           <h2 className="text-sm font-medium">{title}</h2>
@@ -40,7 +39,7 @@ export function Modal({
             onClick={onClose}
             className="rounded-md border border-line px-2 py-1 font-mono text-xs transition-colors hover:bg-surface2"
           >
-            关闭
+            鍏抽棴
           </button>
         </header>
         {children}
@@ -48,3 +47,5 @@ export function Modal({
     </div>
   );
 }
+
+

@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+﻿import { ReactNode } from "react";
 
 export interface Column<T> {
   key: string;
@@ -12,7 +12,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
-  empty = "暂无数据",
+  empty = "鏆傛棤鏁版嵁",
   onRowDoubleClick,
 }: {
   columns: Column<T>[];
@@ -25,7 +25,7 @@ export function DataTable<T>({
     a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left";
 
   return (
-    <div className="overflow-x-auto border border-line bg-surface">
+    <div className="ui-table overflow-x-auto border border-line bg-surface">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-line bg-surface2 font-mono text-[11px] uppercase text-muted">

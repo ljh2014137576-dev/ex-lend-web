@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -33,7 +33,7 @@ export function FilterTabs({
   return (
     <div
       ref={wrapRef}
-      className="relative flex flex-wrap items-center gap-1 border border-line bg-surface p-1"
+      className="ui-tabs relative flex flex-wrap items-center gap-1 border border-line bg-surface p-1"
     >
       {pos.ready && (
         <span
