@@ -12,7 +12,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
-  empty = "鏆傛棤鏁版嵁",
+  empty = "暂无数据",
   onRowDoubleClick,
 }: {
   columns: Column<T>[];

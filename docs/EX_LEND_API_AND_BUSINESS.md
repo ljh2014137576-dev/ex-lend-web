@@ -348,7 +348,9 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 - 订单列表（/orders）：新增“员工”列，显示该订单参与的员工（打手）昵称（顿号分隔，无则 —），创建订单时可对任意状态订单查看参与员工。
 - 编辑/更正订单界面重构：
 - Input 组件宽度修复：
-- /rules 规则页：修复 VIP 折扣规则“分类”列 key 不匹配（name→category）导致空白；若线上库 vip_discount_rule.category / product_category.name 存在历史乱码（早期编码错误），执行 sql/fix_vip_rule_encoding.sql 诊断并按需修复。
+- /rules 规则页：
+- 修复源码真乱码（UTF-8 中文被 GBK 错误解码写死）：DataTable 空态文案“暂无数据”、Modal 关闭按钮“关闭”此前是乱码字节；已全项目扫描（连续 mojibake 特征字），仅此两处。
+修复 VIP 折扣规则“分类”列 key 不匹配（name→category）导致空白；若线上库 vip_discount_rule.category / product_category.name 存在历史乱码（早期编码错误），执行 sql/fix_vip_rule_encoding.sql 诊断并按需修复。
 内置 w-full 改为 CSS 层默认宽度（@layer components .ui-input{width:100%}），外部 w-* 工具类可正常覆盖；编辑表单商品行用 grid 轨道布局（1fr/5rem/auto），修复商品选择器被挤成 0px、筛选输入占满整行的问题。
 两栏布局（左=客户/支付方式/实际收款/接单员工，右=可搜索商品选择 ProductSelect+数量），顶部原单概览（原实付/折扣/待结算/商品·打手数）；编辑与更正均支持填写实际收款（edit_order/correct_order 新增 p_paid_amount，留空=系统计算）——线上库需执行 sql/order.sql 中两个函数的重定义。
 - 订单详情弹窗重构：加宽至 max-w-5xl；顶部状态/时间/下单人 + 8 项概览（客户/支付/原价/实付/折扣/待结算/佣金/毛利）+ 客户钱包（本金/赠送/待结算/累计消费）+ 商品明细与打手两栏 + 底部“订单操作”工具条（编辑|更正/修改价格/修改提成/驳回审核/删除）；打手表新增“覆盖”列；改价/提成/删除面板统一在内容流底部展开。

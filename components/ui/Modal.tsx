@@ -41,7 +41,7 @@ export function Modal({
             onClick={onClose}
             className="rounded-md border border-line px-2 py-1 font-mono text-xs transition-colors hover:bg-surface2"
           >
-            鍏抽棴
+            关闭
           </button>
         </header>
         {children}
