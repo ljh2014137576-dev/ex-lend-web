@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, rpcCorrectOrder, uploadProof } from "@/lib/supabase-api";
+import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, rpcCorrectOrder, rpcDeleteOrder, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { compressPaymentProof } from "@/lib/image-compression";
@@ -21,11 +21,13 @@ const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionD
 export function OrderDetailModal({
   orderId,
   onClose,
+  onDeleted,
 }: {
   orderId: string | null;
   onClose: () => void;
+  onDeleted?: (orderId: string) => void;
 }) {
-  const { session } = useAuth();
+  const { session, isBoss } = useAuth();
   const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
@@ -45,6 +47,9 @@ export function OrderDetailModal({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [modalMsg, setModalMsg] = useState<string | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -197,6 +202,21 @@ export function OrderDetailModal({
     setModalMsg("已驳回审核，订单恢复为待审核");
   };
 
+  const confirmDelete = async () => {
+    if (!o) return;
+    setDeleting(true);
+    setModalMsg(null);
+    if (session && detail) {
+      const { data, error } = await rpcDeleteOrder(detail.order.id, deleteReason.trim() || null);
+      if (error || data?.success === false) {
+        setDeleting(false);
+        return setModalMsg("删除失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+      }
+    }
+    onDeleted?.(o.id);
+    setDeleting(false);
+  };
+
   const openEdit = () => {
     if (!o) return;
     const cust = customers.find((c) => c.name === o.customerName);
@@ -320,6 +340,9 @@ export function OrderDetailModal({
                   {o.status === "booking" ? "编辑订单" : "更正订单"}
                 </Button>
               )}
+              {isBoss && (
+                <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>
+              )}
             </div>
           </div>
 
@@ -398,6 +421,25 @@ export function OrderDetailModal({
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setEditCommissions(false)}>取消</Button>
                 <Button size="sm" onClick={saveCommissions}>保存提成</Button>
+              </div>
+            </div>
+          )}
+
+          {deleteOpen && (
+            <div className="space-y-2 border border-line bg-paper p-3">
+              <p className="font-mono text-[11px] text-danger">
+                确认删除订单 {o.orderNo}？删除后不可恢复：已发生的客户本金/赠金扣款与员工提成将自动冲正（已审核订单回滚员工提成并恢复客户余额，未结算订单释放预收）。
+              </p>
+              <Input
+                placeholder="删除原因（可选）"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setDeleteOpen(false)}>取消</Button>
+                <Button size="sm" variant="danger" onClick={() => void confirmDelete()} disabled={deleting}>
+                  {deleting ? "删除中…" : "确认删除"}
+                </Button>
               </div>
             </div>
           )}

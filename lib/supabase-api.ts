@@ -307,16 +307,16 @@ export async function rpcCreateOrderMulti(params: {
   return supabase.rpc("create_order_multi", params);
 }
 
+export function rpcDeleteOrder(p_order_id: string, p_reason?: string | null) {
+  return supabase.rpc("delete_order", { p_order_id, p_reason: p_reason ?? null });
+}
+
 export function rpcApproveCommission(p_order_id: string) {
   return supabase.rpc("approve_commission", { p_order_id });
 }
 
 export function rpcRefundOrder(p_order_id: string, p_refund_method: "wallet" | "cash") {
   return supabase.rpc("refund_order", { p_order_id, p_refund_method });
-}
-
-export function rpcDeleteOrder(p_order_id: string, p_reason: string) {
-  return supabase.rpc("delete_order", { p_order_id, p_reason });
 }
 
 export function rpcRechargeCustom(params: {

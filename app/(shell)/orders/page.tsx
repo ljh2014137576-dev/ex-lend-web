@@ -349,7 +349,14 @@ export default function OrdersPage() {
         <Link href="/audit" className="underline underline-offset-2 hover:text-accent">→ 去审核台处理待审核订单</Link>
       </p>
 
-      <OrderDetailModal orderId={detailId} onClose={() => setDetailId(null)} />
+      <OrderDetailModal
+        orderId={detailId}
+        onClose={() => setDetailId(null)}
+        onDeleted={(id) => {
+          mutate((prev) => prev.filter((o) => o.id !== id));
+          setDetailId(null);
+        }}
+      />
     </div>
   );
 }
