@@ -416,15 +416,17 @@ export function OrderDetailModal({
             <div className="space-y-2">
               <span className="font-mono text-[11px] text-muted">商品明细（{editItems.length} 项）</span>
               {editItems.map((it, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="grid grid-cols-[1fr_5rem_auto] items-center gap-2">
                   <ProductSelect
                     value={it.product_id}
                     onChange={(pid) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, product_id: pid } : x)))}
                     products={products}
                   />
-                  <Input type="number" min={1} value={it.quantity}
-                    onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))}
-                    className="w-20" aria-label="数量" />
+                  <div className="w-20">
+                    <Input type="number" min={1} value={it.quantity}
+                      onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))}
+                      aria-label="数量" />
+                  </div>
                   <Button size="sm" variant="secondary" onClick={() => setEditItems((prev) => prev.filter((_, i) => i !== idx))}>×</Button>
                 </div>
               ))}

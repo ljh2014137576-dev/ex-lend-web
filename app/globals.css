@@ -370,6 +370,13 @@
   --color-field-border-focus: var(--field-border-focus);
 }
 
+@layer components {
+  /* Input 默认占满容器；外部传入 w-* 工具类可覆盖（utilities 层优先级更高） */
+  .ui-input {
+    width: 100%;
+  }
+}
+
 body {
   background-color: var(--paper);
   color: var(--ink);
@@ -551,6 +558,13 @@ body {
 
 /* ===== 绉诲姩绔€傞厤锛圕hrome / Safari锛?===== */
 html { -webkit-text-size-adjust: 100%; }
+@layer components {
+  /* Input 默认占满容器；外部传入 w-* 工具类可覆盖（utilities 层优先级更高） */
+  .ui-input {
+    width: 100%;
+  }
+}
+
 body { overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
 /* iOS Safari锛氳緭鍏ユ瀛楀彿 <16px 鑱氱劍鏃朵細鑷姩鏀惧ぇ锛岀粺涓€鎻愬埌 16px 閬垮厤璇Е缂╂斁 */
 @media (max-width: 640px) {

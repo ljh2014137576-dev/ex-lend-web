@@ -34,7 +34,7 @@ export function ProductSelect({
   }, []);
 
   return (
-    <div ref={wrapRef} className="relative min-w-0 flex-1">
+    <div ref={wrapRef} className="relative w-full">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
