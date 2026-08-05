@@ -73,7 +73,7 @@ export default function RulesPage() {
             rowKey={(r) => r.id}
             columns={[
               { key: "vip", label: "VIP 等级", align: "right", mono: true, render: (r) => `VIP${r.vipLevel}` },
-              { key: "cat", label: "分类", mono: true },
+              { key: "category", label: "分类", mono: true, render: (r) => r.category },
               { key: "discount", label: "折扣", align: "right", mono: true, render: (r) => pct(r.discount) },
             ]}
             rows={vipDiscounts}
