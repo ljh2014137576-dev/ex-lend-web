@@ -31,6 +31,7 @@ export default function CashierPage() {
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [fail, setFail] = useState<string | null>(null);
+  const [paidOverride, setPaidOverride] = useState("");
 
   const { data: customers, real } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
@@ -77,9 +78,17 @@ export default function CashierPage() {
 
   const original = cart.reduce((s, l) => s + l.product.price * l.quantity, 0);
   const vipRate = customer ? (customer.type === "vip" ? (customer.vipLevel >= 3 ? 0.85 : 0.9) : 1) : 1;
-  const discount = customer && customer.type === "vip" ? original * (1 - vipRate) : 0;
-  const paid = original - discount;
+  const autoDiscount = customer && customer.type === "vip" ? original * (1 - vipRate) : 0;
+  const autoPaid = original - autoDiscount;
   const walletTotal = customer ? customer.principal + customer.bonus : 0;
+
+  // 实际收款：留空 = 跟随系统应收（autoPaid）；可手动覆盖，范围 0 ~ 原价
+  const paidText = paidOverride.trim();
+  const effectivePaid = paidText === "" ? autoPaid : Number(paidText);
+  const paidValid = !Number.isNaN(effectivePaid) && effectivePaid >= 0 && effectivePaid <= original;
+  const paidDiff = effectivePaid - autoPaid; // >0 多收 / <0 额外优惠
+  const orderDiscount = original - effectivePaid;
+  const fmtPaid = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : "");
 
   const submit = async () => {
     setHint(null);
@@ -87,7 +96,8 @@ export default function CashierPage() {
     if (!customer) return setHint("请选择客户");
     if (cart.length === 0) return setHint("请先添加商品");
     if (employeeIds.length === 1) return setHint("接单员工需选 0 或 2 名");
-    if (payMethod === "wallet" && walletTotal < paid) return setHint("客户钱包余额不足（本金+赠送）");
+    if (!paidValid) return setHint("实际收款需在 0 与订单原价之间");
+    if (payMethod === "wallet" && walletTotal < effectivePaid) return setHint("客户钱包余额不足（本金+赠送）");
 
     // 先构造乐观订单入缓存，前端立即展示；同时后台提交；失败则回滚并弹窗
     const optimisticId = "tmp-" + Date.now();
@@ -99,11 +109,11 @@ export default function CashierPage() {
       vipLevel: customer.vipLevel,
       payMethod,
       original,
-      paid,
-      discount,
+      paid: effectivePaid,
+      discount: orderDiscount,
       commission: 0,
       grossProfit: 0,
-      pending: paid,
+      pending: effectivePaid,
       status: "booking",
       auditStatus: "pending",
       operator: "—",
@@ -132,7 +142,7 @@ export default function CashierPage() {
         p_items: cart.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
         p_employee_ids: employeeIds,
         p_pay_method: payMethod,
-        p_paid_amount: null,
+        p_paid_amount: paidText === "" ? null : effectivePaid,
       });
       if (error || data?.success === false) {
         // 失败：从缓存删除该条，并弹窗提醒
@@ -156,10 +166,11 @@ export default function CashierPage() {
       );
       setReceipt({ no: data.order_no, paid: Number(data.paid_amount), discount: Number(data.discount ?? 0), at: new Date().toLocaleString("zh-CN") });
     } else {
-      setReceipt({ no: optimistic.orderNo, paid, discount, at: new Date().toLocaleString("zh-CN") });
+      setReceipt({ no: optimistic.orderNo, paid: effectivePaid, discount: orderDiscount, at: new Date().toLocaleString("zh-CN") });
     }
     setCart([]);
     setEmployeeIds([]);
+    setPaidOverride("");
   };
 
   return (
@@ -230,12 +241,44 @@ export default function CashierPage() {
               {customer?.type === "vip" && (
                 <div className="flex justify-between">
                   <span className="text-muted">VIP{vipRate * 10}折（{customer?.name}）</span>
-                  <span className="text-danger">-{money(discount)}</span>
+                  <span className="text-danger">-{money(autoDiscount)}</span>
                 </div>
               )}
-              <div className="flex justify-between border-t border-line pt-1 text-sm font-semibold">
-                <span>实付</span><span>{money(paid)}</span>
+              <div className="flex items-center justify-between gap-2 border-t border-line pt-1 text-sm font-semibold">
+                <span>实际收款</span>
+                <div className="flex items-center gap-1">
+                  {paidText !== "" && (
+                    <button
+                      type="button"
+                      onClick={() => setPaidOverride("")}
+                      className="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted transition-colors hover:bg-surface2"
+                      title="恢复为系统自动应收"
+                    >
+                      跟随自动
+                    </button>
+                  )}
+                  <span className="font-mono text-xs text-muted">¥</span>
+                  <input
+                    value={paidText}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || /^\d+(\.\d{0,2})?$/.test(v)) setPaidOverride(v);
+                    }}
+                    inputMode="decimal"
+                    placeholder={fmtPaid(autoPaid)}
+                    aria-label="实际收款金额"
+                    className="h-7 w-24 rounded-md border border-line bg-paper px-2 text-right font-mono text-xs tabular-nums outline-none focus:border-ink"
+                  />
+                </div>
               </div>
+              {paidText !== "" && paidDiff !== 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted">{paidDiff > 0 ? "多收" : "额外优惠"}</span>
+                  <span className={paidDiff > 0 ? "text-success" : "text-danger"}>
+                    {paidDiff > 0 ? "+" : "-"}{money(Math.abs(paidDiff))}
+                  </span>
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -275,7 +318,7 @@ export default function CashierPage() {
           {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}
 
           <Button className="w-full" disabled={cart.length === 0} onClick={submit}>
-            提交订单 {cart.length > 0 ? `（${money(paid)}）` : ""}
+            提交订单 {cart.length > 0 ? `（${money(effectivePaid)}）` : ""}
           </Button>
         </div>
       </div>
