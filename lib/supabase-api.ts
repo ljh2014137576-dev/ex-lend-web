@@ -283,6 +283,7 @@ export function rpcCorrectOrder(params: {
   p_items: { product_id: string; quantity: number }[];
   p_employee_ids: string[];
   p_pay_method: "wallet" | "cash";
+  p_paid_amount?: number | null;
 }) {
   return supabase.rpc("correct_order", params);
 }
@@ -293,6 +294,7 @@ export function rpcEditOrder(params: {
   p_items: { product_id: string; quantity: number }[];
   p_employee_ids: string[];
   p_pay_method: "wallet" | "cash";
+  p_paid_amount?: number | null;
 }) {
   return supabase.rpc("edit_order", params);
 }

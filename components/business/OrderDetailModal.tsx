@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { compressPaymentProof } from "@/lib/image-compression";
 import { useResource } from "@/lib/data-store";
 import { CustomerSelect } from "@/components/business/CustomerSelect";
+import { ProductSelect } from "@/components/business/ProductSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
 import { ORDERS, CUSTOMERS, EMPLOYEES, PRODUCTS, type Order, type OrderItem, type OrderMember, type Customer, type Employee, type Product } from "@/lib/mock-data";
 import { ReceiptEditor } from "@/components/business/ReceiptEditor";
@@ -39,6 +40,7 @@ export function OrderDetailModal({
   const [editItems, setEditItems] = useState<{ product_id: string; quantity: number }[]>([]);
   const [editEmps, setEditEmps] = useState<string[]>([]);
   const [editMsg, setEditMsg] = useState<string | null>(null);
+  const [editPaid, setEditPaid] = useState("");
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
   const [mockOrder, setMockOrder] = useState<Order | null>(null);
   const [proofs, setProofs] = useState<{ path: string; url: string }[]>([]);
@@ -70,6 +72,7 @@ export function OrderDetailModal({
     setEditItems([]);
     setEditEmps([]);
     setEditMsg(null);
+    setEditPaid("");
     setEditCommissions(false);
     setDrafts({});
     setModalMsg(null);
@@ -284,6 +287,7 @@ export function OrderDetailModal({
         .filter((x) => x.product_id),
     );
     setEditEmps(o.members.map((m) => m.employeeId));
+    setEditPaid(String(o.paid));
     setEditMsg(null);
     setEditOpen(true);
   };
@@ -295,6 +299,10 @@ export function OrderDetailModal({
     if (editEmps.length === 1) return setEditMsg("接单员工需选 0 或 2 名");
     if (!editCust) return setEditMsg("请选择客户");
     const isBooking = o.status === "booking";
+    const editPaidAmount = editPaid.trim() === "" ? null : Number(editPaid);
+    if (editPaidAmount !== null && (Number.isNaN(editPaidAmount) || editPaidAmount < 0)) {
+      return setEditMsg("实际收款需大于等于 0");
+    }
     if (!session) {
       // Mock 模式：本地模拟保存（不写库）
       setEditOpen(false);
@@ -310,6 +318,7 @@ export function OrderDetailModal({
           p_items: editItems,
           p_employee_ids: editEmps,
           p_pay_method: editPay,
+          p_paid_amount: editPaidAmount,
         })
       : await rpcCorrectOrder({
           p_order_id: o.id,
@@ -317,6 +326,7 @@ export function OrderDetailModal({
           p_items: editItems,
           p_employee_ids: editEmps,
           p_pay_method: editPay,
+          p_paid_amount: editPaidAmount,
         });
     if (error || data?.success === false) {
       return setEditMsg("保存失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
@@ -340,53 +350,92 @@ export function OrderDetailModal({
       {o ? (editOpen ? (
         <div className="space-y-4">
           {editMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{editMsg}</p>}
-          {o && o.status !== "booking" && (
-            <p className="rounded-md border border-line bg-paper p-2 font-mono text-[11px] text-muted">
-              保存将对原单执行退款冲正（客户钱包/员工提成回退，可能产生欠款），并以新内容重建一张更正单。
-            </p>
-          )}
-          <div className="space-y-1">
-            <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
-            <CustomerSelect value={editCust} onChange={setEditCust} customers={customers} />
-          </div>
-          <div className="space-y-1">
-            <span className="font-mono text-[11px] text-muted">商品明细（{editItems.length} 项）</span>
-            {editItems.map((it, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <select
-                  value={it.product_id}
-                  onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, product_id: e.target.value } : x)))}
-                  className="h-[var(--control-h)] min-w-0 flex-1 rounded-md border border-line bg-paper px-3 text-sm text-ink outline-none focus:border-ink"
-                >
-                  {products.filter((p) => p.status === "on_sale").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <Input type="number" min={1} value={it.quantity}
-                  onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))}
-                  className="w-20" />
-                <Button size="sm" variant="secondary" onClick={() => setEditItems((prev) => prev.filter((_, i) => i !== idx))}>×</Button>
+
+          {/* 原单概览 */}
+          <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "原实付", value: money(o.paid) },
+              { label: "原折扣", value: money(o.discount) },
+              { label: "原待结算", value: money(o.pending ?? 0) },
+              { label: "商品 / 打手", value: `${o.items.length} 项 / ${o.members.length} 人` },
+            ].map((x) => (
+              <div key={x.label} className="bg-paper p-3">
+                <p className="font-mono text-[10px] text-muted">{x.label}</p>
+                <p className="mt-0.5 text-sm font-medium tabular-nums">{x.value}</p>
               </div>
             ))}
-            <Button size="sm" variant="secondary"
-              onClick={() => setEditItems((prev) => [...prev, { product_id: products.find((p) => p.status === "on_sale")?.id ?? "", quantity: 1 }])}>
-              ＋ 添加商品
-            </Button>
           </div>
-          <div className="space-y-1">
-            <span className="font-mono text-[11px] text-muted">支付方式</span>
-            <div className="flex gap-1">
-              {(["wallet", "cash"] as const).map((m) => (
-                <button key={m} type="button" onClick={() => setEditPay(m)} aria-pressed={editPay === m}
-                  className={["flex-1 rounded-md px-3 py-2 text-xs transition-colors", editPay === m ? "bg-nav-active text-nav-active-text" : "border border-line bg-paper hover:bg-surface2"].join(" ")}>
-                  {m === "wallet" ? "钱包（质押）" : "现金（预收）"}
-                </button>
+
+          {o.status !== "booking" && (
+            <p className="rounded-md border border-line bg-paper p-2 font-mono text-[11px] text-muted">
+              保存将对原单执行退款冲正（客户钱包/员工提成回退，可能产生欠款），并以新内容重建一张更正单（新订单号）。
+            </p>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            {/* 左栏：客户 / 支付 / 实际收款 / 员工 */}
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
+                <CustomerSelect value={editCust} onChange={setEditCust} customers={customers} />
+              </div>
+              <div className="space-y-1">
+                <span className="font-mono text-[11px] text-muted">支付方式</span>
+                <div className="flex gap-1">
+                  {(["wallet", "cash"] as const).map((m) => (
+                    <button key={m} type="button" onClick={() => setEditPay(m)} aria-pressed={editPay === m}
+                      className={["flex-1 rounded-md px-3 py-2 text-xs transition-colors", editPay === m ? "bg-nav-active text-nav-active-text" : "border border-line bg-paper hover:bg-surface2"].join(" ")}>
+                      {m === "wallet" ? "钱包（质押）" : "现金（预收）"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="font-mono text-[11px] text-muted">实际收款（留空 = 系统按商品/VIP 自动计算）</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-muted">¥</span>
+                  <Input
+                    value={editPaid}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || /^\d+(\.\d{0,2})?$/.test(v)) setEditPaid(v);
+                    }}
+                    inputMode="decimal"
+                    placeholder="留空=系统计算"
+                    aria-label="实际收款金额"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="font-mono text-[11px] text-muted">接单员工（0–2 人，可搜索）</span>
+                <EmployeePicker value={editEmps} onChange={setEditEmps} employees={employees} />
+              </div>
+            </div>
+
+            {/* 右栏：商品明细 */}
+            <div className="space-y-2">
+              <span className="font-mono text-[11px] text-muted">商品明细（{editItems.length} 项）</span>
+              {editItems.map((it, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <ProductSelect
+                    value={it.product_id}
+                    onChange={(pid) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, product_id: pid } : x)))}
+                    products={products}
+                  />
+                  <Input type="number" min={1} value={it.quantity}
+                    onChange={(e) => setEditItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))}
+                    className="w-20" aria-label="数量" />
+                  <Button size="sm" variant="secondary" onClick={() => setEditItems((prev) => prev.filter((_, i) => i !== idx))}>×</Button>
+                </div>
               ))}
+              <Button size="sm" variant="secondary"
+                onClick={() => setEditItems((prev) => [...prev, { product_id: products.find((p) => p.status === "on_sale")?.id ?? "", quantity: 1 }])}>
+                ＋ 添加商品
+              </Button>
             </div>
           </div>
-          <div className="space-y-1">
-            <span className="font-mono text-[11px] text-muted">接单员工（0–2 人）</span>
-            <EmployeePicker value={editEmps} onChange={setEditEmps} employees={employees} />
-          </div>
-          <div className="flex justify-end gap-2">
+
+          <div className="flex justify-end gap-2 border-t border-line pt-3">
             <Button variant="secondary" onClick={() => { setEditOpen(false); setEditMsg(null); }}>取消</Button>
             <Button onClick={() => void saveEdit()}>保存修改</Button>
           </div>

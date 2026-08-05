@@ -1929,6 +1929,7 @@ create or replace function public.edit_order(
   p_items jsonb,
   p_employee_ids uuid[],
   p_pay_method pay_method
+  p_paid_amount numeric default null
 )
 returns jsonb
 language plpgsql
@@ -2050,7 +2051,11 @@ begin
   end loop;
 
   v_original := round(v_original, 2);
-  v_paid := round(v_calculated_paid, 2);
+  v_paid := round(coalesce(p_paid_amount, v_calculated_paid), 2);
+  if v_paid < 0 or v_paid > v_original then
+    return jsonb_build_object('success', false, 'message', '实付金额需在 0 与订单原价之间');
+  end if;
+  v_discount := v_original - v_paid;
   v_discount := v_original - v_paid;
 
   if p_pay_method = 'wallet' then
@@ -2097,7 +2102,10 @@ begin
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
-    v_item_paid := round(v_item_original * v_item_rate, 2);
+    v_item_paid := case
+      when p_paid_amount is null then round(v_item_original * v_item_rate, 2)
+      when v_original > 0 then round(v_paid * v_item_original / v_original, 2)
+      else 0 end;
 
     insert into public.order_item (
       order_id, product_id, product_name_snapshot, category_id_snapshot, category_snapshot,
@@ -2156,7 +2164,7 @@ end;
 $$;
 
 revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
-grant execute on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) to authenticated;
+grant execute on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) to authenticated;
 
 create or replace function public.correct_order(
   p_order_id uuid,
@@ -2164,6 +2172,7 @@ create or replace function public.correct_order(
   p_items jsonb,
   p_employee_ids uuid[],
   p_pay_method pay_method
+  p_paid_amount numeric default null
 )
 returns jsonb
 language plpgsql
@@ -2200,7 +2209,7 @@ begin
   end if;
 
   -- 用正确信息重建订单；失败则整体回滚（原单退款也被撤销）
-  v_new := public.create_order_multi(p_customer_id, p_items, p_employee_ids, p_pay_method, null);
+p_employee_ids, p_pay_method, p_paid_amount);
   if (v_new ->> 'success') <> 'true' then
     raise exception '更正失败：%', coalesce(v_new ->> 'message', '重建订单失败');
   end if;
@@ -2209,7 +2218,7 @@ end;
 $$;
 
 revoke all on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
-grant execute on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method) to authenticated;
+grant execute on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) to authenticated;
 
 
 
