@@ -46,6 +46,7 @@ export interface Product {
 export interface OrderMember {
   employeeId: string;
   name: string;
+  realName?: string;
   grade: number;
   base: number;
   rate: number;

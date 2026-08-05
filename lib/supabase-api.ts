@@ -205,6 +205,7 @@ export async function apiOrders(): Promise<Order[] | null> {
     members: (r.order_member ?? []).map((m) => ({
       employeeId: m.employee_id,
       name: (m.employee as { nickname?: string; name?: string } | null)?.nickname || (m.employee as { name?: string } | null)?.name || "员工",
+      realName: (m.employee as { name?: string } | null)?.name ?? undefined,
       grade: m.grade_snapshot ?? 1,
       base: Number(m.base_amount ?? 0),
       rate: Number(m.applied_rate ?? 0),
@@ -235,6 +236,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
   const members = (data.order_member ?? []).map((m) => ({
     employeeId: m.employee_id,
     name: (m.employee as { nickname?: string; name?: string } | null)?.nickname || (m.employee as { name?: string } | null)?.name || "员工",
+      realName: (m.employee as { name?: string } | null)?.name ?? undefined,
     grade: m.grade_snapshot ?? 1,
     base: Number(m.base_amount ?? 0),
     rate: Number(m.applied_rate ?? 0),

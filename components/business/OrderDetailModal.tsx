@@ -337,23 +337,29 @@ export function OrderDetailModal({
             ))}
           </div>
 
-          <DataTable<OrderItem>
-            rowKey={(r, i) => r.productName + i}
-            columns={[
-              { key: "name", label: "商品" },
-              { key: "category", label: "分类", mono: true },
-              { key: "qty", label: "数量", align: "right", mono: true, render: (r) => r.quantity },
-              { key: "unit", label: "单价", align: "right", mono: true, render: (r) => money(r.unitPrice) },
-              { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
-            ]}
-            rows={items}
-          />
+          <p className="mb-2 font-mono text-[11px] text-muted">商品明细{items.length > 0 ? ` · ${items.length} 项` : ""}</p>
+          {items.length > 0 ? (
+            <DataTable<OrderItem>
+              rowKey={(r, i) => r.productName + i}
+              columns={[
+                { key: "productName", label: "商品", render: (r) => r.productName },
+                { key: "category", label: "分类", mono: true },
+                { key: "qty", label: "数量", align: "right", mono: true, render: (r) => r.quantity },
+                { key: "unit", label: "单价", align: "right", mono: true, render: (r) => money(r.unitPrice) },
+                { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
+              ]}
+              rows={items}
+            />
+          ) : (
+            <p className="rounded-md border border-line bg-paper p-3 font-mono text-xs text-muted">该订单暂无商品明细</p>
+          )}
 
-          {members.length > 0 && (
+          <p className="mb-2 font-mono text-[11px] text-muted">打手（接单员工）{members.length > 0 ? ` · ${members.length} 人` : ""}</p>
+          {members.length > 0 ? (
             <DataTable<OrderMember>
               rowKey={(r) => r.employeeId}
               columns={[
-                { key: "name", label: "员工" },
+                { key: "name", label: "员工", render: (r) => (r.realName && r.realName !== r.name ? `${r.name}（${r.realName}）` : r.name) },
                 { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
                 { key: "base", label: "基数", align: "right", mono: true, render: (r) => money(r.base) },
                 { key: "rate", label: "比例", align: "right", mono: true, render: (r) => (r.rate * 100).toFixed(1) + "%" },
@@ -361,6 +367,8 @@ export function OrderDetailModal({
               ]}
               rows={members}
             />
+          ) : (
+            <p className="rounded-md border border-line bg-paper p-3 font-mono text-xs text-muted">未指派打手</p>
           )}
 
           {(canEditCommission || o?.auditStatus === "approved") && (

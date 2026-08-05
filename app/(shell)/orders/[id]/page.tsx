@@ -153,7 +153,7 @@ export default function OrderDetailPage() {
           <DataTable<OrderItem>
             rowKey={(r, i) => r.productName + i}
             columns={[
-              { key: "name", label: "商品" },
+              { key: "productName", label: "商品", render: (r) => r.productName },
               { key: "category", label: "分类", mono: true },
               { key: "qty", label: "数量", align: "right", mono: true, render: (r) => r.quantity },
               { key: "unit", label: "单价", align: "right", mono: true, render: (r) => money(r.unitPrice) },
@@ -167,7 +167,7 @@ export default function OrderDetailPage() {
           <DataTable<OrderMember>
             rowKey={(r) => r.employeeId}
             columns={[
-              { key: "name", label: "员工" },
+              { key: "name", label: "员工", render: (r) => (r.realName && r.realName !== r.name ? `${r.name}（${r.realName}）` : r.name) },
               { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
               { key: "base", label: "基数", align: "right", mono: true, render: (r) => money(r.base) },
               { key: "rate", label: "比例", align: "right", mono: true, render: (r) => (r.rate * 100).toFixed(1) + "%" },
