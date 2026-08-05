@@ -17,7 +17,7 @@ import { useAuth } from "@/lib/auth";
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 interface CartLine {
-  product: Product;
+  productId: string;
   quantity: number;
 }
 
@@ -36,13 +36,19 @@ export default function CashierPage() {
   const { data: customers, real } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
-  const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
+  const { data: products, real: productsReal } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { session } = useAuth();
+
+  // 购物车按 productId 存储，渲染/提交时从当前商品数据实时解析，避免 Mock 占位商品（非 UUID id）被提交到后端
+  const resolveProduct = (id: string) => products.find((p) => p.id === id);
+  const cartLines = cart.map((l) => ({ ...l, product: resolveProduct(l.productId) }));
+  const missingProducts = cartLines.filter((l) => !l.product);
 
   const customer = customers.find((c) => c.id === customerId) ?? customers[0] ?? null;
 
   useEffect(() => {
-    if (!customerId && customers.length > 0) setCustomerId(customers[0].id);
+    if (customers.length === 0) return;
+    if (!customerId || !customers.some((c) => c.id === customerId)) setCustomerId(customers[0].id);
   }, [customers, customerId]);
 
   const categories = useMemo(() => {
@@ -65,18 +71,18 @@ export default function CashierPage() {
     setReceipt(null);
     setHint(null);
     setCart((prev) => {
-      const found = prev.find((l) => l.product.id === p.id);
-      if (found) return prev.map((l) => (l.product.id === p.id ? { ...l, quantity: l.quantity + 1 } : l));
-      return [...prev, { product: p, quantity: 1 }];
+      const found = prev.find((l) => l.productId === p.id);
+      if (found) return prev.map((l) => (l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l));
+      return [...prev, { productId: p.id, quantity: 1 }];
     });
   };
 
   const setQty = (id: string, qty: number) => {
-    if (qty <= 0) return setCart((prev) => prev.filter((l) => l.product.id !== id));
-    setCart((prev) => prev.map((l) => (l.product.id === id ? { ...l, quantity: qty } : l)));
+    if (qty <= 0) return setCart((prev) => prev.filter((l) => l.productId !== id));
+    setCart((prev) => prev.map((l) => (l.productId === id ? { ...l, quantity: qty } : l)));
   };
 
-  const original = cart.reduce((s, l) => s + l.product.price * l.quantity, 0);
+  const original = cartLines.reduce((s, l) => s + (l.product ? l.product.price * l.quantity : 0), 0);
   const vipRate = customer ? (customer.type === "vip" ? (customer.vipLevel >= 3 ? 0.85 : 0.9) : 1) : 1;
   const autoDiscount = customer && customer.type === "vip" ? original * (1 - vipRate) : 0;
   const autoPaid = original - autoDiscount;
@@ -95,6 +101,8 @@ export default function CashierPage() {
     setFail(null);
     if (!customer) return setHint("请选择客户");
     if (cart.length === 0) return setHint("请先添加商品");
+    if (session && !productsReal) return setHint("商品数据未加载成功，请稍后刷新重试");
+    if (missingProducts.length > 0) return setHint("部分商品未加载或已失效，请移除后重试");
     if (employeeIds.length === 1) return setHint("接单员工需选 0 或 2 名");
     if (!paidValid) return setHint("实际收款需在 0 与订单原价之间");
     if (payMethod === "wallet" && walletTotal < effectivePaid) return setHint("客户钱包余额不足（本金+赠送）");
@@ -120,15 +128,15 @@ export default function CashierPage() {
       createdAt: new Date().toLocaleString("zh-CN"),
       proofPath: null,
       proofPaths: [],
-      items: cart.map((l) => ({
-        productName: l.product.name,
-        category: l.product.category,
-        unitPrice: l.product.price,
+      items: cartLines.map((l) => ({
+        productName: l.product!.name,
+        category: l.product!.category,
+        unitPrice: l.product!.price,
         quantity: l.quantity,
-        original: l.product.price * l.quantity,
+        original: l.product!.price * l.quantity,
         discount: 0,
-        paid: l.product.price * l.quantity,
-        commissionType: l.product.commissionType,
+        paid: l.product!.price * l.quantity,
+        commissionType: l.product!.commissionType,
       })),
       members: [],
     };
@@ -139,7 +147,7 @@ export default function CashierPage() {
       // 真实会话：调用 create_order_multi RPC
       const { data, error } = await rpcCreateOrderMulti({
         p_customer_id: customer.id,
-        p_items: cart.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+        p_items: cartLines.map((l) => ({ product_id: l.product!.id, quantity: l.quantity })),
         p_employee_ids: employeeIds,
         p_pay_method: payMethod,
         p_paid_amount: paidText === "" ? null : effectivePaid,
@@ -220,16 +228,28 @@ export default function CashierPage() {
               <p className="py-6 text-center font-mono text-xs text-muted">点击左侧商品加入</p>
             ) : (
               <ul className="divide-y divide-line">
-                {cart.map((l) => (
-                  <li key={l.product.id} className="flex items-center justify-between gap-2 py-2">
+                {cartLines.map((l) => (
+                  <li key={l.productId} className="flex items-center justify-between gap-2 py-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm">{l.product.name}</p>
-                      <p className="font-mono text-[11px] text-muted">{money(l.product.price)} × {l.quantity}</p>
+                      {l.product ? (
+                        <>
+                          <p className="truncate text-sm">{l.product.name}</p>
+                          <p className="font-mono text-[11px] text-muted">{money(l.product.price)} × {l.quantity}</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-danger">商品未加载或已失效</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button size="sm" variant="secondary" onClick={() => setQty(l.product.id, l.quantity - 1)}>−</Button>
-                      <span className="w-8 text-center font-mono text-xs tabular-nums">{l.quantity}</span>
-                      <Button size="sm" variant="secondary" onClick={() => setQty(l.product.id, l.quantity + 1)}>+</Button>
+                      {l.product ? (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => setQty(l.productId, l.quantity - 1)}>−</Button>
+                          <span className="w-8 text-center font-mono text-xs tabular-nums">{l.quantity}</span>
+                          <Button size="sm" variant="secondary" onClick={() => setQty(l.productId, l.quantity + 1)}>+</Button>
+                        </>
+                      ) : (
+                        <Button size="sm" variant="danger" onClick={() => setQty(l.productId, 0)}>移除</Button>
+                      )}
                     </div>
                   </li>
                 ))}
