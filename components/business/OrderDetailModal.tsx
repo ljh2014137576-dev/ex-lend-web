@@ -57,6 +57,21 @@ export function OrderDetailModal({
     setMockOrder(null);
     setProofs([]);
     setProofMsg(null);
+    // 切换订单时重置所有临时 UI 状态（编辑/删除确认/提成草稿/小票/提示），避免残留上一单布局
+    setEditOpen(false);
+    setEditCust("");
+    setEditPay("wallet");
+    setEditItems([]);
+    setEditEmps([]);
+    setEditMsg(null);
+    setEditCommissions(false);
+    setDrafts({});
+    setModalMsg(null);
+    setReceiptOpen(false);
+    setDeleteOpen(false);
+    setDeleteReason("");
+    setDeleting(false);
+    setUploading(false);
     if (session) {
       apiOrderDetail(orderId).then((d) => {
         if (d) setDetail(d);
