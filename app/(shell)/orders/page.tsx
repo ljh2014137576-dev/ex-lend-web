@@ -357,6 +357,11 @@ export default function OrdersPage() {
           mutate((prev) => prev.filter((o) => o.id !== id));
           setDetailId(null);
         }}
+        onChanged={() => {
+          apiOrders().then((rows) => {
+            if (Array.isArray(rows)) mutate(() => rows as Order[]);
+          });
+        }}
       />
     </div>
   );

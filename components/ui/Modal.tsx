@@ -9,6 +9,7 @@ export function Modal({
   children,
   wide,
   xwide,
+  xxl,
 }: {
   open: boolean;
   title: string;
@@ -16,6 +17,7 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
   xwide?: boolean;
+  xxl?: boolean;
 }) {
   if (!open) return null;
 
@@ -29,7 +31,7 @@ export function Modal({
       <div
         className={[
           "ui-modal ui-modal-anim glass relative w-full max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-md border border-line p-5 shadow-lg",
-          xwide ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md",
+          xxl ? "max-w-5xl" : xwide ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md",
         ].join(" ")}
       >
         <header className="mb-4 flex items-center justify-between gap-4">

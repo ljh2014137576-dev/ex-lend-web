@@ -22,10 +22,12 @@ export function OrderDetailModal({
   orderId,
   onClose,
   onDeleted,
+  onChanged,
 }: {
   orderId: string | null;
   onClose: () => void;
   onDeleted?: (orderId: string) => void;
+  onChanged?: () => void;
 }) {
   const { session, isBoss, isManager } = useAuth();
   const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
@@ -287,22 +289,30 @@ export function OrderDetailModal({
   };
 
   const saveEdit = async () => {
-    if (!detail) return;
+    if (!o) return;
     setEditMsg(null);
     if (editItems.length === 0) return setEditMsg("请至少保留一个商品");
     if (editEmps.length === 1) return setEditMsg("接单员工需选 0 或 2 名");
     if (!editCust) return setEditMsg("请选择客户");
-    const isBooking = detail.order.status === "booking";
+    const isBooking = o.status === "booking";
+    if (!session) {
+      // Mock 模式：本地模拟保存（不写库）
+      setEditOpen(false);
+      setEditMsg(null);
+      setModalMsg("Mock 模式：订单已保存（本地演示，不写数据库）");
+      onChanged?.();
+      return;
+    }
     const { data, error } = isBooking
       ? await rpcEditOrder({
-          p_order_id: detail.order.id,
+          p_order_id: o.id,
           p_customer_id: editCust,
           p_items: editItems,
           p_employee_ids: editEmps,
           p_pay_method: editPay,
         })
       : await rpcCorrectOrder({
-          p_order_id: detail.order.id,
+          p_order_id: o.id,
           p_customer_id: editCust,
           p_items: editItems,
           p_employee_ids: editEmps,
@@ -311,19 +321,22 @@ export function OrderDetailModal({
     if (error || data?.success === false) {
       return setEditMsg("保存失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
     }
-    const fresh = await apiOrderDetail(detail.order.id);
+    // 更正订单会重建新单（新 order_id）：切换到新单，避免停留在已取消的旧单
+    const targetId = (data?.order_id as string | undefined) ?? o.id;
+    const fresh = await apiOrderDetail(targetId);
     if (fresh) setDetail(fresh);
     setEditOpen(false);
     setEditMsg(null);
     setModalMsg(
       isBooking
         ? "订单已更新（金额/客户/商品已按新口径重算）"
-        : "已更正：原单已取消，新订单号 " + (data?.order_no ?? ""),
+        : "已更正：新订单号 " + (data?.order_no ?? "") + "（原单已取消）",
     );
+    onChanged?.();
   };
 
   return (
-    <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} xwide>
+    <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} xxl>
       {o ? (editOpen ? (
         <div className="space-y-4">
           {editMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{editMsg}</p>}
@@ -379,86 +392,115 @@ export function OrderDetailModal({
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* ① 头部：状态 + 时间 + 下单人 + 生成小票 */}
           <div className="flex flex-wrap items-center gap-2">
             <OrderStatusTag status={o.status} />
             <AuditStatusTag status={o.auditStatus} />
             <span className="font-mono text-[11px] text-muted">{o.createdAt}</span>
+            <span className="font-mono text-[11px] text-muted">下单人：{o.operator || "—"}</span>
             <div className="ml-auto">
               <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
-              {(o.status === "booking" || o.status === "in_progress" || o.status === "completed") && (
-                <Button size="sm" variant="secondary" onClick={openEdit}>
-                  {o.status === "booking" ? "编辑订单" : "更正订单"}
-                </Button>
-              )}
-              {isBoss && (
-                <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>
-              )}
-              {(isBoss || isManager) && o.status !== "cancelled" && o.auditStatus !== "rejected" && (
-                <Button size="sm" variant="secondary" onClick={() => { setPriceValue(String(o.paid)); setPriceReason(""); setPriceOpen(true); }}>修改价格</Button>
-              )}
             </div>
           </div>
 
+          {/* ② 金额/订单概览（8 项） */}
           <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "客户", value: `${o.customerName}${o.customerType === "vip" ? ` · VIP${o.vipLevel}` : ""}` },
-              { label: "支付方式", value: o.payMethod === "wallet" ? "钱包" : "现金" },
-              { label: "实付 / 折扣", value: `${money(o.paid)} / ${money(o.discount)}` },
-              { label: "佣金 / 毛利", value: `${money(o.commission)} / ${money(o.grossProfit)}` },
+              { label: "支付方式", value: o.payMethod === "wallet" ? "钱包（质押）" : "现金（预收）" },
+              { label: "原价", value: money(o.original) },
+              { label: "实付", value: money(o.paid) },
+              { label: "折扣", value: money(o.discount) },
+              { label: "待结算", value: money(o.pending ?? 0) },
+              { label: "佣金", value: money(o.commission) },
+              { label: "毛利", value: money(o.grossProfit) },
             ].map((x) => (
               <div key={x.label} className="bg-surface p-3">
                 <p className="font-mono text-[10px] text-muted">{x.label}</p>
-                <p className="mt-0.5 text-sm font-medium">{x.value}</p>
+                <p className="mt-0.5 text-sm font-medium tabular-nums">{x.value}</p>
               </div>
             ))}
           </div>
 
-          <p className="mb-2 font-mono text-[11px] text-muted">商品明细{items.length > 0 ? ` · ${items.length} 项` : ""}</p>
-          {items.length > 0 ? (
-            <DataTable<OrderItem>
-              rowKey={(r, i) => r.productName + i}
-              columns={[
-                { key: "productName", label: "商品", render: (r) => r.productName },
-                { key: "category", label: "分类", mono: true },
-                { key: "qty", label: "数量", align: "right", mono: true, render: (r) => r.quantity },
-                { key: "unit", label: "单价", align: "right", mono: true, render: (r) => money(r.unitPrice) },
-                { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
-              ]}
-              rows={items}
-            />
-          ) : (
-            <p className="rounded-md border border-line bg-paper p-3 font-mono text-xs text-muted">该订单暂无商品明细</p>
-          )}
+          {/* ③ 客户钱包（真实客户数据） */}
+          {(() => {
+            const c = customers.find((c) => c.name === o.customerName);
+            return c ? (
+              <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { label: "本金余额", value: money(c.principal) },
+                  { label: "赠送余额", value: money(c.bonus) },
+                  { label: "待结算（预收）", value: money(c.pending) },
+                  { label: "累计消费", value: money(c.total) },
+                ].map((x) => (
+                  <div key={x.label} className="bg-paper p-3">
+                    <p className="font-mono text-[10px] text-muted">{x.label}</p>
+                    <p className="mt-0.5 text-sm font-medium tabular-nums">{x.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null;
+          })()}
 
-          <p className="mb-2 font-mono text-[11px] text-muted">打手（接单员工）{members.length > 0 ? ` · ${members.length} 人` : ""}</p>
-          {members.length > 0 ? (
-            <DataTable<OrderMember>
-              rowKey={(r) => r.employeeId}
-              columns={[
-                { key: "name", label: "员工", render: (r) => (r.realName && r.realName !== r.name ? `${r.name}（${r.realName}）` : r.name) },
-                { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
-                { key: "base", label: "基数", align: "right", mono: true, render: (r) => money(r.base) },
-                { key: "rate", label: "比例", align: "right", mono: true, render: (r) => (r.rate * 100).toFixed(1) + "%" },
-                { key: "commission", label: "佣金", align: "right", mono: true, render: (r) => money(r.commission) },
-              ]}
-              rows={members}
-            />
-          ) : (
-            <p className="rounded-md border border-line bg-paper p-3 font-mono text-xs text-muted">未指派打手</p>
-          )}
-
-          {(canEditCommission || o?.auditStatus === "approved") && (
-            <div className="flex flex-wrap items-center gap-2">
-              {canEditCommission && (
-                <Button size="sm" variant="secondary" onClick={openCommissionEditor}>修改提成</Button>
-              )}
-              {o?.auditStatus === "approved" && (
-                <Button size="sm" variant="danger" onClick={rejectAudit}>驳回审核</Button>
+          {/* ④ 主体两栏：商品明细 | 打手 */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="space-y-2">
+              <p className="font-mono text-[11px] text-muted">商品明细{items.length > 0 ? ` · ${items.length} 项` : ""}</p>
+              {items.length > 0 ? (
+                <DataTable<OrderItem>
+                  rowKey={(r, i) => r.productName + i}
+                  columns={[
+                    { key: "productName", label: "商品", render: (r) => r.productName },
+                    { key: "category", label: "分类", mono: true },
+                    { key: "qty", label: "数量", align: "right", mono: true, render: (r) => r.quantity },
+                    { key: "unit", label: "单价", align: "right", mono: true, render: (r) => money(r.unitPrice) },
+                    { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
+                  ]}
+                  rows={items}
+                />
+              ) : (
+                <p className="rounded-md border border-line bg-paper p-3 font-mono text-xs text-muted">该订单暂无商品明细</p>
               )}
             </div>
-          )}
+            <div className="space-y-2">
+              <p className="font-mono text-[11px] text-muted">打手（接单员工）{members.length > 0 ? ` · ${members.length} 人` : ""}</p>
+              {members.length > 0 ? (
+                <DataTable<OrderMember>
+                  rowKey={(r) => r.employeeId}
+                  columns={[
+                    { key: "name", label: "员工", render: (r) => (r.realName && r.realName !== r.name ? `${r.name}（${r.realName}）` : r.name) },
+                    { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
+                    { key: "base", label: "基数", align: "right", mono: true, render: (r) => money(r.base) },
+                    { key: "rate", label: "比例", align: "right", mono: true, render: (r) => (r.rate * 100).toFixed(1) + "%" },
+                    { key: "commission", label: "佣金", align: "right", mono: true, render: (r) => money(r.commission) },
+                    { key: "override", label: "覆盖", align: "right", mono: true, render: (r) => (r.override != null ? money(r.override) : <span className="text-muted">—</span>) },
+                  ]}
+                  rows={members}
+                />
+              ) : (
+                <p className="rounded-md border border-line bg-paper p-3 font-mono text-xs text-muted">未指派打手</p>
+              )}
+            </div>
+          </div>
 
+          {/* ⑤ 操作区（底部工具条） */}
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+            <span className="mr-auto font-mono text-[11px] text-muted">订单操作</span>
+            {(o.status === "booking" || o.status === "in_progress" || o.status === "completed") && (
+              <Button size="sm" variant="secondary" onClick={openEdit}>
+                {o.status === "booking" ? "编辑订单" : "更正订单"}
+              </Button>
+            )}
+            {(isBoss || isManager) && o.status !== "cancelled" && o.auditStatus !== "rejected" && (
+              <Button size="sm" variant="secondary" onClick={() => { setPriceValue(String(o.paid)); setPriceReason(""); setPriceOpen(true); }}>修改价格</Button>
+            )}
+            {canEditCommission && <Button size="sm" variant="secondary" onClick={openCommissionEditor}>修改提成</Button>}
+            {o.auditStatus === "approved" && <Button size="sm" variant="danger" onClick={rejectAudit}>驳回审核</Button>}
+            {isBoss && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>}
+          </div>
+
+          {/* ⑥ 面板：提成 / 改价 / 删除（统一在底部展开，不打断内容流） */}
           {editCommissions && (
             <div className="space-y-2 border border-line bg-paper p-3">
               <p className="font-mono text-[11px] text-muted">修改提成（审核时将按此入账）</p>
@@ -530,8 +572,9 @@ export function OrderDetailModal({
             </div>
           )}
 
-          {modalMsg && <p className="font-mono text-[11px] text-danger">{modalMsg}</p>}
+          {modalMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-ink">{modalMsg}</p>}
 
+          {/* ⑦ 支付凭证 */}
           <div className="border border-line bg-paper p-3">
             <p className="mb-2 font-mono text-[11px] text-muted">支付凭证（{proofs.length} 张）</p>
             {proofs.length > 0 ? (
