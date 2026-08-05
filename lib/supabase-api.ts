@@ -307,6 +307,10 @@ export async function rpcCreateOrderMulti(params: {
   return supabase.rpc("create_order_multi", params);
 }
 
+export function rpcAdjustOrderPrice(p_order_id: string, p_new_paid: number, p_reason?: string | null) {
+  return supabase.rpc("adjust_order_price", { p_order_id, p_new_paid, p_reason: p_reason ?? null });
+}
+
 export function rpcDeleteOrder(p_order_id: string, p_reason?: string | null) {
   return supabase.rpc("delete_order", { p_order_id, p_reason: p_reason ?? null });
 }

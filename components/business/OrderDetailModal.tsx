@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
-import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, rpcCorrectOrder, rpcDeleteOrder, uploadProof } from "@/lib/supabase-api";
+import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, rpcCorrectOrder, rpcDeleteOrder, rpcAdjustOrderPrice, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { compressPaymentProof } from "@/lib/image-compression";
@@ -27,7 +27,7 @@ export function OrderDetailModal({
   onClose: () => void;
   onDeleted?: (orderId: string) => void;
 }) {
-  const { session, isBoss } = useAuth();
+  const { session, isBoss, isManager } = useAuth();
   const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
@@ -50,6 +50,10 @@ export function OrderDetailModal({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [priceOpen, setPriceOpen] = useState(false);
+  const [priceValue, setPriceValue] = useState("");
+  const [priceReason, setPriceReason] = useState("");
+  const [pricing, setPricing] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -71,6 +75,10 @@ export function OrderDetailModal({
     setDeleteOpen(false);
     setDeleteReason("");
     setDeleting(false);
+    setPriceOpen(false);
+    setPriceValue("");
+    setPriceReason("");
+    setPricing(false);
     setUploading(false);
     if (session) {
       apiOrderDetail(orderId).then((d) => {
@@ -217,6 +225,34 @@ export function OrderDetailModal({
     setModalMsg("已驳回审核，订单恢复为待审核");
   };
 
+  const adjustPrice = async () => {
+    if (!o) return;
+    const newPaid = Number(priceValue);
+    setPricing(true);
+    setModalMsg(null);
+    if (Number.isNaN(newPaid) || newPaid < 0 || newPaid > o.original) {
+      setPricing(false);
+      return setModalMsg("实际收款需在 0 与订单原价之间");
+    }
+    if (session) {
+      const { data, error } = await rpcAdjustOrderPrice(o.id, newPaid, priceReason.trim() || null);
+      if (error || data?.success === false) {
+        setPricing(false);
+        return setModalMsg("改价失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+      }
+      const fresh = await apiOrderDetail(o.id);
+      if (fresh) setDetail(fresh);
+    } else {
+      // Mock 模式：本地更新金额
+      if (mockOrder) {
+        setMockOrder({ ...mockOrder, paid: newPaid, discount: o.original - newPaid, pending: newPaid });
+      }
+    }
+    setPriceOpen(false);
+    setPricing(false);
+    setModalMsg("价格已修改：实付 " + money(newPaid) + "（原价 " + money(o.original) + "）");
+  };
+
   const confirmDelete = async () => {
     if (!o) return;
     setDeleting(true);
@@ -358,6 +394,9 @@ export function OrderDetailModal({
               {isBoss && (
                 <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>
               )}
+              {(isBoss || isManager) && o.status !== "cancelled" && o.auditStatus !== "rejected" && (
+                <Button size="sm" variant="secondary" onClick={() => { setPriceValue(String(o.paid)); setPriceReason(""); setPriceOpen(true); }}>修改价格</Button>
+              )}
             </div>
           </div>
 
@@ -436,6 +475,38 @@ export function OrderDetailModal({
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setEditCommissions(false)}>取消</Button>
                 <Button size="sm" onClick={saveCommissions}>保存提成</Button>
+              </div>
+            </div>
+          )}
+
+          {priceOpen && (
+            <div className="space-y-2 border border-line bg-paper p-3">
+              <p className="font-mono text-[11px] text-muted">
+                修改订单 {o.orderNo} 的实付金额（当前 {money(o.paid)} / 原价 {money(o.original)}）。已审核订单将自动冲回员工提成并按新价重算入账，客户余额/预收同步调整。
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-muted">¥</span>
+                <Input
+                  value={priceValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "" || /^\d+(\.\d{0,2})?$/.test(v)) setPriceValue(v);
+                  }}
+                  inputMode="decimal"
+                  placeholder={String(o.paid)}
+                  aria-label="新实付金额"
+                />
+              </div>
+              <Input
+                placeholder="修改原因（可选）"
+                value={priceReason}
+                onChange={(e) => setPriceReason(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setPriceOpen(false)}>取消</Button>
+                <Button size="sm" onClick={() => void adjustPrice()} disabled={pricing}>
+                  {pricing ? "保存中…" : "保存改价"}
+                </Button>
               </div>
             </div>
           )}
