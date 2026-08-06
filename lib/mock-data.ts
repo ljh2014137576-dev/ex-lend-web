@@ -219,6 +219,7 @@ export const CATEGORIES: ProductCategory[] = [
 ];
 
 export interface GradeRule {
+  id?: string;
   grade: number;
   rate: number;
 }
@@ -231,6 +232,7 @@ export interface VipDiscountRule {
 }
 
 export interface VipUpgradeRule {
+  id?: string;
   vipLevel: number;
   threshold: number;
 }

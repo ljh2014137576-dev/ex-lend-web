@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { GRADE_RULES, VIP_DISCOUNT_RULES, VIP_UPGRADE_RULES, RECHARGE_PACKAGES, type GradeRule, type VipDiscountRule, type VipUpgradeRule, type RechargePackage } from "@/lib/mock-data";
 import { apiGradeRules, apiVipDiscountRules, apiVipUpgradeRules, apiRechargePackages } from "@/lib/supabase-api";
+import { supabase } from "@/lib/supabase";
 import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
@@ -26,7 +27,7 @@ export default function RulesPage() {
   const [newVip, setNewVip] = useState({ vipLevel: 2, category: "正常单", discount: 0.92 });
   const [newUpgrade, setNewUpgrade] = useState({ vipLevel: 4, threshold: 100000 });
   const [newPkg, setNewPkg] = useState({ amount: 3000, bonus: 500 });
-  const { isBoss } = useAuth();
+  const { session, isBoss } = useAuth();
   if (!isBoss) return <NoPermission />;
 
   const updateGrade = (grade: number, rate: number) =>
@@ -34,6 +35,94 @@ export default function RulesPage() {
 
   const togglePkg = (id: string) =>
     setPackages((p) => p.map((x) => (x.id === id ? { ...x, status: x.status === "enabled" ? "disabled" : "enabled" } : x)));
+
+  // 添加等级：乐观插入 → 真实会话写库 → 失败回滚并提示，成功用 data.id 替换乐观项
+  const addGrade = async () => {
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: GradeRule = { id: optimisticId, grade: newGrade.grade, rate: newGrade.rate };
+    setGrades((p) => [...p, optimistic]);
+    setNewGrade({ grade: 4, rate: 0.12 });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("grade_commission_rule")
+        .insert([{ grade: optimistic.grade, rate: optimistic.rate }])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setGrades((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setGrades((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
+  };
+
+  // 添加 VIP 折扣规则：乐观插入 → 真实会话写库 → 失败回滚并提示，成功用 data.id 替换乐观项
+  const addVip = async () => {
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: VipDiscountRule = { id: optimisticId, vipLevel: newVip.vipLevel, category: newVip.category, discount: newVip.discount };
+    setVipDiscounts((p) => [...p, optimistic]);
+    setNewVip({ vipLevel: 2, category: "正常单", discount: 0.92 });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("vip_discount_rule")
+        .insert([{ vip_level: optimistic.vipLevel, category: optimistic.category, discount: optimistic.discount }])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setVipDiscounts((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setVipDiscounts((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
+  };
+
+  // 添加升级门槛：乐观插入 → 真实会话写库 → 失败回滚并提示，成功用 data.id 替换乐观项
+  const addUpgrade = async () => {
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: VipUpgradeRule = { id: optimisticId, vipLevel: newUpgrade.vipLevel, threshold: newUpgrade.threshold };
+    setUpgrades((p) => [...p, optimistic]);
+    setNewUpgrade({ vipLevel: 4, threshold: 100000 });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("vip_upgrade_rule")
+        .insert([{ vip_level: optimistic.vipLevel, consumption_threshold: optimistic.threshold }])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setUpgrades((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setUpgrades((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
+  };
+
+  // 添加充值套餐：乐观插入 → 真实会话写库 → 失败回滚并提示，成功用 data.id 替换乐观项
+  const addPkg = async () => {
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: RechargePackage = { id: optimisticId, amount: newPkg.amount, bonus: newPkg.bonus, status: "enabled" };
+    setPackages((p) => [...p, optimistic]);
+    setNewPkg({ amount: 3000, bonus: 500 });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("recharge_package")
+        .insert([{ amount: optimistic.amount, bonus: optimistic.bonus, status: optimistic.status }])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setPackages((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setPackages((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -62,7 +151,7 @@ export default function RulesPage() {
           <div className="flex items-end gap-2">
             <label className="space-y-1"><span className="font-mono text-[10px] text-muted">等级</span><Input type="number" value={newGrade.grade} onChange={(e) => setNewGrade({ ...newGrade, grade: Number(e.target.value) })} /></label>
             <label className="space-y-1"><span className="font-mono text-[10px] text-muted">比例</span><Input type="number" step="0.01" value={newGrade.rate} onChange={(e) => setNewGrade({ ...newGrade, rate: Number(e.target.value) })} /></label>
-            <Button size="sm" variant="secondary" onClick={() => { setGrades((p) => [...p, { grade: newGrade.grade, rate: newGrade.rate }]); }}>添加等级</Button>
+            <Button size="sm" variant="secondary" onClick={addGrade}>添加等级</Button>
           </div>
         </div>
       </Panel>
@@ -82,7 +171,7 @@ export default function RulesPage() {
             <label className="space-y-1"><span className="font-mono text-[10px] text-muted">等级</span><Input type="number" value={newVip.vipLevel} onChange={(e) => setNewVip({ ...newVip, vipLevel: Number(e.target.value) })} /></label>
             <label className="space-y-1"><span className="font-mono text-[10px] text-muted">分类</span><Input value={newVip.category} onChange={(e) => setNewVip({ ...newVip, category: e.target.value })} /></label>
             <label className="space-y-1"><span className="font-mono text-[10px] text-muted">折扣</span><Input type="number" step="0.01" value={newVip.discount} onChange={(e) => setNewVip({ ...newVip, discount: Number(e.target.value) })} /></label>
-            <Button size="sm" variant="secondary" onClick={() => { setVipDiscounts((p) => [...p, { id: "vd" + Date.now(), ...newVip }]); }}>添加规则</Button>
+            <Button size="sm" variant="secondary" onClick={addVip}>添加规则</Button>
           </div>
         </div>
       </Panel>
@@ -99,7 +188,7 @@ export default function RulesPage() {
         <div className="mt-4 flex items-end gap-2">
           <label className="space-y-1"><span className="font-mono text-[10px] text-muted">等级</span><Input type="number" value={newUpgrade.vipLevel} onChange={(e) => setNewUpgrade({ ...newUpgrade, vipLevel: Number(e.target.value) })} /></label>
           <label className="space-y-1"><span className="font-mono text-[10px] text-muted">门槛</span><Input type="number" value={newUpgrade.threshold} onChange={(e) => setNewUpgrade({ ...newUpgrade, threshold: Number(e.target.value) })} /></label>
-          <Button size="sm" variant="secondary" onClick={() => { setUpgrades((p) => [...p, newUpgrade]); }}>添加门槛</Button>
+          <Button size="sm" variant="secondary" onClick={addUpgrade}>添加门槛</Button>
         </div>
       </Panel>
 
@@ -119,7 +208,7 @@ export default function RulesPage() {
         <div className="mt-4 flex items-end gap-2">
           <label className="space-y-1"><span className="font-mono text-[10px] text-muted">金额</span><Input type="number" value={newPkg.amount} onChange={(e) => setNewPkg({ ...newPkg, amount: Number(e.target.value) })} /></label>
           <label className="space-y-1"><span className="font-mono text-[10px] text-muted">赠送</span><Input type="number" value={newPkg.bonus} onChange={(e) => setNewPkg({ ...newPkg, bonus: Number(e.target.value) })} /></label>
-          <Button size="sm" variant="secondary" onClick={() => { setPackages((p) => [...p, { id: "rp" + Date.now(), ...newPkg, status: "enabled" }]); }}>添加套餐</Button>
+          <Button size="sm" variant="secondary" onClick={addPkg}>添加套餐</Button>
         </div>
       </Panel>
     </div>
