@@ -12,8 +12,11 @@ import { CATEGORIES, PRODUCTS, type Product, type ProductCategory } from "@/lib/
 import { apiCategories, apiProducts } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 export default function CategoriesPage() {
+  const { session } = useAuth();
   const { data: categories, real, error, loading, mutate: setCategories } = useResource<ProductCategory>("categories", apiCategories, CATEGORIES);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
@@ -25,14 +28,39 @@ export default function CategoriesPage() {
     return map;
   }, [products]);
 
-  const create = () => {
+  const create = async () => {
     if (!form.name.trim()) return;
-    setCategories((p) => [
-      ...p,
-      { id: "g" + Date.now(), name: form.name.trim(), description: form.description.trim(), status: "enabled" },
-    ]);
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: ProductCategory = {
+      id: optimisticId,
+      name: form.name.trim(),
+      description: form.description.trim(),
+      status: "enabled",
+    };
+    // 先入缓存展示，后台写库；失败回滚并提示
+    setCategories((p) => [...p, optimistic]);
     setOpen(false);
     setForm({ name: "", description: "" });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("product_category")
+        .insert([
+          {
+            name: optimistic.name,
+            description: optimistic.description,
+            status: optimistic.status,
+          },
+        ])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setCategories((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setCategories((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
   };
 
   const toggle = (id: string) =>
