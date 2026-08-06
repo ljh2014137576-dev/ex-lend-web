@@ -13,13 +13,13 @@
 create or replace function public.is_boss()
 returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce((select role from public.users where id = auth.uid()), '') = 'boss';
+  select coalesce((select role::text from public.users where id = auth.uid()), '') = 'boss';
 $$;
 
 create or replace function public.is_manager()
 returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce((select role from public.users where id = auth.uid()), '') = 'manager';
+  select coalesce((select role::text from public.users where id = auth.uid()), '') = 'manager';
 $$;
 
 create or replace function public.is_staff()
