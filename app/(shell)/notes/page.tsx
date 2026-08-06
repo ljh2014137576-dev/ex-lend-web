@@ -10,20 +10,50 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { NOTES, type Note } from "@/lib/mock-data";
 import { apiNotes } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 export default function NotesPage() {
   const { data: notes, real, mutate: setNotes } = useResource<Note>("notes", apiNotes, NOTES);
+  const { session } = useAuth();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", published: false });
 
-  const create = () => {
+  const create = async () => {
     if (!form.title.trim()) return;
-    setNotes((p) => [
-      { id: "n" + Date.now(), title: form.title.trim(), content: form.content.trim(), published: form.published, createdBy: "灰晨", updatedAt: new Date().toLocaleString("zh-CN") },
-      ...p,
-    ]);
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: Note = {
+      id: optimisticId,
+      title: form.title.trim(),
+      content: form.content.trim(),
+      published: form.published,
+      createdBy: "灰晨",
+      updatedAt: new Date().toLocaleString("zh-CN"),
+    };
+    // 先入缓存展示，后台写库；失败回滚并提示
+    setNotes((p) => [optimistic, ...p]);
     setOpen(false);
     setForm({ title: "", content: "", published: false });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("note")
+        .insert([
+          {
+            title: optimistic.title,
+            content: optimistic.content,
+            is_published: optimistic.published,
+          },
+        ])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setNotes((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setNotes((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
   };
 
   const togglePublished = (id: string) =>
