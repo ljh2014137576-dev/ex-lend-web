@@ -10,6 +10,8 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { TODOS, EMPLOYEES, type Todo } from "@/lib/mock-data";
 import { apiTodos, apiEmployees } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | "accent"; label: string }> = {
   pending: { tone: "neutral", label: "待处理" },
@@ -18,6 +20,7 @@ const STATUS: Record<string, { tone: "neutral" | "active" | "warn" | "danger" | 
 };
 
 export default function TodosPage() {
+  const { session } = useAuth();
   const { data: todos, real, mutate: setTodos } = useResource<Todo>("todos", apiTodos, TODOS);
   const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
   const [open, setOpen] = useState(false);
@@ -26,14 +29,43 @@ export default function TodosPage() {
   const setStatus = (id: string, status: Todo["status"]) =>
     setTodos((p) => p.map((t) => (t.id === id ? { ...t, status, updatedAt: new Date().toLocaleString("zh-CN") } : t)));
 
-  const create = () => {
+  const create = async () => {
     if (!form.title.trim()) return;
-    setTodos((p) => [
-      { id: "t" + Date.now(), title: form.title.trim(), content: form.content.trim(), status: "pending", mentions: form.mentions, createdBy: "灰晨", updatedAt: new Date().toLocaleString("zh-CN") },
-      ...p,
-    ]);
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: Todo = {
+      id: optimisticId,
+      title: form.title.trim(),
+      content: form.content.trim(),
+      status: "pending",
+      mentions: form.mentions,
+      createdBy: "灰晨",
+      updatedAt: new Date().toLocaleString("zh-CN"),
+    };
+    // 先入缓存展示，后异步写库；失败回滚并提示
+    setTodos((p) => [optimistic, ...p]);
     setOpen(false);
     setForm({ title: "", content: "", mentions: [] });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("todo_item")
+        .insert([
+          {
+            title: optimistic.title,
+            content: optimistic.content,
+            status: "pending",
+            mentioned_user_ids: [],
+          },
+        ])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setTodos((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setTodos((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
   };
 
   const toggleMention = (name: string) =>
