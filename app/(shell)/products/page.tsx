@@ -13,10 +13,13 @@ import { PRODUCTS, type Product } from "@/lib/mock-data";
 import { apiProducts } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function ProductsPage() {
+  const { session } = useAuth();
   const { data: products, real, error, loading, mutate: setProducts } = useResource<Product>("products", apiProducts, PRODUCTS);
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
@@ -38,22 +41,45 @@ export default function ProductsPage() {
     [products, category, keyword],
   );
 
-  const create = () => {
+  const create = async () => {
     if (!form.name.trim()) return;
-    setProducts((p) => [
-      ...p,
-      {
-        id: "p" + Date.now(),
-        name: form.name.trim(),
-        category: form.category,
-        price: Math.max(0, Number(form.price)),
-        commissionType: form.commissionType as "fixed" | "grade",
-        fixedRate: form.commissionType === "fixed" ? 0.08 : null,
-        status: "on_sale",
-      },
-    ]);
+    const optimisticId = "tmp-p" + Date.now();
+    const optimistic: Product = {
+      id: optimisticId,
+      name: form.name.trim(),
+      category: form.category,
+      price: Math.max(0, Number(form.price)),
+      commissionType: form.commissionType as "fixed" | "grade",
+      fixedRate: form.commissionType === "fixed" ? 0.08 : null,
+      status: "on_sale",
+    };
+    // 先入缓存展示，后台写库；失败回滚并提示
+    setProducts((p) => [...p, optimistic]);
     setOpen(false);
     setForm({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("product")
+        .insert([
+          {
+            name: optimistic.name,
+            category: optimistic.category,
+            price: optimistic.price,
+            commission_type: optimistic.commissionType,
+            fixed_rate: optimistic.fixedRate,
+            status: optimistic.status,
+          },
+        ])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setProducts((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建商品失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setProducts((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
   };
 
   const toggleStatus = (id: string) =>
