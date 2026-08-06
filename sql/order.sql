@@ -1189,7 +1189,7 @@ begin
     return jsonb_build_object('success', false, 'message', '无权限');
   end if;
   v_path := nullif(trim(p_proof_path), '');
-  if v_path is not null and not public.is_own_proof_path(v_path) then
+  if v_path is not null and not public.is_proof_path_valid(v_path) then
     return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
   end if;
   select status into v_status from public."order" where id = p_order_id for update;
@@ -1214,7 +1214,7 @@ begin
   end if;
   v_path := nullif(trim(p_proof_path), '');
   if v_path is null then return jsonb_build_object('success', false, 'message', '凭证路径为空'); end if;
-  if not public.is_own_proof_path(v_path) then
+  if not public.is_proof_path_valid(v_path) then
     return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
   end if;
   select status into v_status from public."order" where id = p_order_id for update;
@@ -1246,7 +1246,7 @@ begin
   end if;
   v_path := nullif(trim(p_proof_path), '');
   if v_path is null then return jsonb_build_object('success', false, 'message', '凭证路径为空'); end if;
-  if not public.is_own_proof_path(v_path) then
+  if not public.is_proof_path_valid(v_path) then
     return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
   end if;
   select status into v_status from public."order" where id = p_order_id for update;

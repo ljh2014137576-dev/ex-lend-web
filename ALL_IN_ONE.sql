@@ -3605,13 +3605,13 @@ grant execute on function public.adjust_order_price(uuid, numeric, text) to auth
 
 -- ============================================================
 -- P0 安全加固（追加于 2026-08-06，内容与 sql/p0_security_fixes.sql 一致）
--- ============================================================-- ============================================================
+-- ============================================================
 -- P0 安全加固（幂等，可重复执行；线上库直接执行本文件）
 -- 内容：
 --  1) is_boss/is_manager/is_staff 改为实时读库校验（消除 JWT claim 过期窗口，权限变更即时生效）
 --  2) 修复 recharge_wallet 无权限校验漏洞（SECURITY DEFINER + 无角色检查 + 默认 PUBLIC 可执行）
---  3) 支付凭证引用路径校验：仅本人上传或老板可引用（update/add/remove_order_proof）
---  4) 收紧 payment-proofs 存储桶读策略：仅本人或老板
+--  3) 支付凭证引用路径校验：仅允许引用 payment-proofs 桶内真实存在的对象（防跨桶/伪造路径）
+--  4) 收紧 payment-proofs 存储桶读策略：is_staff()（老板/管理员）
 --  5) 补齐 revoke/grant 卫生：关闭未显式授权函数的默认 PUBLIC EXECUTE
 -- 说明：重建数据库时 ALL_IN_ONE.sql 已含同等变更（本文件追加于其末尾）
 -- ============================================================
@@ -3664,8 +3664,8 @@ begin
 end;
 $$;
 
--- 3) 凭证路径校验助手：仅本人上传（payment-proofs/<uid>/...）或老板可引用
-create or replace function public.is_own_proof_path(p_path text)
+-- 3) 凭证路径校验助手：payment-proofs 桶内真实存在的对象才可引用（防跨桶/伪造路径）
+create or replace function public.is_proof_path_valid(p_path text)
 returns boolean
 language sql stable security definer set search_path = public as $$
   select p_path is not null
@@ -3673,16 +3673,15 @@ language sql stable security definer set search_path = public as $$
        select 1 from storage.objects o
        where o.bucket_id = 'payment-proofs'
          and o.name = p_path
-         and ((storage.foldername(o.name))[1] = auth.uid()::text or public.is_boss())
      );
 $$;
 
--- 4) payment-proofs 读策略：仅本人或老板（原为所有登录用户可读全部凭证）
+-- 4) payment-proofs 读策略：is_staff()（老板/管理员；原为所有 authenticated 可读）
 drop policy if exists "payment_proofs_authenticated_read" on storage.objects;
 create policy "payment_proofs_authenticated_read" on storage.objects
   for select to authenticated using (
     bucket_id = 'payment-proofs'
-    and ((storage.foldername(name))[1] = auth.uid()::text or public.is_boss())
+    and public.is_staff()
   );
 
 -- 5) revoke/grant 卫生：逐条容错（函数不存在时跳过，不中断脚本）
@@ -3704,7 +3703,7 @@ begin
   begin revoke all on function assign_order_employees(uuid, uuid[]) from public; exception when others then null; end;
   begin revoke all on function gen_order_no() from public; exception when others then null; end;
 end $$;
--- 6) 支付凭证引用路径校验：update/add/remove_order_proof 仅允许本人上传或老板的凭证
+-- 6) 支付凭证引用路径校验：update/add/remove_order_proof 仅允许 payment-proofs 桶内真实存在的对象
 create or replace function public.update_order_proof(p_order_id uuid, p_proof_path text)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -3716,8 +3715,8 @@ begin
     return jsonb_build_object('success', false, 'message', '无权限');
   end if;
   v_path := nullif(trim(p_proof_path), '');
-  if v_path is not null and not public.is_own_proof_path(v_path) then
-    return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
+  if v_path is not null and not public.is_proof_path_valid(v_path) then
+    return jsonb_build_object('success', false, 'message', '凭证文件不存在');
   end if;
 
   select status into v_status
@@ -3754,8 +3753,8 @@ begin
   if v_path is null then
     return jsonb_build_object('success', false, 'message', '凭证路径为空');
   end if;
-  if not public.is_own_proof_path(v_path) then
-    return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
+  if not public.is_proof_path_valid(v_path) then
+    return jsonb_build_object('success', false, 'message', '凭证文件不存在');
   end if;
 
   select status into v_status
@@ -3798,8 +3797,8 @@ begin
   if v_path is null then
     return jsonb_build_object('success', false, 'message', '凭证路径为空');
   end if;
-  if not public.is_own_proof_path(v_path) then
-    return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
+  if not public.is_proof_path_valid(v_path) then
+    return jsonb_build_object('success', false, 'message', '凭证文件不存在');
   end if;
 
   select status into v_status

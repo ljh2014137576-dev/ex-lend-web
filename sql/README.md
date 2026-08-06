@@ -45,7 +45,7 @@
 
 - `is_boss/is_manager/is_staff` 已由 JWT claim 改为**实时读库校验**（`security definer` 读 users 表），权限变更即时生效；RLS 与 RPC 均自动受益。
 - `recharge_wallet(p_customer_id, p_package_id, p_proof_path)` 原为 SECURITY DEFINER 且**无任何角色校验**（任意登录用户可充值），已补 `is_staff()` 校验。
-- `update/add/remove_order_proof` 新增 `is_own_proof_path()` 校验：仅本人上传（payment-proofs/<uid>/...）或老板可引用。
-- `payment_proofs_authenticated_read` 由全员可读收紧为**本人或老板可读**。
+- `update/add/remove_order_proof` 新增 `is_proof_path_valid()` 校验：仅允许引用 payment-proofs 桶内真实存在的对象（防跨桶/伪造路径）。
+- `payment_proofs_authenticated_read` 由全员可读收紧为 **is_staff()（老板/管理员）** 可读（当前角色仅有 boss/manager，功能不受影响；为未来低权限角色留门）。
 - 关闭未显式授权函数的默认 PUBLIC EXECUTE（create_order、legacy assign_order_employees、set_customer_vip_level、adjust_customer_consumption、gen_order_no、batch_start_orders、batch_approve_orders 等）。
 - 应用方式：线上库直接执行 `sql/p0_security_fixes.sql`（幂等）；重建库用 `ALL_IN_ONE.sql`（已含同等变更，追加于文件末尾）。

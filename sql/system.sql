@@ -12,7 +12,7 @@ drop policy if exists "payment_proofs_authenticated_read" on storage.objects;
 create policy "payment_proofs_authenticated_read" on storage.objects
   for select to authenticated using (
     bucket_id = 'payment-proofs'
-    and ((storage.foldername(name))[1] = auth.uid()::text or public.is_boss())
+    and public.is_staff()
   );
 do $$ begin
   create policy "payment_proofs_authenticated_upload" on storage.objects
@@ -98,7 +98,7 @@ begin
 end;
 $$;
 -- P0 安全加固：凭证路径校验助手（与 sql/p0_security_fixes.sql 一致）
-create or replace function public.is_own_proof_path(p_path text)
+create or replace function public.is_proof_path_valid(p_path text)
 returns boolean
 language sql stable security definer set search_path = public as $$
   select p_path is not null
