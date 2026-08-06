@@ -8,10 +8,12 @@
 insert into storage.buckets (id, name, public)
 values ('payment-proofs', 'payment-proofs', false)
 on conflict (id) do nothing;
-do $$ begin
-  create policy "payment_proofs_authenticated_read" on storage.objects
-    for select to authenticated using (bucket_id = 'payment-proofs');
-exception when duplicate_object then null; end $$;
+drop policy if exists "payment_proofs_authenticated_read" on storage.objects;
+create policy "payment_proofs_authenticated_read" on storage.objects
+  for select to authenticated using (
+    bucket_id = 'payment-proofs'
+    and public.is_staff()
+  );
 do $$ begin
   create policy "payment_proofs_authenticated_upload" on storage.objects
     for insert to authenticated with check (bucket_id = 'payment-proofs' and (storage.foldername(name))[1] = auth.uid()::text);
@@ -94,4 +96,16 @@ begin
     alter publication supabase_realtime add table public.note;
   end if;
 end;
+$$;
+-- P0 安全加固：凭证路径校验助手（与 sql/p0_security_fixes.sql 一致）
+create or replace function public.is_proof_path_valid(p_path text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select p_path is not null
+     and exists (
+       select 1 from storage.objects o
+       where o.bucket_id = 'payment-proofs'
+         and o.name = p_path
+         and ((storage.foldername(o.name))[1] = auth.uid()::text or public.is_boss())
+     );
 $$;

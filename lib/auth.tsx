@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 export type Role = "boss" | "manager";
 
 const MOCK_KEY = "exlend-mock-auth";
+// mock 登录开关：编译期判定，仅 NEXT_PUBLIC_ENABLE_MOCK_LOGIN=1 时启用
+export const MOCK_LOGIN_ENABLED = process.env.NEXT_PUBLIC_ENABLE_MOCK_LOGIN === "1";
 
 function base64UrlDecode(s: string): string {
   const t = s.replace(/-/g, "+").replace(/_/g, "/");
@@ -63,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       try {
-        const m = localStorage.getItem(MOCK_KEY);
+        const m = MOCK_LOGIN_ENABLED ? localStorage.getItem(MOCK_KEY) : null;
         if (m) {
           const parsed = JSON.parse(m) as { role: Role };
           if (parsed.role === "boss" || parsed.role === "manager") setMockRole(parsed.role);
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const mockLogin = (r: Role) => {
+    if (!MOCK_LOGIN_ENABLED) return;
     localStorage.setItem(MOCK_KEY, JSON.stringify({ role: r }));
     setMockRole(r);
   };

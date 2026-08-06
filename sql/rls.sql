@@ -20,19 +20,19 @@ alter table vip_discount_rule enable row level security;
 alter table vip_upgrade_rule enable row level security;
 alter table recharge_package enable row level security;
 create or replace function is_boss()
-returns boolean as $$
-  select coalesce((auth.jwt() -> 'user_role' ->> 'role') = 'boss', false);
-$$ language sql stable;
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select role from public.users where id = auth.uid()), '') = 'boss';
+$$;
 
 create or replace function is_manager()
-returns boolean as $$
-  select coalesce((auth.jwt() -> 'user_role' ->> 'role') = 'manager', false);
-$$ language sql stable;
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select role from public.users where id = auth.uid()), '') = 'manager';
+$$;
 
 create or replace function is_staff()
-returns boolean as $$
+returns boolean language sql stable security definer set search_path = public as $$
   select is_boss() or is_manager();
-$$ language sql stable;
+$$;
 
 create policy "rule_read_staff" on grade_commission_rule for select to authenticated using (is_staff());
 create policy "rule_write_boss" on grade_commission_rule for all to authenticated using (is_boss()) with check (is_boss());

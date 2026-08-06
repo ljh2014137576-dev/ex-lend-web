@@ -392,3 +392,32 @@ revoke all on function public.recharge_custom(uuid, numeric, numeric, text, text
 grant execute on function public.recharge_custom(uuid, numeric, numeric, text, text) to authenticated;
 
 
+
+-- P0 安全加固：recharge_wallet 补权限校验（与 sql/p0_security_fixes.sql 一致）
+create or replace function public.recharge_wallet(p_customer_id uuid, p_package_id uuid, p_proof_path text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_pkg public.recharge_package%rowtype;
+  v_cust public.customer%rowtype;
+  v_new_principal numeric(12,2);
+  v_new_bonus numeric(12,2);
+  v_op uuid := auth.uid();
+begin
+  if not public.is_staff() then
+    return jsonb_build_object('success', false, 'message', '无权限：仅老板/管理员可充值');
+  end if;
+  select * into v_pkg from public.recharge_package where id = p_package_id and status = 'enabled';
+  if not found then return jsonb_build_object('success', false, 'message', '充值套餐不存在或已停用'); end if;
+  select * into v_cust from public.customer where id = p_customer_id;
+  if not found then return jsonb_build_object('success', false, 'message', '客户不存在'); end if;
+  v_new_principal := v_cust.principal_balance + v_pkg.amount;
+  v_new_bonus := v_cust.bonus_balance + v_pkg.bonus;
+  update public.customer set principal_balance = v_new_principal, bonus_balance = v_new_bonus where id = p_customer_id;
+  insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, operator_id, proof_path, remark)
+    values (p_customer_id, 'recharge_principal', v_pkg.amount, v_new_principal, v_cust.bonus_balance, v_op, p_proof_path, '套餐充值本金');
+  insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, operator_id, proof_path, remark)
+    values (p_customer_id, 'recharge_bonus', v_pkg.bonus, v_new_principal, v_new_bonus, v_op, p_proof_path, '套餐充值赠送');
+  return jsonb_build_object('success', true, 'new_balance', v_new_principal + v_new_bonus);
+end;
+$$;
