@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { dateKey } from "@/lib/date";
+import { customerLedgerTypeLabel } from "@/lib/ledger";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
@@ -317,7 +318,7 @@ export default function FinancePage() {
           rowKey={(r) => r.id}
           columns={[
             { key: "customer", label: "客户" },
-            { key: "type", label: "类型", mono: true },
+            { key: "type", label: "类型", mono: true, render: (r) => customerLedgerTypeLabel(r.type) },
             { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
             { key: "principal", label: "本金余额", align: "right", mono: true, render: (r) => money(r.principal) },
             { key: "bonus", label: "赠送余额", align: "right", mono: true, render: (r) => money(r.bonus) },

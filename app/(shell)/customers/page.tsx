@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { CUSTOMERS, CUSTOMER_LEDGERS, type Customer } from "@/lib/mock-data";
+import { customerLedgerTypeLabel } from "@/lib/ledger";
 import { apiCustomers } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
@@ -250,7 +251,7 @@ export default function CustomersPage() {
           <DataTable<LedgerEntry>
             rowKey={(r) => r.id}
             columns={[
-              { key: "type", label: "类型", mono: true },
+{ key: "type", label: "类型", mono: true, render: (r) => customerLedgerTypeLabel(r.type) },
               { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
               { key: "principal", label: "本金余额", align: "right", mono: true, render: (r) => money(r.principal) },
               { key: "bonus", label: "赠送余额", align: "right", mono: true, render: (r) => money(r.bonus) },
