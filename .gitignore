@@ -29,7 +29,8 @@ yarn-error.log*
 next-env.d.ts
 # dev server 输出日志
 dev-server*.log
-prod-server*.log`r`nnext-server*.log
+prod-server*.log
+next-server*.log
 
 # 运行时服务日志（不入库）
 logs/*.log
