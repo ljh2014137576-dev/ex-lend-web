@@ -147,10 +147,22 @@ export async function apiEmployees(): Promise<Employee[] | null> {
 }
 
 export async function apiProducts(): Promise<Product[] | null> {
-  const { data } = await supabase
+  // 商品列表默认不显示已隐藏（deleted_at 非 NULL）的商品
+  let { data } = await supabase
     .from("product")
-    .select("id, name, category, price, commission_type, fixed_rate, status")
+    .select("id, name, category, price, commission_type, fixed_rate, status, deleted_at")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
+  // 兼容：线上库 deleted_at 列尚未迁移时，上述查询会因该列不存在而报错（data 为 null），
+  // 此时退回不带该过滤的同一查询，保证迁移前商品列表仍可用
+  if (!data) {
+    const { data: legacy } = await supabase
+      .from("product")
+      .select("id, name, category, price, commission_type, fixed_rate, status")
+      .order("created_at", { ascending: false });
+    // 断言：两条查询的返回结构一致（仅有无 deleted_at 的差异），此处类型以带 deleted_at 的为准
+    data = legacy as typeof data;
+  }
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
@@ -160,6 +172,26 @@ export async function apiProducts(): Promise<Product[] | null> {
     commissionType: r.commission_type === "grade" ? "grade" : "fixed",
     fixedRate: r.fixed_rate != null ? Number(r.fixed_rate) : null,
     status: r.status === "off_shelf" ? "off_shelf" : "on_sale",
+    deletedAt: r.deleted_at ?? null,
+  }));
+}
+
+export async function apiDeletedProducts(): Promise<Product[] | null> {
+  const { data } = await supabase
+    .from("product")
+    .select("id, name, category, price, commission_type, fixed_rate, status, deleted_at")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (!data) return null;
+  return data.map((r) => ({
+    id: r.id,
+    name: r.name,
+    category: r.category ?? "",
+    price: Number(r.price ?? 0),
+    commissionType: r.commission_type === "grade" ? "grade" : "fixed",
+    fixedRate: r.fixed_rate != null ? Number(r.fixed_rate) : null,
+    status: r.status === "off_shelf" ? "off_shelf" : "on_sale",
+    deletedAt: r.deleted_at ?? null,
   }));
 }
 
@@ -594,4 +626,12 @@ export function rpcSetPendingOrderCommissions(p_order_id: string, p_commissions:
 
 export function rpcRejectOrderAudit(p_order_id: string) {
   return supabase.rpc("reject_order_audit", { p_order_id });
+}
+
+export function rpcHideProduct(p_product_id: string) {
+  return supabase.rpc("hide_product", { p_product_id });
+}
+
+export function rpcRestoreProduct(p_product_id: string) {
+  return supabase.rpc("restore_product", { p_product_id });
 }

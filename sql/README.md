@@ -35,6 +35,7 @@
 | system.sql | update_self_profile/avatar/system_logo、avatars/payment-proofs 存储桶与策略、realtime 发布 |
 | auth.sql | custom_access_token_hook |
 | seed.sql | 等级规则 3 条、分类 4 个、用户 4 个 |
+| product.sql | 商品软删除（隐藏）：hide_product、restore_product |
 | p0_security_fixes.sql | P0 安全加固（幂等）：实时读库角色校验、recharge_wallet 权限修复、凭证路径校验、payment-proofs 读策略收紧、revoke/grant 卫生 |
 
 ## 备注
@@ -49,3 +50,8 @@
 - `payment_proofs_authenticated_read` 由全员可读收紧为 **is_staff()（老板/管理员）** 可读（当前角色仅有 boss/manager，功能不受影响；为未来低权限角色留门）。
 - 关闭未显式授权函数的默认 PUBLIC EXECUTE（create_order、legacy assign_order_employees、set_customer_vip_level、adjust_customer_consumption、gen_order_no、batch_start_orders、batch_approve_orders 等）。
 - 应用方式：线上库直接执行 `sql/p0_security_fixes.sql`（幂等）；重建库用 `ALL_IN_ONE.sql`（已含同等变更，追加于文件末尾）。
+## 商品软删除（2026-08-06）
+
+- `product.deleted_at timestamptz`（NULL=未隐藏）；列表查询过滤 `deleted_at is null`。
+- `hide_product(uuid)` / `restore_product(uuid)`：仅老板（is_boss），SECURITY DEFINER，幂等。
+- 应用：线上执行 `sql/product_hide.sql`（幂等）；重建库用 ALL_IN_ONE.sql。

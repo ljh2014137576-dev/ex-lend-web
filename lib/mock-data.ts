@@ -41,6 +41,7 @@ export interface Product {
   commissionType: CommissionType;
   fixedRate: number | null;
   status: "on_sale" | "off_shelf";
+  deletedAt?: string | null; // 软删除时间（NULL 表示未隐藏，向后兼容：mock 数据无需填写）
 }
 
 export interface OrderMember {

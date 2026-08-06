@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = 'G:\new-ui'
-$canonical = @('schema.sql','rls.sql','triggers.sql','customer.sql','employee.sql','order.sql','commission.sql','refund.sql','system.sql','auth.sql','seed.sql')
+$canonical = @('schema.sql','rls.sql','triggers.sql','customer.sql','employee.sql','order.sql','commission.sql','refund.sql','system.sql','auth.sql','seed.sql','product.sql')
 $pattern = '(?im)create\s+or\s+replace\s+function\s+(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)\('
 
 function Get-FuncNames([string]$path) {

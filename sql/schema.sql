@@ -110,6 +110,7 @@ create table if not exists product (
   commission_type commission_type not null default 'fixed',
   fixed_rate numeric(6,4) check (fixed_rate is null or (fixed_rate >= 0 and fixed_rate <= 1)),
   status product_status not null default 'on_sale',
+    deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -416,3 +417,4 @@ alter table public.order_member
   add column if not exists commission_override_amount numeric(12,2),
   add column if not exists commission_override_by uuid references public.users(id),
   add column if not exists commission_override_at timestamptz;
+alter table product add column if not exists deleted_at timestamptz;

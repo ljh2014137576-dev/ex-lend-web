@@ -10,22 +10,33 @@ import { Modal } from "@/components/ui/Modal";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { PRODUCTS, type Product } from "@/lib/mock-data";
-import { apiProducts } from "@/lib/supabase-api";
+import { apiProducts, rpcHideProduct } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { BossOnly } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
+
+// 状态筛选：全部 / 在售 / 下架
+const STATUS_TABS = [
+  { id: "all", label: "全部" },
+  { id: "on_sale", label: "在售" },
+  { id: "off_shelf", label: "下架" },
+];
 
 export default function ProductsPage() {
   const { session } = useAuth();
   const { data: products, real, error, loading, mutate: setProducts } = useResource<Product>("products", apiProducts, PRODUCTS);
   const [category, setCategory] = useState("all");
+  const [statusTab, setStatusTab] = useState<"all" | "on_sale" | "off_shelf">("all");
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
+  const [hideTarget, setHideTarget] = useState<Product | null>(null);
+  const [hiding, setHiding] = useState(false);
   const toastTimer = useRef<number | null>(null);
 
   const cats = useMemo(() => {
@@ -38,9 +49,10 @@ export default function ProductsPage() {
       products.filter(
         (p) =>
           (category === "all" || p.category === category) &&
+          (statusTab === "all" || p.status === statusTab) &&
           (keyword === "" || p.name.includes(keyword)),
       ),
-    [products, category, keyword],
+    [products, category, statusTab, keyword],
   );
 
   // 页面内弹窗提示：成功/失败共用，自动消失
@@ -126,6 +138,29 @@ export default function ProductsPage() {
     }
   };
 
+  const confirmHide = async () => {
+    const target = hideTarget;
+    if (!target) return;
+    setHiding(true);
+    // 先乐观从列表移除，后台调 RPC；失败再加回列表并提示
+    setProducts((p) => p.filter((x) => x.id !== target.id));
+    if (session) {
+      const { data, error } = await rpcHideProduct(target.id);
+      if (error || (data as { success?: boolean })?.success === false) {
+        // 失败：把该商品加回列表（放最前）并提示
+        setProducts((p) => [target, ...p]);
+        showToast("隐藏失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"), "error");
+      } else {
+        showToast(`已隐藏商品 ${target.name}`, "ok");
+      }
+    } else {
+      // mock 模式（无真实会话）：乐观移除即视为成功
+      showToast(`已隐藏商品 ${target.name}`, "ok");
+    }
+    setHideTarget(null);
+    setHiding(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -139,9 +174,10 @@ export default function ProductsPage() {
           <Input placeholder="搜索商品…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         </div>
         <FilterTabs tabs={cats} active={category} onChange={setCategory} />
+        <FilterTabs tabs={STATUS_TABS} active={statusTab} onChange={(id) => setStatusTab(id as "all" | "on_sale" | "off_shelf")} />
       </div>
 
-      <p className="font-mono text-[11px] text-muted"><a href="/categories" className="underline underline-offset-2 hover:text-accent">→ 管理商品分类</a></p>
+      <p className="font-mono text-[11px] text-muted"><a href="/categories" className="underline underline-offset-2 hover:text-accent">→ 管理商品分类</a><span className="mx-2">·</span><BossOnly><a href="/products/hidden" className="underline underline-offset-2 hover:text-accent">→ 已隐藏商品</a></BossOnly></p>
 
       <Panel title="商品列表" meta="行内可上下架">
         <DataTable<Product>
@@ -153,9 +189,14 @@ export default function ProductsPage() {
             { key: "commission", label: "提成", mono: true, render: (r) => (r.commissionType === "grade" ? "按等级" : `${(r.fixedRate ?? 0) * 100}%`) },
             { key: "status", label: "状态", render: (r) => (r.status === "on_sale" ? <StatusDot tone="active" label="在售" /> : <StatusDot tone="neutral" label="下架" />) },
             { key: "actions", label: "操作", render: (r) => (
-              <Button size="sm" variant="secondary" onClick={() => toggleStatus(r.id)}>
-                {r.status === "on_sale" ? "下架" : "上架"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => toggleStatus(r.id)}>
+                  {r.status === "on_sale" ? "下架" : "上架"}
+                </Button>
+                <BossOnly>
+                  <Button size="sm" variant="danger" onClick={() => setHideTarget(r)}>隐藏</Button>
+                </BossOnly>
+              </div>
             ) },
           ]}
           rows={filtered}
@@ -199,6 +240,16 @@ export default function ProductsPage() {
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>取消</Button>
             <Button onClick={create}>创建</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!hideTarget} title={hideTarget ? `隐藏商品 — ${hideTarget.name}` : ""} onClose={() => setHideTarget(null)}>
+        <div className="space-y-3">
+          <p className="text-sm text-muted">隐藏后不再出现在商品列表/收银台/订单商品选择中，数据保留，可在「已隐藏商品」中恢复。</p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setHideTarget(null)}>取消</Button>
+            <Button variant="danger" disabled={hiding} onClick={confirmHide}>{hiding ? "隐藏中…" : "确认隐藏"}</Button>
           </div>
         </div>
       </Modal>

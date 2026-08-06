@@ -13,6 +13,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "customers", num: "08", label: "客户", href: "/customers" },
   { id: "employees", num: "09", label: "员工", href: "/employees" },
   { id: "products", num: "10", label: "商品", href: "/products" },
+  { id: "products-hidden", num: "10b", label: "已隐藏商品", href: "/products/hidden", roles: ["boss"] },
   { id: "categories", num: "11", label: "商品分类", href: "/categories" },
   { id: "rules", num: "12", label: "规则配置", href: "/rules", roles: ["boss"] },
   { id: "todos", num: "13", label: "待办", href: "/todos" },
