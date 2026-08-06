@@ -78,7 +78,12 @@ export default function ProductsPage() {
         window.alert("创建商品失败：" + (error?.message ?? "未知错误"));
         return;
       }
-      setProducts((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+      // 防并发请求覆盖：乐观项仍在就换 id；已被覆盖冲掉则重新加回列表末尾，保证新商品立即可见。
+      const real: Product = { ...optimistic, id: data.id };
+      setProducts((prev) => {
+        if (prev.some((x) => x.id === optimisticId)) return prev.map((x) => (x.id === optimisticId ? real : x));
+        return [...prev, real];
+      });
     }
   };
 
