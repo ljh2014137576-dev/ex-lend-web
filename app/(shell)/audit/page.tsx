@@ -12,7 +12,7 @@ import { ORDERS, type Order, type OrderMember } from "@/lib/mock-data";
 import { apiOrders } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
-import { rpcApproveCommission } from "@/lib/supabase-api";
+import { rpcApproveCommission, rpcBatchApproveOrders, rpcRejectOrderAudit, rpcSetPendingOrderCommissions } from "@/lib/supabase-api";
 import { NoPermission } from "@/components/business/RequireRole";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -38,26 +38,48 @@ export default function AuditPage() {
 
   const approve = async (id: string) => {
     const o = orders.find((x) => x.id === id);
+    if (!o) return;
+    // 乐观更新：前端立即生效；RPC 失败再回滚
+    setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: "approved" } : x)));
     if (session) {
       const { data, error } = await rpcApproveCommission(id);
-      if (error || data?.success === false) {
+      if (error || (data && data.success === false)) {
+        setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: o.auditStatus } : x)));
         return setLog((l) => [`${new Date().toLocaleTimeString()} 审核失败：${error?.message ?? data?.message}`, ...l]);
       }
+      if (data && typeof data.total_commission === "number") {
+        setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, commission: Number(data.total_commission), grossProfit: Number(data.gross_profit ?? 0) } : x)));
+      }
     }
-    setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: "approved" } : x)));
-    setLog((l) => [`${new Date().toLocaleTimeString()} 通过审核：${o?.orderNo}（佣金 ${o ? money(o.commission) : ""}）`, ...l]);
+    setLog((l) => [`${new Date().toLocaleTimeString()} 通过审核：${o.orderNo}（佣金 ${money(o.commission)}）`, ...l]);
   };
 
-  const reject = (id: string) => {
+  const reject = async (id: string) => {
     const o = orders.find((x) => x.id === id);
+    if (!o) return;
     setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: "rejected" } : x)));
-    setLog((l) => [`${new Date().toLocaleTimeString()} 撤销审核：${o?.orderNo}`, ...l]);
+    if (session) {
+      const { data, error } = await rpcRejectOrderAudit(id);
+      if (error || (data && data.success === false)) {
+        setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, auditStatus: o.auditStatus } : x)));
+        return setLog((l) => [`${new Date().toLocaleTimeString()} 撤销失败：${error?.message ?? data?.message}`, ...l]);
+      }
+    }
+    setLog((l) => [`${new Date().toLocaleTimeString()} 撤销审核：${o.orderNo}`, ...l]);
   };
 
-  const approveAll = () => {
+  const approveAll = async () => {
     if (pending.length === 0) return;
+    const ids = pending.map((o) => o.id);
     setOrders((prev) => prev.map((o) => (o.auditStatus === "pending" ? { ...o, auditStatus: "approved" } : o)));
-    setLog((l) => [`${new Date().toLocaleTimeString()} 批量通过 ${pending.length} 笔`, ...l]);
+    if (session) {
+      const { data, error } = await rpcBatchApproveOrders(ids);
+      if (error || (data && data.success === false)) {
+        setOrders((prev) => prev.map((o) => (ids.includes(o.id) ? { ...o, auditStatus: "pending" } : o)));
+        return setLog((l) => [`${new Date().toLocaleTimeString()} 批量审核失败：${error?.message ?? data?.message}`, ...l]);
+      }
+    }
+    setLog((l) => [`${new Date().toLocaleTimeString()} 批量通过 ${ids.length} 笔`, ...l]);
   };
 
   const openOverride = (o: Order) => {
@@ -67,19 +89,26 @@ export default function AuditPage() {
     setOverrideVals(init);
   };
 
-  const saveOverride = () => {
+  const saveOverride = async () => {
     if (!overrideOrder) return;
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === overrideOrder.id
-          ? {
-              ...o,
-              commission: Object.values(overrideVals).reduce((s, v) => s + (Number(v) || 0), 0),
-              members: o.members.map((m) => ({ ...m, commission: Number(overrideVals[m.employeeId]) || 0, override: Number(overrideVals[m.employeeId]) || 0 })),
-            }
-          : o,
-      ),
-    );
+    const prevOrder = overrideOrder;
+    const apply = (o: Order) =>
+      o.id === overrideOrder.id
+        ? {
+            ...o,
+            commission: Object.values(overrideVals).reduce((s, v) => s + (Number(v) || 0), 0),
+            members: o.members.map((m) => ({ ...m, commission: Number(overrideVals[m.employeeId]) || 0, override: Number(overrideVals[m.employeeId]) || 0 })),
+          }
+        : o;
+    setOrders((prev) => prev.map(apply));
+    if (session) {
+      const commissions = prevOrder.members.map((m) => ({ employee_id: m.employeeId, amount: Number(overrideVals[m.employeeId]) || 0 }));
+      const { data, error } = await rpcSetPendingOrderCommissions(prevOrder.id, commissions);
+      if (error || (data && data.success === false)) {
+        setOrders((prev) => prev.map((o) => (o.id === prevOrder.id ? prevOrder : o)));
+        return setLog((l) => [`${new Date().toLocaleTimeString()} 覆盖提成失败：${error?.message ?? data?.message}`, ...l]);
+      }
+    }
     setLog((l) => [`${new Date().toLocaleTimeString()} 覆盖提成：${overrideOrder.orderNo}`, ...l]);
     setOverrideOrder(null);
   };

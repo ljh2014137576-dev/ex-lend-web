@@ -351,7 +351,9 @@ booking(待接单/待开始) → in_progress(进行中) → completed(已完成)
 - /rules 规则页：
 - 客户钱包流水类型中文化：
 - 状态标签统一为带背景色的圆角小标签：
-- 商品创建写库修复（/products）：此前“新建商品”只更新本地缓存不写库，刷新即消失；现真实会话下乐观入缓存并 supabase insert product（RLS 允许 staff/manager），失败回滚并提示，成功后用真实 id 替换。
+- 商品创建写库修复（/products）：
+- 审核台（/audit）修复：单个通过审核改乐观更新（前端立即生效，RPC 失败回滚并用返回佣金/毛利补充）；批量通过、撤销审核、覆盖提成此前只改本地缓存不写库，现已分别调 rpcBatchApproveOrders / rpcRejectOrderAudit / rpcSetPendingOrderCommissions 写库。
+此前“新建商品”只更新本地缓存不写库，刷新即消失；现真实会话下乐观入缓存并 supabase insert product（RLS 允许 staff/manager），失败回滚并提示，成功后用真实 id 替换。
 StatusDot 由“圆点+文字”改为 tinted badge（浅色背景+强调色文字，bg-*/15），客户状态（正常/停用）、订单状态（待开始/进行中/已完成/已取消）、审核状态（待审核/已通过/已拒绝）、商品/分类/公告等全部统一。
 新增 lib/ledger.ts 映射（recharge_principal=充值本金、consume_principal=下单扣款·本金、consume_from_pending=预收转消费、cash_received=现金预收、refund=订单退款 等，未知类型原样兜底），应用于 /customers 流水弹窗与 /finance 客户钱包流水。
 - 修复源码真乱码（UTF-8 中文被 GBK 错误解码写死）：DataTable 空态文案“暂无数据”、Modal 关闭按钮“关闭”此前是乱码字节；已全项目扫描（连续 mojibake 特征字），仅此两处。
