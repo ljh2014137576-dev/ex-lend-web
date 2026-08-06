@@ -555,6 +555,10 @@ export async function apiDeleteLogs(): Promise<DeleteLog[] | null> {
     at: r.deleted_at ? new Date(r.deleted_at).toLocaleString("zh-CN") : "—",
   }));
 }
+export function rpcBatchCompleteOrders(p_order_ids: string[]) {
+  return supabase.rpc("batch_complete_orders", { p_order_ids });
+}
+
 export function rpcBatchStartOrders(p_order_ids: string[]) {
   return supabase.rpc("batch_start_orders", { p_order_ids });
 }

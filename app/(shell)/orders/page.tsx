@@ -13,7 +13,7 @@ import { OrderDetailModal } from "@/components/business/OrderDetailModal";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { dateKey } from "@/lib/date";
-import { apiOrders, apiEmployees, rpcBatchStartOrders, rpcBatchApproveOrders } from "@/lib/supabase-api";
+import { apiOrders, apiEmployees, rpcBatchStartOrders, rpcBatchApproveOrders, rpcBatchCompleteOrders } from "@/lib/supabase-api";
 import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 
@@ -151,6 +151,17 @@ export default function OrdersPage() {
     setSelected([]);
   };
 
+
+  const batchComplete = async () => {
+    if (selected.length === 0) return;
+    if (session) {
+      const { data, error } = await rpcBatchCompleteOrders(selected);
+      if (error || data?.success === false) return setBatchMsg("批量完成失败：" + (error?.message ?? data?.message));
+    }
+    mutate((prev) => prev.map((o) => (selected.includes(o.id) && o.status === "in_progress" ? { ...o, status: "completed" } : o)));
+    setBatchMsg(`已批量完成 ${selected.length} 笔`);
+    setSelected([]);
+  };
   const batchApprove = async () => {
     if (selected.length === 0) return;
     if (!isBoss) return setBatchMsg("仅老板可批量审核");
@@ -305,6 +316,7 @@ export default function OrdersPage() {
         <div className="flex flex-wrap items-center gap-3 border border-line bg-surface p-3">
           <span className="font-mono text-xs text-muted">已选 {selected.length} 笔</span>
           <Button size="sm" variant="secondary" onClick={batchStart}>批量开始</Button>
+          <Button size="sm" variant="secondary" onClick={() => void batchComplete()}>批量完成</Button>
           {isBoss && <Button size="sm" variant="secondary" onClick={batchApprove}>批量审核</Button>}
           <Button size="sm" variant="ghost" onClick={() => setSelected([])}>取消选择</Button>
           {batchMsg && <span className="font-mono text-[11px] text-muted">{batchMsg}</span>}
@@ -318,7 +330,20 @@ export default function OrdersPage() {
           columns={[
             {
               key: "sel",
-              label: "✓",
+              label: (
+                <input
+                  type="checkbox"
+                  checked={sorted.length > 0 && sorted.every((o) => selected.includes(o.id))}
+                  ref={(el) => { if (el) el.indeterminate = sorted.some((o) => selected.includes(o.id)) && !sorted.every((o) => selected.includes(o.id)); }}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelected((prev) => [...new Set([...prev, ...sorted.map((o) => o.id)])]);
+                    else setSelected((prev) => prev.filter((id) => !sorted.some((o) => o.id === id)));
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 accent-black"
+                  aria-label="全选当前筛选结果"
+                />
+              ),
               align: "center",
               render: (r) => (
                 <input

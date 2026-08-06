@@ -3601,3 +3601,18 @@ $$;
 
 revoke all on function public.adjust_order_price(uuid, numeric, text) from public;
 grant execute on function public.adjust_order_price(uuid, numeric, text) to authenticated;
+
+create or replace function public.batch_complete_orders(p_order_ids uuid[])
+returns jsonb as $$
+declare
+  v_count int;
+begin
+  if not is_staff() then return jsonb_build_object('success', false, 'message', '无权限'); end if;
+  update "order" set status = 'completed', updated_at = now()
+  where id = any(p_order_ids) and status = 'in_progress';
+  get diagnostics v_count = row_count;
+  return jsonb_build_object('success', true, 'count', v_count);
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.batch_complete_orders(uuid[]) to authenticated;

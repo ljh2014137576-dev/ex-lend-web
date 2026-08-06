@@ -2,7 +2,7 @@
 
 export interface Column<T> {
   key: string;
-  label: string;
+  label: ReactNode;
   align?: "left" | "right" | "center";
   mono?: boolean;
   render?: (row: T) => ReactNode;
