@@ -1176,3 +1176,90 @@ $$;
 
 revoke all on function public.adjust_order_price(uuid, numeric, text) from public;
 grant execute on function public.adjust_order_price(uuid, numeric, text) to authenticated;
+
+-- P0 安全加固：凭证函数加路径校验（与 sql/p0_security_fixes.sql 一致）
+create or replace function public.update_order_proof(p_order_id uuid, p_proof_path text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_status order_status;
+  v_path text;
+begin
+  if not public.is_staff() then
+    return jsonb_build_object('success', false, 'message', '无权限');
+  end if;
+  v_path := nullif(trim(p_proof_path), '');
+  if v_path is not null and not public.is_own_proof_path(v_path) then
+    return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
+  end if;
+  select status into v_status from public."order" where id = p_order_id for update;
+  if not found then return jsonb_build_object('success', false, 'message', '订单不存在'); end if;
+  if v_status not in ('booking', 'in_progress', 'completed') then
+    return jsonb_build_object('success', false, 'message', '订单开始后才能编辑支付凭证');
+  end if;
+  update public."order" set proof_path = v_path where id = p_order_id;
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+create or replace function public.add_order_proof(p_order_id uuid, p_proof_path text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_status order_status;
+  v_path text;
+begin
+  if not public.is_staff() then
+    return jsonb_build_object('success', false, 'message', '无权限');
+  end if;
+  v_path := nullif(trim(p_proof_path), '');
+  if v_path is null then return jsonb_build_object('success', false, 'message', '凭证路径为空'); end if;
+  if not public.is_own_proof_path(v_path) then
+    return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
+  end if;
+  select status into v_status from public."order" where id = p_order_id for update;
+  if not found then return jsonb_build_object('success', false, 'message', '订单不存在'); end if;
+  if v_status not in ('booking', 'in_progress', 'completed') then
+    return jsonb_build_object('success', false, 'message', '订单开始后才能编辑支付凭证');
+  end if;
+  if v_path = any(coalesce((select proof_paths from public."order" where id = p_order_id), array[]::text[])) then
+    return jsonb_build_object('success', true, 'message', '凭证已存在');
+  end if;
+  update public."order"
+  set proof_paths = array_append(coalesce(proof_paths, array[]::text[]), v_path),
+      proof_path = v_path
+  where id = p_order_id;
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+create or replace function public.remove_order_proof(p_order_id uuid, p_proof_path text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_status order_status;
+  v_path text;
+  v_paths text[];
+begin
+  if not public.is_staff() then
+    return jsonb_build_object('success', false, 'message', '无权限');
+  end if;
+  v_path := nullif(trim(p_proof_path), '');
+  if v_path is null then return jsonb_build_object('success', false, 'message', '凭证路径为空'); end if;
+  if not public.is_own_proof_path(v_path) then
+    return jsonb_build_object('success', false, 'message', '凭证文件不存在或无权引用');
+  end if;
+  select status into v_status from public."order" where id = p_order_id for update;
+  if not found then return jsonb_build_object('success', false, 'message', '订单不存在'); end if;
+  if v_status not in ('booking', 'in_progress', 'completed') then
+    return jsonb_build_object('success', false, 'message', '订单开始后才能编辑支付凭证');
+  end if;
+  select coalesce(proof_paths, array[]::text[]) into v_paths from public."order" where id = p_order_id;
+  v_paths := array_remove(v_paths, v_path);
+  update public."order"
+  set proof_paths = v_paths,
+      proof_path = case when coalesce(array_length(v_paths, 1), 0) > 0 then v_paths[array_length(v_paths, 1)] else null end
+  where id = p_order_id;
+  return jsonb_build_object('success', true);
+end;
+$$;

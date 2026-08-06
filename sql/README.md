@@ -35,8 +35,17 @@
 | system.sql | update_self_profile/avatar/system_logo、avatars/payment-proofs 存储桶与策略、realtime 发布 |
 | auth.sql | custom_access_token_hook |
 | seed.sql | 等级规则 3 条、分类 4 个、用户 4 个 |
+| p0_security_fixes.sql | P0 安全加固（幂等）：实时读库角色校验、recharge_wallet 权限修复、凭证路径校验、payment-proofs 读策略收紧、revoke/grant 卫生 |
 
 ## 备注
 
 - 函数存在合理重载/重定义（如 recharge_custom 4 个版本：02 旧版 4 参、02 新版 5 参、09、28），模块内保留全部版本，执行顺序与迁移链一致。
 - 若需恢复数据库，直接用 ALL_IN_ONE.sql（含 01-04 与 07-31 全部内容）。
+## P0 安全加固（2026-08-06，分支 fix-error）
+
+- `is_boss/is_manager/is_staff` 已由 JWT claim 改为**实时读库校验**（`security definer` 读 users 表），权限变更即时生效；RLS 与 RPC 均自动受益。
+- `recharge_wallet(p_customer_id, p_package_id, p_proof_path)` 原为 SECURITY DEFINER 且**无任何角色校验**（任意登录用户可充值），已补 `is_staff()` 校验。
+- `update/add/remove_order_proof` 新增 `is_own_proof_path()` 校验：仅本人上传（payment-proofs/<uid>/...）或老板可引用。
+- `payment_proofs_authenticated_read` 由全员可读收紧为**本人或老板可读**。
+- 关闭未显式授权函数的默认 PUBLIC EXECUTE（create_order、legacy assign_order_employees、set_customer_vip_level、adjust_customer_consumption、gen_order_no、batch_start_orders、batch_approve_orders 等）。
+- 应用方式：线上库直接执行 `sql/p0_security_fixes.sql`（幂等）；重建库用 `ALL_IN_ONE.sql`（已含同等变更，追加于文件末尾）。
