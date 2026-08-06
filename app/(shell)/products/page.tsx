@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
@@ -25,6 +25,8 @@ export default function ProductsPage() {
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
+  const [toast, setToast] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
   const cats = useMemo(() => {
     const set = new Set(products.map((p) => p.category));
@@ -41,6 +43,16 @@ export default function ProductsPage() {
     [products, category, keyword],
   );
 
+  // 页面内弹窗提示：成功/失败共用，自动消失
+  const showToast = (text: string, tone: "ok" | "error") => {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast({ text, tone });
+    toastTimer.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimer.current = null;
+    }, 2600);
+  };
+
   const create = async () => {
     if (!form.name.trim()) return;
     const optimisticId = "tmp-p" + Date.now();
@@ -54,7 +66,7 @@ export default function ProductsPage() {
       status: "on_sale",
     };
     // 先入缓存展示，后台写库；失败回滚并提示
-    setProducts((p) => [...p, optimistic]);
+    setProducts((p) => [optimistic, ...p]);
     setOpen(false);
     setForm({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
 
@@ -75,15 +87,19 @@ export default function ProductsPage() {
         .single();
       if (error || !data) {
         setProducts((prev) => prev.filter((x) => x.id !== optimisticId));
-        window.alert("创建商品失败：" + (error?.message ?? "未知错误"));
+        showToast("创建商品失败：" + (error?.message ?? "未知错误"), "error");
         return;
       }
-      // 防并发请求覆盖：乐观项仍在就换 id；已被覆盖冲掉则重新加回列表末尾，保证新商品立即可见。
+      // 防并发请求覆盖：乐观项仍在就换 id；已被覆盖冲掉则重新加回列表最前，保证新商品立即可见。
       const real: Product = { ...optimistic, id: data.id };
       setProducts((prev) => {
         if (prev.some((x) => x.id === optimisticId)) return prev.map((x) => (x.id === optimisticId ? real : x));
-        return [...prev, real];
+        return [real, ...prev];
       });
+      showToast(`已成功创建商品 ${optimistic.name}`, "ok");
+    } else {
+      // mock 模式（无真实会话）：乐观插入即视为成功
+      showToast(`已成功创建商品 ${optimistic.name}`, "ok");
     }
   };
 
@@ -166,6 +182,8 @@ export default function ProductsPage() {
           </div>
         </div>
       </Modal>
+
+      {toast && (<div className="toast" role="status" style={toast.tone === "error" ? { background: "rgba(180,40,40,0.92)" } : undefined}>{toast.text}</div>)}
     </div>
   );
 }
