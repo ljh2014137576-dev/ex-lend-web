@@ -40,6 +40,25 @@ export default function EmployeesPage() {
     [employees, keyword],
   );
 
+  // 按员工聚合工资流水（累计佣金 / 已发放 / 调整扣减），与工资结算页逻辑一致
+  const ledgerByEmployee = useMemo(() => {
+    const map = new Map<string, { commission: number; payout: number; other: number }>();
+    for (const l of ledgers) {
+      const key = l.employeeId || l.employee;
+      const g = map.get(key) ?? { commission: 0, payout: 0, other: 0 };
+      if (l.type === "commission") g.commission += l.amount;
+      else if (l.type === "payout") g.payout += Math.abs(l.amount);
+      else g.other += Math.abs(l.amount);
+      map.set(key, g);
+    }
+    return map;
+  }, [ledgers]);
+
+  // 当前详情员工的三项聚合金额（优先按 id，找不到再按 name）
+  const detailLedger = detailEmp
+    ? ledgerByEmployee.get(detailEmp.id) ?? ledgerByEmployee.get(detailEmp.name) ?? { commission: 0, payout: 0, other: 0 }
+    : { commission: 0, payout: 0, other: 0 };
+
   const openDetail = (r: Employee) => {
     setDetailEmp(r);
     setEditMode(false);
@@ -203,6 +222,9 @@ export default function EmployeesPage() {
                 { label: "状态", value: detailEmp.status === "active" ? "在职" : "离职" },
                 { label: "钱包余额", value: money(detailEmp.wallet) },
                 { label: "欠款", value: detailEmp.isDebt ? "是" : "否" },
+                { label: "累计佣金", value: money(detailLedger.commission) },
+                { label: "已发放", value: money(detailLedger.payout) },
+                { label: "调整/扣减", value: money(detailLedger.other) },
               ].map((x) => (
                 <div key={x.label} className="bg-surface p-3">
                   <p className="font-mono text-[10px] text-muted">{x.label}</p>

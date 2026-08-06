@@ -68,7 +68,10 @@ export default function PayrollPage() {
   );
 
   // 排除没有工资的员工（结余/累计佣金/已发/调整全为 0 且无欠款）
-  const visibleRows = rows.filter((r) => r.wallet !== 0 || r.commission !== 0 || r.payout !== 0 || r.other !== 0 || r.isDebt);
+  const visibleRows = rows
+    .filter((r) => r.wallet !== 0 || r.commission !== 0 || r.payout !== 0 || r.other !== 0 || r.isDebt)
+    // 按当前工资结余降序排列
+    .sort((a, b) => b.wallet - a.wallet);
   const active = visibleRows.filter((r) => r.status === "active");
   const totalWallet = active.reduce((s, r) => s + r.wallet, 0);
   const totalCommission = active.reduce((s, r) => s + r.commission, 0);
@@ -275,9 +278,6 @@ export default function PayrollPage() {
             { key: "name", label: "员工" },
             { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
             { key: "status", label: "状态", mono: true, render: (r) => (r.status === "active" ? "在职" : "离职") },
-            { key: "commission", label: "累计佣金", align: "right", mono: true, render: (r) => money(r.commission) },
-            { key: "payout", label: "已发放", align: "right", mono: true, render: (r) => money(r.payout) },
-            { key: "other", label: "调整/扣减", align: "right", mono: true, render: (r) => money(r.other) },
             { key: "wallet", label: "当前工资结余", align: "right", mono: true, render: (r) => <span className={r.wallet < 0 ? "text-danger" : ""}>{money(r.wallet)}</span> },
             { key: "isDebt", label: "欠款", mono: true, render: (r) => (r.isDebt || r.wallet < 0 ? "是" : "否") },
             { key: "ops", label: "操作", render: (r) => <Button size="sm" variant="secondary" onClick={() => openSettle([r.id])}>扣款</Button> },
@@ -307,8 +307,20 @@ export default function PayrollPage() {
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium">{detailEmp.name}</span>
               <span className="font-mono text-[11px] text-muted">Lv{detailEmp.grade} · {detailEmp.status === "active" ? "在职" : "离职"}</span>
-              <span className="font-mono text-[11px] text-muted">当前工资结余</span>
-              <span className={"font-mono text-sm tabular-nums " + (detailEmp.wallet < 0 ? "text-danger" : "")}>{money(detailEmp.wallet)}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-4">
+              {[
+                { label: "累计佣金", value: money(detailEmp.commission), danger: false },
+                { label: "已发放", value: money(detailEmp.payout), danger: false },
+                { label: "调整/扣减", value: money(detailEmp.other), danger: false },
+                { label: "当前工资结余", value: money(detailEmp.wallet), danger: detailEmp.wallet < 0 },
+              ].map((s) => (
+                <div key={s.label} className="bg-surface p-3">
+                  <p className="font-mono text-[10px] text-muted">{s.label}</p>
+                  <p className={"mt-1 text-base font-semibold tabular-nums" + (s.danger ? " text-danger" : "")}>{s.value}</p>
+                </div>
+              ))}
             </div>
 
             <div className="max-h-[55vh] overflow-y-auto">
