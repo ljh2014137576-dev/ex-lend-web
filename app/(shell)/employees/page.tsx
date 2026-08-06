@@ -16,6 +16,7 @@ import { OrderNoPreview } from "@/components/business/OrderPreview";
 import { LedgerPartners } from "@/components/business/LedgerPartners";
 import { apiOrders } from "@/lib/supabase-api";
 import { DataSourceBadge } from "@/lib/use-real-data";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -97,11 +98,41 @@ export default function EmployeesPage() {
     window.setTimeout(() => setEditMsg(null), 2000);
   };
 
-  const create = () => {
+  const create = async () => {
     if (!form.name.trim()) return;
-    setEmployees((p) => [...p, { id: "e" + Date.now(), name: form.name.trim(), grade: Math.max(1, form.grade), status: "active", wallet: 0, isDebt: false }]);
+    const optimisticId = "tmp-" + Date.now();
+    const optimistic: Employee = {
+      id: optimisticId,
+      name: form.name.trim(),
+      grade: Math.max(1, form.grade),
+      status: "active",
+      wallet: 0,
+      isDebt: false,
+    };
+    // 先入缓存展示，后异步写库；失败回滚并提示
+    setEmployees((p) => [...p, optimistic]);
     setOpen(false);
     setForm({ name: "", grade: 1, phone: "" });
+
+    if (session) {
+      const { data, error } = await supabase
+        .from("employee")
+        .insert([
+          {
+            name: optimistic.name,
+            grade: optimistic.grade,
+            status: optimistic.status,
+          },
+        ])
+        .select("id")
+        .single();
+      if (error || !data) {
+        setEmployees((prev) => prev.filter((x) => x.id !== optimisticId));
+        window.alert("创建失败：" + (error?.message ?? "未知错误"));
+        return;
+      }
+      setEmployees((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
+    }
   };
 
   return (
