@@ -103,8 +103,28 @@ export default function ProductsPage() {
     }
   };
 
-  const toggleStatus = (id: string) =>
-    setProducts((p) => p.map((x) => (x.id === id ? { ...x, status: x.status === "on_sale" ? "off_shelf" : "on_sale" } : x)));
+  const toggleStatus = async (id: string) => {
+    const item = products.find((x) => x.id === id);
+    if (!item) return;
+    const newStatus = item.status === "on_sale" ? "off_shelf" : "on_sale";
+    // 先乐观更新本地，后台写库；失败回滚并提示
+    setProducts((p) => p.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
+    if (session) {
+      const { error } = await supabase.from("product").update({ status: newStatus }).eq("id", id);
+      if (error) {
+        // 失败：回滚本地并提示
+        setProducts((p) => p.map((x) => (x.id === id ? { ...x, status: item.status } : x)));
+        showToast("设置失败：" + (error?.message ?? "未知错误"), "error");
+        return;
+      }
+      // 防并发请求覆盖：幂等，保证即使被在途刷新覆盖也保持新状态
+      setProducts((p) => p.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
+      showToast(`已${newStatus === "on_sale" ? "上架" : "下架"} ${item.name}`, "ok");
+    } else {
+      // mock 模式（无真实会话）：乐观更新即视为成功
+      showToast(`已${newStatus === "on_sale" ? "上架" : "下架"} ${item.name}`, "ok");
+    }
+  };
 
   return (
     <div className="space-y-6">
