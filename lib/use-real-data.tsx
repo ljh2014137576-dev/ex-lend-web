@@ -37,6 +37,7 @@ export function useRealData<T>(
         if (mounted) {
           // eslint-disable-next-line no-console
           console.error("[real-data]", e);
+          setDataState([]);
           setError(e instanceof Error ? e.message : String(e));
         }
       } finally {
