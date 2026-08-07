@@ -103,7 +103,6 @@ export default function CashierPage() {
     if (cart.length === 0) return setHint("请先添加商品");
     if (session && !productsReal) return setHint("商品数据未加载成功，请稍后刷新重试");
     if (missingProducts.length > 0) return setHint("部分商品未加载或已失效，请移除后重试");
-    if (employeeIds.length === 1) return setHint("接单员工需选 0 或 2 名");
     if (!paidValid) return setHint("实际收款需在 0 与订单原价之间");
     if (payMethod === "wallet" && walletTotal < effectivePaid) return setHint("客户钱包余额不足（本金+赠送）");
 

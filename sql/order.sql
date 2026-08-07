@@ -169,10 +169,10 @@ begin
   if not is_staff() then
     return jsonb_build_object('success', false, 'message', '无权限');
   end if;
-  if cardinality(p_employee_ids) <> 2 then
-    return jsonb_build_object('success', false, 'message', '必须选择两名接单员工');
+  if coalesce(cardinality(p_employee_ids), 0) > 2 then
+    return jsonb_build_object('success', false, 'message', '员工最多选择两名（可 0/1/2 名）');
   end if;
-  if p_employee_ids[1] = p_employee_ids[2] then
+  if cardinality(p_employee_ids) = 2 and p_employee_ids[1] = p_employee_ids[2] then
     return jsonb_build_object('success', false, 'message', '不能重复选择同一名员工');
   end if;
 
@@ -269,8 +269,8 @@ begin
   if jsonb_array_length(p_items) > 50 then
     return jsonb_build_object('success', false, 'message', '单张订单最多添加 50 种商品');
   end if;
-  if coalesce(cardinality(p_employee_ids), 0) not in (0, 2) then
-    return jsonb_build_object('success', false, 'message', '员工应暂不选择或一次选择两名');
+  if coalesce(cardinality(p_employee_ids), 0) > 2 then
+    return jsonb_build_object('success', false, 'message', '员工最多选择两名（可 0/1/2 名）');
   end if;
   if cardinality(p_employee_ids) = 2 and p_employee_ids[1] = p_employee_ids[2] then
     return jsonb_build_object('success', false, 'message', '不能重复选择同一名员工');
@@ -492,8 +492,8 @@ begin
   if jsonb_array_length(p_items) > 50 then
     return jsonb_build_object('success', false, 'message', '单张订单最多添加 50 种商品');
   end if;
-  if coalesce(cardinality(p_employee_ids), 0) not in (0, 2) then
-    return jsonb_build_object('success', false, 'message', '员工应暂不选择或一次选择两名');
+  if coalesce(cardinality(p_employee_ids), 0) > 2 then
+    return jsonb_build_object('success', false, 'message', '员工最多选择两名（可 0/1/2 名）');
   end if;
   if cardinality(p_employee_ids) = 2 and p_employee_ids[1] = p_employee_ids[2] then
     return jsonb_build_object('success', false, 'message', '不能重复选择同一名员工');

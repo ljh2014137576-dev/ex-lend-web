@@ -55,3 +55,8 @@
 - `product.deleted_at timestamptz`（NULL=未隐藏）；列表查询过滤 `deleted_at is null`。
 - `hide_product(uuid)` / `restore_product(uuid)`：仅老板（is_boss），SECURITY DEFINER，幂等。
 - 应用：线上执行 `sql/product_hide.sql`（幂等）；重建库用 ALL_IN_ONE.sql。
+## 订单接单员工 0/1/2（2026-08-07）
+
+- create_order_multi / edit_order 原强制「0 或 2 名」，现改为「最多 2 名」（允许 0/1/2，单人可完成订单）。
+- assign_order_employees 本就允许 0/1/2，未改。
+- 应用：线上执行 `sql/order_member_123.sql`（幂等，仅重新定义两个函数）；重建库用 ALL_IN_ONE.sql（已含同等变更）。

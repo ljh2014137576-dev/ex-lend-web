@@ -296,7 +296,6 @@ export function OrderDetailModal({
     if (!o) return;
     setEditMsg(null);
     if (editItems.length === 0) return setEditMsg("请至少保留一个商品");
-    if (editEmps.length === 1) return setEditMsg("接单员工需选 0 或 2 名");
     if (!editCust) return setEditMsg("请选择客户");
     const isBooking = o.status === "booking";
     const editPaidAmount = editPaid.trim() === "" ? null : Number(editPaid);
