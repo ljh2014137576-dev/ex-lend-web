@@ -1,6 +1,7 @@
 -- ============================================================
 -- 订单接单员工允许 0/1/2 人（原 create_order_multi / edit_order 强制 0 或 2，单人订单被拒）
 -- 幂等：create or replace 重新定义，可重复执行；线上库直接执行本文件
+-- v2（2026-08-08）：修复 edit_order 签名缺失逗号 + revoke 改 6 参（p_paid_amount）
 -- 说明：重建数据库时 ALL_IN_ONE.sql 已含同等变更；assign_order_employees 本就允许 0/1/2 无需改
 -- ============================================================
 
@@ -221,7 +222,7 @@ create or replace function public.edit_order(
   p_customer_id uuid,
   p_items jsonb,
   p_employee_ids uuid[],
-  p_pay_method pay_method
+  p_pay_method pay_method,
   p_paid_amount numeric default null
 )
 returns jsonb
@@ -456,5 +457,5 @@ begin
 end;
 $$;
 
-revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
+revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) from public;
 grant execute on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) to authenticated;

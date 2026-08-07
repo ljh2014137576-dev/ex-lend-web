@@ -60,3 +60,8 @@
 - create_order_multi / edit_order 原强制「0 或 2 名」，现改为「最多 2 名」（允许 0/1/2，单人可完成订单）。
 - assign_order_employees 本就允许 0/1/2，未改。
 - 应用：线上执行 `sql/order_member_123.sql`（幂等，仅重新定义两个函数）；重建库用 ALL_IN_ONE.sql（已含同等变更）。
+## 修复：edit_order/correct_order 签名缺逗号（2026-08-08）
+
+- 仓库 SQL 预存语法 bug：edit_order、correct_order 的 `p_pay_method pay_method` 与 `p_paid_amount numeric default null` 之间缺逗号，导致 ALL_IN_ONE 重建会在该处报 42601。
+- 已补逗号（6 参含 p_paid_amount，与前端传参与 grant 一致）；相关 revoke 改为 6 参。
+- 线上迁移见 `sql/order_member_123.sql`（v2，已含修复）。

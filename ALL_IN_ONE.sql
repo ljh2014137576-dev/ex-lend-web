@@ -1928,7 +1928,7 @@ create or replace function public.edit_order(
   p_customer_id uuid,
   p_items jsonb,
   p_employee_ids uuid[],
-  p_pay_method pay_method
+  p_pay_method pay_method,
   p_paid_amount numeric default null
 )
 returns jsonb
@@ -2163,7 +2163,7 @@ begin
 end;
 $$;
 
-revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
+revoke all on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) from public;
 grant execute on function public.edit_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) to authenticated;
 
 create or replace function public.correct_order(
@@ -2171,7 +2171,7 @@ create or replace function public.correct_order(
   p_customer_id uuid,
   p_items jsonb,
   p_employee_ids uuid[],
-  p_pay_method pay_method
+  p_pay_method pay_method,
   p_paid_amount numeric default null
 )
 returns jsonb
@@ -2217,7 +2217,7 @@ p_employee_ids, p_pay_method, p_paid_amount);
 end;
 $$;
 
-revoke all on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method) from public;
+revoke all on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) from public;
 grant execute on function public.correct_order(uuid, uuid, jsonb, uuid[], pay_method, numeric) to authenticated;
 
 
