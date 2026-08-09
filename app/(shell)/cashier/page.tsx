@@ -26,7 +26,7 @@ export default function CashierPage() {
   const [keyword, setKeyword] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [payMethod, setPayMethod] = useState<PayMethod>("wallet");
+  const [payMethod, setPayMethod] = useState<PayMethod>("cash"); // 默认现金（预收）：多数客户钱包余额为 0，用钱包会因余额不足被拦截
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export default function CashierPage() {
     if (session && !productsReal) return setHint("商品数据未加载成功，请稍后刷新重试");
     if (missingProducts.length > 0) return setHint("部分商品未加载或已失效，请移除后重试");
     if (!paidValid) return setHint("实际收款需在 0 与订单原价之间");
-    if (payMethod === "wallet" && walletTotal < effectivePaid) return setHint("客户钱包余额不足（本金+赠送）");
+    if (payMethod === "wallet" && walletTotal < effectivePaid) return setHint("客户钱包余额不足（本金+赠送 " + money(walletTotal) + "），可切换为现金（预收）");
 
     // 先构造乐观订单入缓存，前端立即展示；同时后台提交；失败则回滚并弹窗
     const optimisticId = "tmp-" + Date.now();
