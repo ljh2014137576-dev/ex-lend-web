@@ -155,7 +155,7 @@ exception
     -- 任何 insert 失败（约束/类型错误）触发回滚，返回错误信息
     raise exception '批量导入失败（已回滚）: %', sqlerrm;
 end;
-$function$
+$function$;
 
 revoke all on function public.batch_create_employees(jsonb) from public;
 grant execute on function public.batch_create_employees(jsonb) to authenticated;

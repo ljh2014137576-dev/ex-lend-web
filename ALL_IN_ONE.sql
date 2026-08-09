@@ -432,7 +432,7 @@ CREATE OR REPLACE FUNCTION public.gen_order_no()
  LANGUAGE sql
 AS $function$
   select 'ORD' || to_char(now(), 'YYYYMMDDHH24MISS') || lpad((extract(epoch from now())::bigint % 1000)::text, 3, '0');
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_order(p_customer_id uuid, p_product_id uuid, p_employee_ids uuid[], p_pay_method pay_method, p_paid_amount numeric DEFAULT NULL::numeric)
@@ -489,7 +489,7 @@ begin
 
   return jsonb_build_object('success', true, 'order_id', v_order_id, 'order_no', v_order_no, 'paid_amount', v_paid, 'discount', v_discount);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_order(p_customer_id uuid, p_product_id uuid, p_employee_ids uuid[], p_pay_method pay_method, p_paid_amount numeric DEFAULT NULL::numeric, p_quantity integer DEFAULT 1)
@@ -579,7 +579,7 @@ begin
 
   return jsonb_build_object('success', true, 'order_id', v_order_id, 'order_no', v_order_no, 'paid_amount', v_paid, 'discount', v_discount, 'pending_amount', v_paid);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.payout_salary(p_items jsonb, p_batch_no text)
@@ -643,7 +643,7 @@ begin
 
   return jsonb_build_object('success', true, 'batch_id', v_payout_id, 'total_amount', v_total, 'detail_count', v_count);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.recalculate_customer_vip(p_customer_id uuid)
@@ -675,7 +675,7 @@ begin
 
   return jsonb_build_object('success', true, 'vip_level', greatest(v_level, coalesce(v_customer.vip_level, 0)));
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.batch_create_employees(p_employees jsonb)
@@ -731,7 +731,7 @@ exception
     -- 任何 insert 失败（约束/类型错误）触发回滚，返回错误信息
     raise exception '批量导入失败（已回滚）: %', sqlerrm;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.recharge_custom(p_customer_id uuid, p_amount numeric, p_bonus numeric, p_remark text DEFAULT NULL::text)
@@ -778,7 +778,7 @@ begin
 
   return jsonb_build_object('success', true, 'new_balance', v_new_principal + v_new_bonus);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.recharge_custom(p_customer_id uuid, p_amount numeric, p_bonus numeric, p_remark text, p_proof_path text)
@@ -822,7 +822,7 @@ begin
 
   return jsonb_build_object('success', true, 'new_balance', v_new_principal + v_new_bonus);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.recharge_wallet(p_customer_id uuid, p_package_id uuid)
@@ -870,7 +870,7 @@ begin
 
   return jsonb_build_object('success', true, 'new_balance', v_new_principal + v_new_bonus);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.recharge_wallet(p_customer_id uuid, p_package_id uuid, p_proof_path text)
@@ -898,7 +898,7 @@ begin
     values (p_customer_id, 'recharge_bonus', v_pkg.bonus, v_new_principal, v_new_bonus, v_op, p_proof_path, '套餐充值赠送');
   return jsonb_build_object('success', true, 'new_balance', v_new_principal + v_new_bonus);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
@@ -921,7 +921,7 @@ begin
 
   return jsonb_build_object('claims', v_claims);
 end;
-$function$
+$function$;
 
 
 

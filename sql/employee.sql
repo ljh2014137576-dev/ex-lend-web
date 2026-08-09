@@ -66,7 +66,7 @@ begin
 
   return jsonb_build_object('success', true, 'batch_id', v_payout_id, 'total_amount', v_total, 'detail_count', v_count);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.batch_create_employees(p_employees jsonb)
@@ -122,7 +122,7 @@ exception
     -- 任何 insert 失败（约束/类型错误）触发回滚，返回错误信息
     raise exception '批量导入失败（已回滚）: %', sqlerrm;
 end;
-$function$
+$function$;
 
 
 create or replace function public.adjust_employee_wallet(p_employee_id uuid, p_amount numeric, p_remark text)
