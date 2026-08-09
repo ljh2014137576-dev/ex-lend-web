@@ -70,3 +70,10 @@
 - `delete_order`：权限由「仅老板」放宽为「老板 或 创建该订单的管理员」；先查订单（不存在则报错），再按 `v_order.operator_id = auth.uid()` 校验归属（需 `is_manager`）。
 - `batch_create_employees`：nickname 空值兜底为 `coalesce(nullif(v_row->>'nickname', ''), v_row->>'name', '员工')`，避免违反 not-null 约束。
 - 线上执行：`sql/order_manager_delete_employee_nickname.sql`（幂等）；重建库用 ALL_IN_ONE.sql（已含同等变更）。
+## 充值档位 + VIP 规则（2026-08-10）
+
+- VIP 升级门槛（累计消费达到即升级）：1888 / 3000 / 5000 / 8888 / 11111 / 20888（对应 vip_level 1-6）。
+- VIP 折扣（flat，全分类兜底行：category_id 为 null 且 category 为空串）：VIP4=0.99、VIP5=0.98、VIP6=0.97（99/98/97 折）；VIP1-3 无折扣（折扣 1）。
+- 充值套餐 6 档（均 enabled）：1000 赠 50（首充）、500 赠 10、1000 赠 25、3000 赠 100、5000 赠 200、10000 赠 500。
+- 线上执行：`sql/vip_recharge_rules.sql`（幂等）；重建库用 ALL_IN_ONE.sql（已含同等数据 insert，追加于文件末尾）。
+- create_order_multi（及 edit_order）折扣查询支持全分类兜底：优先精确分类（category_id 非空）→ 次精确 category 文本 → 兜底空串行。

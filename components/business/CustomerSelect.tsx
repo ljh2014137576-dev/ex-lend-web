@@ -10,10 +10,14 @@ export function CustomerSelect({
   value,
   onChange,
   customers = CUSTOMERS,
+  onCreate,
+  pendingNewName,
 }: {
   value: string;
   onChange: (id: string) => void;
   customers?: Customer[];
+  onCreate?: (name: string) => void;
+  pendingNewName?: string | null;
 }) {
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
@@ -23,6 +27,9 @@ export function CustomerSelect({
   const filtered = customers.filter(
     (c) => keyword === "" || c.name.includes(keyword) || c.phone.includes(keyword),
   );
+  // 搜索关键词非空、且没有客户姓名与关键词完全相等时，显示“新建客户”项
+  const kw = keyword.trim();
+  const showCreate = onCreate != null && kw !== "" && !customers.some((c) => c.name === kw);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -39,7 +46,9 @@ export function CustomerSelect({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2 text-left text-sm transition-colors hover:bg-surface2"
       >
-        {customer ? (
+        {pendingNewName ? (
+          <span>新客户：{pendingNewName}</span>
+        ) : customer ? (
           <span>
             {customer.name}
             {customer.type === "vip" ? `（VIP${customer.vipLevel}）` : ""}
@@ -62,6 +71,21 @@ export function CustomerSelect({
             />
           </div>
           <ul className="max-h-56 overflow-y-auto">
+            {showCreate && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCreate(kw);
+                    setOpen(false);
+                    setKeyword("");
+                  }}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-surface2"
+                >
+                  <span>＋ 新建客户：{kw}</span>
+                </button>
+              </li>
+            )}
             {filtered.map((c) => (
               <li key={c.id}>
                 <button
@@ -84,7 +108,7 @@ export function CustomerSelect({
                 </button>
               </li>
             ))}
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !showCreate && (
               <li className="px-3 py-4 font-mono text-xs text-muted">无匹配客户</li>
             )}
           </ul>

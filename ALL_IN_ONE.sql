@@ -929,7 +929,8 @@ $function$;
 -- ============================================================================
 -- Ex-Lend 种子数据（从线上数据库逆向导回，恢复 03-06 中的种子部分）
 -- 生成来源：线上 Supabase 导出
--- 说明：vip_discount_rule / vip_upgrade_rule / recharge_package 线上为空，无种子数据。
+-- 说明：vip_discount_rule / vip_upgrade_rule / recharge_package 线上原为空，无种子数据；
+--       2026-08-10 起按业务规则写入（见文件末尾新增的 vip/recharge 数据 insert，与 sql/vip_recharge_rules.sql 一致）。
 -- ============================================================================
 
 -- 等级提成规则
@@ -1798,8 +1799,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -1850,8 +1851,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -2041,8 +2042,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -2097,8 +2098,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -3899,3 +3900,25 @@ revoke all on function public.hide_product(uuid) from public;
 grant execute on function public.hide_product(uuid) to authenticated;
 revoke all on function public.restore_product(uuid) from public;
 grant execute on function public.restore_product(uuid) to authenticated;
+
+-- ============================================================================
+-- 充值档位 + VIP 规则 数据（2026-08-10）
+-- 来源：sql/vip_recharge_rules.sql（数据部分）；线上执行该文件（幂等），重建库走本段。
+-- 背景：vip_discount_rule / vip_upgrade_rule / recharge_package 线上原为空，
+--       此段写入业务规则；create_order_multi 折扣查询已支持"全分类兜底"（见函数定义）。
+-- ============================================================================
+
+-- a) VIP 升级规则（累计消费门槛，消费达到即升级；auto_upgrade 用 max(vip_level) where threshold <= total_consumption）
+insert into public.vip_upgrade_rule (vip_level, consumption_threshold) values
+  (1, 1888), (2, 3000), (3, 5000), (4, 8888), (5, 11111), (6, 20888)
+on conflict (vip_level) do update set consumption_threshold = excluded.consumption_threshold;
+
+-- b) VIP 折扣规则（flat 折扣；全分类兜底行：category_id 为 null 且 category 为空串；VIP1-3 无折扣，不插行 → 折扣 1）
+insert into public.vip_discount_rule (vip_level, category, category_id, discount) values
+  (4, '', null, 0.99), (5, '', null, 0.98), (6, '', null, 0.97)
+on conflict (vip_level, category) do update set discount = excluded.discount;
+
+-- c) 充值档位（amount/bonus/status；首充 1000 赠 50 与单次 1000 赠 25 是两个套餐，表无 name/remark 列无法表达"首充"标识）
+insert into public.recharge_package (amount, bonus, status) values
+  (1000, 50, 'enabled'), (500, 10, 'enabled'), (1000, 25, 'enabled'), (3000, 100, 'enabled'), (5000, 200, 'enabled'), (10000, 500, 'enabled')
+on conflict do nothing;

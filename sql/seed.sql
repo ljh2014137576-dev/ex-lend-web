@@ -55,3 +55,20 @@ from public."order" o
 join public.product p on p.id = o.product_id
 where not exists (select 1 from public.order_item oi where oi.order_id = o.id)
 on conflict (order_id, product_id) do nothing;
+
+-- ============================================================================
+-- 充值档位 + VIP 规则 种子数据（2026-08-10）
+-- 与 sql/vip_recharge_rules.sql 一致；重建库时先建表，再执行以下 insert（幂等）。
+-- ============================================================================
+
+insert into public.vip_upgrade_rule (vip_level, consumption_threshold) values
+  (1, 1888), (2, 3000), (3, 5000), (4, 8888), (5, 11111), (6, 20888)
+on conflict (vip_level) do update set consumption_threshold = excluded.consumption_threshold;
+
+insert into public.vip_discount_rule (vip_level, category, category_id, discount) values
+  (4, '', null, 0.99), (5, '', null, 0.98), (6, '', null, 0.97)
+on conflict (vip_level, category) do update set discount = excluded.discount;
+
+insert into public.recharge_package (amount, bonus, status) values
+  (1000, 50, 'enabled'), (500, 10, 'enabled'), (1000, 25, 'enabled'), (3000, 100, 'enabled'), (5000, 200, 'enabled'), (10000, 500, 'enabled')
+on conflict do nothing;

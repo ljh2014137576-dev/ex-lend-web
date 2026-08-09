@@ -11,6 +11,7 @@ import { CustomerSelect } from "@/components/business/CustomerSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
 import { CUSTOMERS, EMPLOYEES, ORDERS, PRODUCTS, type Customer, type Employee, type Product, type PayMethod, type Order } from "@/lib/mock-data";
 import { apiCustomers, apiEmployees, apiOrders, apiProducts, rpcCreateOrderMulti } from "@/lib/supabase-api";
+import { supabase } from "@/lib/supabase";
 import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 
@@ -26,14 +27,16 @@ export default function CashierPage() {
   const [keyword, setKeyword] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [payMethod, setPayMethod] = useState<PayMethod>("cash"); // 默认现金（预收）：多数客户钱包余额为 0，用钱包会因余额不足被拦截
+  const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState<PayMethod>("cash"); // 默认现金；customer 就绪后按余额自动选择（余额>0→钱包，=0→现金）
+  const [walletModal, setWalletModal] = useState(false);
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [receipt, setReceipt] = useState<{ no: string; paid: number; discount: number; at: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [fail, setFail] = useState<string | null>(null);
   const [paidOverride, setPaidOverride] = useState("");
 
-  const { data: customers, real } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
+  const { data: customers, real, mutate: setCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: products, real: productsReal } = useResource<Product>("products", apiProducts, PRODUCTS);
@@ -45,6 +48,12 @@ export default function CashierPage() {
   const missingProducts = cartLines.filter((l) => !l.product);
 
   const customer = customers.find((c) => c.id === customerId) ?? customers[0] ?? null;
+
+  // 支付方式智能选择：钱包有余额→优先钱包；钱包为0→默认现金（依赖客户变化）
+  useEffect(() => {
+    setPayMethod(customer && customer.principal + customer.bonus > 0 ? "wallet" : "cash");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id]);
 
   useEffect(() => {
     if (customers.length === 0) return;
@@ -83,10 +92,12 @@ export default function CashierPage() {
   };
 
   const original = cartLines.reduce((s, l) => s + (l.product ? l.product.price * l.quantity : 0), 0);
-  const vipRate = customer ? (customer.type === "vip" ? (customer.vipLevel >= 3 ? 0.85 : 0.9) : 1) : 1;
+  // VIP 折扣：VIP1-3 无折扣=1；VIP4=0.99、VIP5=0.98、VIP6=0.97
+  const vipRate = customer && customer.type === "vip" ? (customer.vipLevel === 4 ? 0.99 : customer.vipLevel === 5 ? 0.98 : customer.vipLevel === 6 ? 0.97 : 1) : 1;
   const autoDiscount = customer && customer.type === "vip" ? original * (1 - vipRate) : 0;
   const autoPaid = original - autoDiscount;
-  const walletTotal = customer ? customer.principal + customer.bonus : 0;
+  // 钱包余额：待创建的新客户尚未入账，视为 0
+  const walletTotal = !newCustomerName && customer ? customer.principal + customer.bonus : 0;
 
   // 实际收款：留空 = 跟随系统应收（autoPaid）；可手动覆盖，范围 0 ~ 原价
   const paidText = paidOverride.trim();
@@ -96,25 +107,65 @@ export default function CashierPage() {
   const orderDiscount = original - effectivePaid;
   const fmtPaid = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : "");
 
-  const submit = async () => {
+  const doSubmit = async (pay: PayMethod) => {
     setHint(null);
     setFail(null);
-    if (!customer) return setHint("请选择客户");
+    if (!customer && !newCustomerName) return setHint("请选择或新建客户");
     if (cart.length === 0) return setHint("请先添加商品");
     if (session && !productsReal) return setHint("商品数据未加载成功，请稍后刷新重试");
     if (missingProducts.length > 0) return setHint("部分商品未加载或已失效，请移除后重试");
     if (!paidValid) return setHint("实际收款需在 0 与订单原价之间");
-    if (payMethod === "wallet" && walletTotal < effectivePaid) return setHint("客户钱包余额不足（本金+赠送 " + money(walletTotal) + "），可切换为现金（预收）");
+    // 钱包余额不足：弹窗提醒，不静默切换
+    if (pay === "wallet" && walletTotal < effectivePaid) {
+      setWalletModal(true);
+      return;
+    }
+
+    // 订单-客户一体化：新客户先创建再下单
+    let finalCustomerId = customer ? customer.id : "";
+    let orderCustomerName = customer ? customer.name : "";
+    let orderCustomerType: Customer["type"] = customer ? customer.type : "normal";
+    let orderVipLevel = customer ? customer.vipLevel : 0;
+
+    if (newCustomerName) {
+      let finalName = newCustomerName;
+      // 同名老客户：追加创建时间后缀，避免重名
+      if (customers.some((c) => c.name === finalName)) {
+        finalName = finalName + " " + new Date().toLocaleString("zh-CN").replace(/[/: ]/g, "-");
+      }
+      const { data: created, error: cErr } = await supabase
+        .from("customer")
+        .insert([{ name: finalName, type: "normal", status: "active" }])
+        .select("id")
+        .single();
+      if (cErr || !created) {
+        setFail("创建客户失败：" + (cErr?.message ?? "未知错误"));
+        return;
+      }
+      // 构造乐观客户入缓存，前端立即展示
+      setCustomers((prev) => [
+        ...prev,
+        { id: created.id, name: finalName, phone: "", type: "normal", vipLevel: 0, principal: 0, bonus: 0, pending: 0, total: 0, status: "active" },
+      ]);
+      setNewCustomerName(null);
+      setCustomerId(created.id);
+      finalCustomerId = created.id;
+      orderCustomerName = finalName;
+      orderCustomerType = "normal";
+      orderVipLevel = 0;
+    }
+
+    if (!finalCustomerId) return setHint("请选择或新建客户");
 
     // 先构造乐观订单入缓存，前端立即展示；同时后台提交；失败则回滚并弹窗
     const optimisticId = "tmp-" + Date.now();
     const optimistic: Order = {
       id: optimisticId,
       orderNo: "ORD" + new Date().toISOString().replace(/\D/g, "").slice(0, 14),
-      customerName: customer.name,
-      customerType: customer.type,
-      vipLevel: customer.vipLevel,
-      payMethod,
+      customerName: orderCustomerName,
+      customerType: orderCustomerType,
+      vipLevel: orderVipLevel,
+      payMethod: pay,
       original,
       paid: effectivePaid,
       discount: orderDiscount,
@@ -145,10 +196,10 @@ export default function CashierPage() {
     if (session) {
       // 真实会话：调用 create_order_multi RPC
       const { data, error } = await rpcCreateOrderMulti({
-        p_customer_id: customer.id,
+        p_customer_id: finalCustomerId,
         p_items: cartLines.map((l) => ({ product_id: l.product!.id, quantity: l.quantity })),
         p_employee_ids: employeeIds,
-        p_pay_method: payMethod,
+        p_pay_method: pay,
         p_paid_amount: paidText === "" ? null : effectivePaid,
       });
       if (error || data?.success === false) {
@@ -179,6 +230,8 @@ export default function CashierPage() {
     setEmployeeIds([]);
     setPaidOverride("");
   };
+
+  const submit = () => doSubmit(payMethod);
 
   return (
     <div className="space-y-6">
@@ -257,7 +310,7 @@ export default function CashierPage() {
 
             <div className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-xs">
               <div className="flex justify-between"><span className="text-muted">原价</span><span>{money(original)}</span></div>
-              {customer?.type === "vip" && (
+              {customer?.type === "vip" && autoDiscount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted">VIP{vipRate * 10}折（{customer?.name}）</span>
                   <span className="text-danger">-{money(autoDiscount)}</span>
@@ -305,7 +358,16 @@ export default function CashierPage() {
             <div className="space-y-4">
               <div className="space-y-1">
                 <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
-                <CustomerSelect value={customerId || customers[0]?.id || ""} onChange={setCustomerId} customers={customers} />
+                <CustomerSelect
+                  value={customerId || customers[0]?.id || ""}
+                  onChange={(id) => {
+                    setCustomerId(id);
+                    setNewCustomerName(null);
+                  }}
+                  customers={customers}
+                  onCreate={(name) => setNewCustomerName(name)}
+                  pendingNewName={newCustomerName}
+                />
               </div>
 
               <div className="space-y-1">
@@ -348,6 +410,27 @@ export default function CashierPage() {
           <p className="font-mono text-[11px] text-muted">该订单已从列表中移除，请重试。</p>
           <div className="flex justify-end">
             <Button variant="secondary" onClick={() => setFail(null)}>关闭</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 钱包余额不足弹窗：可切换现金（预收）继续下单 */}
+      <Modal open={walletModal} title="钱包余额不足" onClose={() => setWalletModal(false)}>
+        <div className="space-y-4">
+          <p className="text-sm">
+            客户钱包余额（本金+赠送）为 {money(walletTotal)}，不足以支付 {money(effectivePaid)}。是否切换为现金（预收）？
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setWalletModal(false)}>取消</Button>
+            <Button
+              onClick={() => {
+                setPayMethod("cash");
+                setWalletModal(false);
+                doSubmit("cash");
+              }}
+            >
+              切换现金
+            </Button>
           </div>
         </div>
       </Modal>

@@ -309,8 +309,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -361,8 +361,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -552,8 +552,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
@@ -608,8 +608,8 @@ begin
       select r.discount into v_rule_rate
       from public.vip_discount_rule r
       where r.vip_level = v_cust.vip_level
-        and (r.category_id = v_prod.category_id or (r.category_id is null and r.category = v_prod.category))
-      order by (r.category_id is not null) desc
+        and (r.category_id = v_prod.category_id or (r.category_id is null and (r.category = v_prod.category or r.category = '')))
+      order by case when r.category_id is not null then 2 when r.category = v_prod.category then 1 else 0 end desc
       limit 1;
       if found then v_item_rate := v_rule_rate; end if;
     end if;
