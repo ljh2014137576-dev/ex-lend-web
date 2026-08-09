@@ -122,8 +122,11 @@ export default function OrdersPage() {
   const sorted = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
-      const av = (a[sortKey] ?? 0) as string | number;
-      const bv = (b[sortKey] ?? 0) as string | number;
+      // 按时间排序必须用原始 ISO 时间（createdAt 是格式化字符串，字典序会把 10 号排到 9 号前）
+      const ka = sortKey === "createdAt" ? (a.createdAtRaw || a.createdAt) : (a[sortKey] ?? 0);
+      const kb = sortKey === "createdAt" ? (b.createdAtRaw || b.createdAt) : (b[sortKey] ?? 0);
+      const av = ka as string | number;
+      const bv = kb as string | number;
       const cmp =
         typeof av === "string"
           ? String(av).localeCompare(String(bv))

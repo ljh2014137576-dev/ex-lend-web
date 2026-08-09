@@ -233,6 +233,7 @@ export async function apiOrders(): Promise<Order[] | null> {
     operator: (r.creator as { name?: string } | null)?.name ?? "—",
     operatorId: r.operator_id ?? null,
     createdAt: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+    createdAtRaw: r.created_at ?? "",
     proofPath: null,
     items: [],
     members: (r.order_member ?? []).map((m) => ({
@@ -292,6 +293,7 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
     operator: "—",
     operatorId: data.operator_id ?? null,
     createdAt: data.created_at ? new Date(data.created_at).toLocaleString("zh-CN") : "—",
+    createdAtRaw: data.created_at ?? "",
     proofPath: data.proof_path ?? null,
     proofPaths: Array.isArray(data.proof_paths) ? data.proof_paths : data.proof_path ? [data.proof_path] : [],
     items,

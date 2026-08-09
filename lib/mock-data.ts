@@ -84,6 +84,8 @@ export interface Order {
   operator: string;
   // 创建人用户 id，用于判断是否本人可删
   operatorId?: string | null;
+    // 原始 ISO 时间（created_at），用于排序（createdAt 是格式化字符串不可比较）
+    createdAtRaw?: string;
   createdAt: string;
   proofPath?: string | null;
   proofPaths?: string[];
