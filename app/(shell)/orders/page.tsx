@@ -188,6 +188,9 @@ export default function OrdersPage() {
         />
         <div className="flex items-center gap-3">
           <DataSourceBadge real={real} />
+          <Button size="sm" variant="secondary" onClick={() => { void apiOrders().then((rows) => { if (Array.isArray(rows)) mutate(() => rows as Order[]); }); }} title="重新拉取订单（应对缓存陈旧）">
+            刷新
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => exportCsv(filtered, dateFrom, dateTo)} disabled={filtered.length === 0}>
             导出 CSV（{filtered.length}）
           </Button>
