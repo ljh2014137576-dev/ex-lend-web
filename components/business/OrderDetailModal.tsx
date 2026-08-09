@@ -45,6 +45,7 @@ export function OrderDetailModal({
   const [mockOrder, setMockOrder] = useState<Order | null>(null);
   const [proofs, setProofs] = useState<{ path: string; url: string }[]>([]);
   const [proofMsg, setProofMsg] = useState<string | null>(null);
+  const [previewProof, setPreviewProof] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [editCommissions, setEditCommissions] = useState(false);
@@ -345,6 +346,7 @@ export function OrderDetailModal({
   };
 
   return (
+    <>
     <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} xxl>
       {o ? (editOpen ? (
         <div className="space-y-4">
@@ -547,7 +549,7 @@ export function OrderDetailModal({
             )}
             {canEditCommission && <Button size="sm" variant="secondary" onClick={openCommissionEditor}>修改提成</Button>}
             {o.auditStatus === "approved" && <Button size="sm" variant="danger" onClick={rejectAudit}>驳回审核</Button>}
-            {isBoss && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>}
+            {(isBoss || (isManager && o.operatorId === session?.user?.id)) && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>}
           </div>
 
           {/* ⑥ 面板：提成 / 改价 / 删除（统一在底部展开，不打断内容流） */}
@@ -632,7 +634,13 @@ export function OrderDetailModal({
                 {proofs.map((pr) => (
                   <div key={pr.url} className="relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={pr.url} alt="支付凭证" className="max-h-40 w-full border border-line bg-surface object-contain" />
+                    <img
+                      src={pr.url}
+                      alt="支付凭证"
+                      title="双击预览"
+                      onDoubleClick={() => setPreviewProof(pr.url)}
+                      className="max-h-40 w-full cursor-zoom-in border border-line bg-surface object-contain"
+                    />
                     {pr.path && session && (
                       <button
                         type="button"
@@ -664,5 +672,13 @@ export function OrderDetailModal({
       )}
       <ReceiptEditor order={o} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
     </Modal>
+    <Modal open={!!previewProof} title="支付凭证预览" onClose={() => setPreviewProof(null)} wide>
+      <div className="space-y-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={previewProof ?? ""} alt="支付凭证预览" className="mx-auto max-h-[80vh] max-w-full object-contain" />
+        <p className="text-center font-mono text-[11px] text-muted">双击任意凭证可放大查看</p>
+      </div>
+    </Modal>
+    </>
   );
 }

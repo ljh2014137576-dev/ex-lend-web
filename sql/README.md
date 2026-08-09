@@ -65,3 +65,8 @@
 - 仓库 SQL 预存语法 bug：edit_order、correct_order 的 `p_pay_method pay_method` 与 `p_paid_amount numeric default null` 之间缺逗号，导致 ALL_IN_ONE 重建会在该处报 42601。
 - 已补逗号（6 参含 p_paid_amount，与前端传参与 grant 一致）；相关 revoke 改为 6 参。
 - 线上迁移见 `sql/order_member_123.sql`（v2，已含修复）。
+## 管理员删除自己创建的订单 + 新建员工 nickname 空值兜底（2026-08-09）
+
+- `delete_order`：权限由「仅老板」放宽为「老板 或 创建该订单的管理员」；先查订单（不存在则报错），再按 `v_order.operator_id = auth.uid()` 校验归属（需 `is_manager`）。
+- `batch_create_employees`：nickname 空值兜底为 `coalesce(nullif(v_row->>'nickname', ''), v_row->>'name', '员工')`，避免违反 not-null 约束。
+- 线上执行：`sql/order_manager_delete_employee_nickname.sql`（幂等）；重建库用 ALL_IN_ONE.sql（已含同等变更）。

@@ -702,7 +702,7 @@ begin
       nickname, name, phone, gender, alipay_account, id_card, bank_card,
       bank_name, deposit, wechat_id, remark, grade, status, bio, created_by
     ) values (
-      v_row->>'nickname',
+      coalesce(nullif(v_row->>'nickname', ''), v_row->>'name', '员工'),
       coalesce(nullif(v_row->>'name', ''), v_row->>'nickname'),
       nullif(v_row->>'phone', ''),
       case v_row->>'gender'
@@ -1561,13 +1561,13 @@ declare
   v_was_approved boolean := false;
   v_was_refunded boolean := false;
 begin
-  if not public.is_boss() then
-    return jsonb_build_object('success', false, 'message', '仅老板可以删除订单');
-  end if;
-
   select * into v_order from public."order" where id = p_order_id for update;
   if not found then
     return jsonb_build_object('success', false, 'message', '订单不存在');
+  end if;
+
+  if not (public.is_boss() or (public.is_manager() and v_order.operator_id = auth.uid())) then
+    return jsonb_build_object('success', false, 'message', '仅老板或创建该订单的管理员可删除');
   end if;
 
   v_was_approved := v_order.audit_status = 'approved';

@@ -139,6 +139,8 @@ export default function EmployeesPage() {
         .insert([
           {
             name: optimistic.name,
+            // nickname 必填，取昵称兜底（防线上列无默认值报错）
+            nickname: optimistic.name,
             grade: optimistic.grade,
             status: optimistic.status,
           },

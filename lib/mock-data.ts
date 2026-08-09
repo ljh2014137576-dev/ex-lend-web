@@ -82,6 +82,8 @@ export interface Order {
   status: OrderStatus;
   auditStatus: AuditStatus;
   operator: string;
+  // 创建人用户 id，用于判断是否本人可删
+  operatorId?: string | null;
   createdAt: string;
   proofPath?: string | null;
   proofPaths?: string[];

@@ -25,7 +25,7 @@ export default function OrderDetailPage() {
   const [localOrder, setLocalOrder] = useState<Order | null>(null);
   const [realDetail, setRealDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const { session } = useAuth();
+  const { session, isBoss, isManager } = useAuth();
 
   // 优先用缓存订单立即渲染；真实详情（含明细/成员）异步到达后合并
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function OrderDetailPage() {
           <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
           <Link href="/audit"><Button size="sm">去审核</Button></Link>
           <BossOnly><Button size="sm" variant="danger" onClick={() => setRefundOpen(true)} disabled={o.status === "cancelled"}>退款</Button></BossOnly>
-          <BossOnly><Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={o.status !== "booking" || o.auditStatus !== "pending"}>删除</Button></BossOnly>
+          {(isBoss || (isManager && o.operatorId === session?.user?.id)) && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={o.status !== "booking" || o.auditStatus !== "pending"}>删除</Button>}
         </div>
       </div>
 

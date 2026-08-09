@@ -93,7 +93,7 @@ begin
       nickname, name, phone, gender, alipay_account, id_card, bank_card,
       bank_name, deposit, wechat_id, remark, grade, status, bio, created_by
     ) values (
-      v_row->>'nickname',
+      coalesce(nullif(v_row->>'nickname', ''), v_row->>'name', '员工'),
       coalesce(nullif(v_row->>'name', ''), v_row->>'nickname'),
       nullif(v_row->>'phone', ''),
       case v_row->>'gender'

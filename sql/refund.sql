@@ -19,13 +19,13 @@ declare
   v_was_approved boolean := false;
   v_was_refunded boolean := false;
 begin
-  if not public.is_boss() then
-    return jsonb_build_object('success', false, 'message', '仅老板可以删除订单');
-  end if;
-
   select * into v_order from public."order" where id = p_order_id for update;
   if not found then
     return jsonb_build_object('success', false, 'message', '订单不存在');
+  end if;
+
+  if not (public.is_boss() or (public.is_manager() and v_order.operator_id = auth.uid())) then
+    return jsonb_build_object('success', false, 'message', '仅老板或创建该订单的管理员可删除');
   end if;
 
   v_was_approved := v_order.audit_status = 'approved';
