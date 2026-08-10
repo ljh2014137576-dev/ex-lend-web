@@ -20,99 +20,109 @@ export function CustomerSelect({
   pendingNewName?: string | null;
 }) {
   const [keyword, setKeyword] = useState("");
-  const [open, setOpen] = useState(false);
+  const [focus, setFocus] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const customer = customers.find((c) => c.id === value);
-  const filtered = customers.filter(
-    (c) => keyword === "" || c.name.includes(keyword) || c.phone.includes(keyword),
-  );
-  // 搜索关键词非空、且没有客户姓名与关键词完全相等时，显示“新建客户”项
+  const selected = customers.find((c) => c.id === value) ?? null;
   const kw = keyword.trim();
-  const showCreate = onCreate != null && kw !== "" && !customers.some((c) => c.name === kw);
 
+  // 父组件自动选中默认客户（customers[0]）时，把名称同步进输入框，让“选中态”可见
   useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+    if (selected && keyword === "") setKeyword(selected.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, customers]);
+
+  const matches = customers.filter(
+    (c) => kw === "" || c.name.includes(kw) || c.phone.includes(kw),
+  );
+  // 无完全同名 → 显示“＋ 新建客户”；有完全同名 → 仅行内“作为新客户”按钮
+  const exactMatch = matches.some((c) => c.name === kw);
+  const showCreate = onCreate != null && kw !== "" && !exactMatch;
+  const selectedByName = selected != null && selected.name === kw;
+  const showList = focus;
+
+  const pick = (id: string, name: string) => {
+    onChange(id);
+    setKeyword(name);
+    setFocus(false);
+  };
+
+  const create = (name: string) => {
+    if (onCreate) onCreate(name);
+    setFocus(false);
+  };
 
   return (
-    <div ref={wrapRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2 text-left text-sm transition-colors hover:bg-surface2"
-      >
-        {pendingNewName ? (
-          <span>新客户：{pendingNewName}</span>
-        ) : customer ? (
-          <span>
-            {customer.name}
-            {customer.type === "vip" ? `（VIP${customer.vipLevel}）` : ""}
-            <span className="ml-2 font-mono text-[11px] text-muted">余额 {money(customer.principal + customer.bonus)}</span>
-          </span>
-        ) : (
-          <span className="text-muted">选择客户</span>
-        )}
-        <span className="font-mono text-[10px] text-muted">▾</span>
-      </button>
+    <div
+      ref={wrapRef}
+      className="space-y-2"
+      onBlur={(e) => {
+        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setFocus(false);
+      }}
+    >
+      <Input
+        value={keyword}
+        onChange={(e) => setKeyword(e.target.value)}
+        onFocus={() => setFocus(true)}
+        placeholder="输入客户名称 / 手机号…"
+      />
 
-      {open && (
-        <div className="absolute z-30 mt-1 w-full rounded-md border border-line bg-surface shadow-md">
-          <div className="border-b border-line p-2">
-            <Input
-              autoFocus
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索姓名 / 手机号…"
-            />
-          </div>
-          <ul className="max-h-56 overflow-y-auto">
-            {showCreate && (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onCreate(kw);
-                    setOpen(false);
-                    setKeyword("");
-                  }}
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-surface2"
-                >
-                  <span>＋ 新建客户：{kw}</span>
-                </button>
-              </li>
-            )}
-            {filtered.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange(c.id);
-                    setOpen(false);
-                    setKeyword("");
-                  }}
-                  className={[
-                    "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-surface2",
-                    c.id === value ? "bg-nav-active text-nav-active-text" : "",
-                  ].join(" ")}
-                >
-                  <span>
+      {pendingNewName && (
+        <p className="flex items-center gap-1.5 rounded-md border border-dashed border-line bg-paper px-2 py-1.5 font-mono text-[11px]">
+          <span className="text-ink">＋ 新客户：{pendingNewName}</span>
+          <span className="text-muted">（随下单创建）</span>
+        </p>
+      )}
+
+      {showList && (
+        <ul className="max-h-60 divide-y divide-line overflow-y-auto rounded-md border border-line bg-paper">
+          {showCreate && (
+            <li>
+              <button
+                type="button"
+                onClick={() => create(kw)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface2"
+              >
+                <span className="text-ink">＋ 新建客户：{kw}</span>
+              </button>
+            </li>
+          )}
+
+          {matches.map((c) => (
+            <li key={c.id}>
+              <div
+                className={[
+                  "flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface2",
+                  c.id === value && selectedByName ? "bg-nav-active text-nav-active-text hover:bg-nav-active" : "",
+                ].join(" ")}
+              >
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => pick(c.id, c.name)}>
+                  <span className="block truncate">
                     {c.name}
                     {c.type === "vip" ? ` · VIP${c.vipLevel}` : ""}
                   </span>
-                  <span className="font-mono text-[11px] opacity-70">{money(c.principal + c.bonus)}</span>
+                  <span className="block font-mono text-[11px] text-muted">
+                    余额 {money(c.principal + c.bonus)}
+                  </span>
                 </button>
-              </li>
-            ))}
-            {filtered.length === 0 && !showCreate && (
-              <li className="px-3 py-4 font-mono text-xs text-muted">无匹配客户</li>
-            )}
-          </ul>
-        </div>
+                {onCreate != null && c.name === kw && (
+                  <button
+                    type="button"
+                    onClick={() => create(c.name)}
+                    title="同名老客户，作为新客户创建"
+                    className="shrink-0 rounded-md border border-line px-2 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-surface2 hover:text-ink"
+                  >
+                    作为新客户
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+
+          {matches.length === 0 && !showCreate && (
+            <li className="px-3 py-4 font-mono text-xs text-muted">无匹配客户</li>
+          )}
+        </ul>
       )}
     </div>
   );

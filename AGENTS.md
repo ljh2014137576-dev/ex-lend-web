@@ -57,7 +57,3 @@
 - 每条日志固定包含：编号、日期时间、任务、做了什么、涉及文件、提交、索引刷新、结果与下一步。
 - 维护 `logs/INDEX.md` 索引：记录每个日志文件的条目范围、日期范围与摘要；新建日志文件后立即更新索引。
 - 日志写入后随 Git 一起提交，保证日志本身可追溯。
-## SQL 阅读规则
-
-- 涉及 Ex-Lend SQL 时，先查 `sql/README.md` 模块索引，只读所需模块文件（schema/rls/triggers/customer/employee/order/commission/refund/system/auth/seed），不要整读 ALL_IN_ONE.sql。
-- 模块文件仅作阅读参考，执行/重建数据库一律使用 `ALL_IN_ONE.sql`。

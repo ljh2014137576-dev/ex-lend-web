@@ -9,17 +9,61 @@ import { Input } from "@/components/ui/Input";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { CustomerSelect } from "@/components/business/CustomerSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
-import { CUSTOMERS, EMPLOYEES, ORDERS, PRODUCTS, type Customer, type Employee, type Product, type PayMethod, type Order } from "@/lib/mock-data";
-import { apiCustomers, apiEmployees, apiOrders, apiProducts, rpcCreateOrderMulti } from "@/lib/supabase-api";
+import { ReceiptEditor } from "@/components/business/ReceiptEditor";
+import {
+  CUSTOMERS,
+  EMPLOYEES,
+  ORDERS,
+  PRODUCTS,
+  VIP_DISCOUNT_RULES,
+  type Customer,
+  type Employee,
+  type Product,
+  type PayMethod,
+  type Order,
+  type VipDiscountRule,
+} from "@/lib/mock-data";
+import { apiCustomers, apiEmployees, apiOrders, apiProducts, apiVipDiscountRules, rpcCreateOrderMulti } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 interface CartLine {
   productId: string;
   quantity: number;
+}
+
+interface CartLineCalc {
+  productId: string;
+  quantity: number;
+  product: Product | undefined;
+  original: number;
+  rate: number;
+  paid: number;
+}
+
+// 与后端 create_order_multi 的匹配优先级一致：同 vipLevel 内
+// ① category_id 精确匹配 → ② category 文本匹配 → ③ 空串兜底（categoryId 为 null 且 category 为空串）；无匹配返回 1
+function resolveVipRate(
+  rules: VipDiscountRule[],
+  vipLevel: number,
+  categoryId: string | null | undefined,
+  category: string,
+): number {
+  if (vipLevel <= 0) return 1;
+  const level = rules.filter((r) => r.vipLevel === vipLevel);
+  if (level.length === 0) return 1;
+  const byId = level.find((r) => r.categoryId != null && categoryId != null && r.categoryId === categoryId);
+  if (byId) return byId.discount;
+  const byCategory = level.find(
+    (r) => (r.categoryId == null || r.categoryId === "") && r.category !== "" && r.category === category,
+  );
+  if (byCategory) return byCategory.discount;
+  const fallback = level.find((r) => (r.categoryId == null || r.categoryId === "") && r.category === "");
+  return fallback ? fallback.discount : 1;
 }
 
 export default function CashierPage() {
@@ -35,19 +79,23 @@ export default function CashierPage() {
   const [hint, setHint] = useState<string | null>(null);
   const [fail, setFail] = useState<string | null>(null);
   const [paidOverride, setPaidOverride] = useState("");
+  // 最近一次下单成功的订单：驱动右侧小票摘要与 ReceiptEditor
+  const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const { data: customers, real, mutate: setCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: products, real: productsReal } = useResource<Product>("products", apiProducts, PRODUCTS);
+  const { data: vipDiscounts } = useResource<VipDiscountRule>("vipDiscounts", apiVipDiscountRules, VIP_DISCOUNT_RULES);
   const { session } = useAuth();
+
+  const customer = customers.find((c) => c.id === customerId) ?? customers[0] ?? null;
 
   // 购物车按 productId 存储，渲染/提交时从当前商品数据实时解析，避免 Mock 占位商品（非 UUID id）被提交到后端
   const resolveProduct = (id: string) => products.find((p) => p.id === id);
   const cartLines = cart.map((l) => ({ ...l, product: resolveProduct(l.productId) }));
   const missingProducts = cartLines.filter((l) => !l.product);
-
-  const customer = customers.find((c) => c.id === customerId) ?? customers[0] ?? null;
 
   // 支付方式智能选择：钱包有余额→优先钱包；钱包为0→默认现金（依赖客户变化）
   useEffect(() => {
@@ -91,11 +139,28 @@ export default function CashierPage() {
     setCart((prev) => prev.map((l) => (l.productId === id ? { ...l, quantity: qty } : l)));
   };
 
-  const original = cartLines.reduce((s, l) => s + (l.product ? l.product.price * l.quantity : 0), 0);
-  // VIP 折扣：VIP1-3 无折扣=1；VIP4=0.99、VIP5=0.98、VIP6=0.97
-  const vipRate = customer && customer.type === "vip" ? (customer.vipLevel === 4 ? 0.99 : customer.vipLevel === 5 ? 0.98 : customer.vipLevel === 6 ? 0.97 : 1) : 1;
-  const autoDiscount = customer && customer.type === "vip" ? original * (1 - vipRate) : 0;
-  const autoPaid = original - autoDiscount;
+  // VIP 折扣改为读 vip_discount_rule 表：每一行商品独立计算折扣率
+  // linePaid = round(lineOriginal × lineRate, 2)；autoPaid = Σ linePaid；autoDiscount = original - autoPaid
+  const lineCalcs: CartLineCalc[] = cartLines.map((l) => {
+    const original = l.product ? l.product.price * l.quantity : 0;
+    const rate =
+      l.product && customer && customer.type === "vip"
+        ? resolveVipRate(vipDiscounts, customer.vipLevel, l.product.categoryId, l.product.category)
+        : 1;
+    return { productId: l.productId, quantity: l.quantity, product: l.product, original, rate, paid: round2(original * rate) };
+  });
+  const original = lineCalcs.reduce((s, l) => s + l.original, 0);
+  const autoPaid = lineCalcs.reduce((s, l) => s + l.paid, 0);
+  const autoDiscount = original - autoPaid;
+
+  // 折扣展示：多行商品折扣率不同时只显示“VIP 折扣”；无折扣则不显示
+  const discountLines = lineCalcs.filter((l) => l.product && l.rate < 1);
+  const distinctRates = [...new Set(discountLines.map((l) => l.rate))];
+  const vipDiscountLabel =
+    discountLines.length > 0 && distinctRates.length === 1
+      ? `VIP${Math.round(distinctRates[0] * 100) / 10}折（${customer?.name}）`
+      : `VIP 折扣（${customer?.name}）`;
+
   // 钱包余额：待创建的新客户尚未入账，视为 0
   const walletTotal = !newCustomerName && customer ? customer.principal + customer.bonus : 0;
 
@@ -178,20 +243,22 @@ export default function CashierPage() {
       createdAt: new Date().toLocaleString("zh-CN"),
       proofPath: null,
       proofPaths: [],
-      items: cartLines.map((l) => ({
+      items: lineCalcs.map((l) => ({
         productName: l.product!.name,
         category: l.product!.category,
         unitPrice: l.product!.price,
         quantity: l.quantity,
-        original: l.product!.price * l.quantity,
-        discount: 0,
-        paid: l.product!.price * l.quantity,
+        original: l.original,
+        discount: l.original - l.paid,
+        paid: l.paid,
         commissionType: l.product!.commissionType,
       })),
       members: [],
     };
     setOrders((prev) => [optimistic, ...prev]);
     setReceipt(null);
+
+    let finalOrder: Order = optimistic;
 
     if (session) {
       // 真实会话：调用 create_order_multi RPC
@@ -209,23 +276,20 @@ export default function CashierPage() {
         return;
       }
       // 成功：用真实 order_id/order_no 替换乐观条目（后续后台刷新会同步完整数据）
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === optimisticId
-            ? {
-                ...o,
-                id: data.order_id ?? o.id,
-                orderNo: data.order_no ?? o.orderNo,
-                paid: Number(data.paid_amount ?? o.paid),
-                discount: Number(data.discount ?? o.discount),
-              }
-            : o,
-        ),
-      );
+      finalOrder = {
+        ...optimistic,
+        id: data.order_id ?? optimistic.id,
+        orderNo: data.order_no ?? optimistic.orderNo,
+        paid: Number(data.paid_amount ?? optimistic.paid),
+        discount: Number(data.discount ?? optimistic.discount),
+      };
+      setOrders((prev) => prev.map((o) => (o.id === optimisticId ? finalOrder : o)));
       setReceipt({ no: data.order_no, paid: Number(data.paid_amount), discount: Number(data.discount ?? 0), at: new Date().toLocaleString("zh-CN") });
     } else {
       setReceipt({ no: optimistic.orderNo, paid: effectivePaid, discount: orderDiscount, at: new Date().toLocaleString("zh-CN") });
     }
+    setLastOrder(finalOrder);
+    setReceiptOpen(true);
     setCart([]);
     setEmployeeIds([]);
     setPaidOverride("");
@@ -247,34 +311,35 @@ export default function CashierPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-5">
-        <Panel title="商品目录" meta={`${filteredProducts.length} 项在售`} className="lg:col-span-3">
-          <div className="mb-4 space-y-3">
-            <Input placeholder="搜索商品名称 / 分类…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-            <FilterTabs tabs={categories} active={category} onChange={setCategory} />
-          </div>
-          <ul className="divide-y divide-line border border-line bg-surface">
-            {filteredProducts.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => add(p)}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface2"
-                >
-                  <span>
-                    <span className="block text-sm">{p.name}</span>
-                    <span className="block font-mono text-[11px] text-muted">
-                      {p.category} · {p.commissionType === "grade" ? "按等级提成" : "固定提成"}
+        {/* 左侧（lg:col-span-3）：创建订单的全部信息 */}
+        <div className="space-y-6 lg:col-span-3">
+          <Panel title="商品目录" meta={`${filteredProducts.length} 项在售`}>
+            <div className="mb-4 space-y-3">
+              <Input placeholder="搜索商品名称 / 分类…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+              <FilterTabs tabs={categories} active={category} onChange={setCategory} />
+            </div>
+            <ul className="divide-y divide-line border border-line bg-surface">
+              {filteredProducts.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => add(p)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface2"
+                  >
+                    <span>
+                      <span className="block text-sm">{p.name}</span>
+                      <span className="block font-mono text-[11px] text-muted">
+                        {p.category} · {p.commissionType === "grade" ? "按等级提成" : "固定提成"}
+                      </span>
                     </span>
-                  </span>
-                  <span className="font-mono text-sm tabular-nums">{money(p.price)}</span>
-                </button>
-              </li>
-            ))}
-            {filteredProducts.length === 0 && <li className="px-3 py-6 font-mono text-xs text-muted">无匹配商品</li>}
-          </ul>
-        </Panel>
+                    <span className="font-mono text-sm tabular-nums">{money(p.price)}</span>
+                  </button>
+                </li>
+              ))}
+              {filteredProducts.length === 0 && <li className="px-3 py-6 font-mono text-xs text-muted">无匹配商品</li>}
+            </ul>
+          </Panel>
 
-        <div className="space-y-6 lg:col-span-2">
           <Panel title="订单篮" meta={`${cart.reduce((s, l) => s + l.quantity, 0)} 件`}>
             {cart.length === 0 ? (
               <p className="py-6 text-center font-mono text-xs text-muted">点击左侧商品加入</p>
@@ -310,9 +375,9 @@ export default function CashierPage() {
 
             <div className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-xs">
               <div className="flex justify-between"><span className="text-muted">原价</span><span>{money(original)}</span></div>
-              {customer?.type === "vip" && autoDiscount > 0 && (
+              {autoDiscount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted">VIP{vipRate * 10}折（{customer?.name}）</span>
+                  <span className="text-muted">{vipDiscountLabel}</span>
                   <span className="text-danger">-{money(autoDiscount)}</span>
                 </div>
               )}
@@ -357,9 +422,9 @@ export default function CashierPage() {
           <Panel title="客户与支付">
             <div className="space-y-4">
               <div className="space-y-1">
-                <span className="font-mono text-[11px] text-muted">客户（可搜索）</span>
+                <span className="font-mono text-[11px] text-muted">客户（输入名称搜索，可顺带新建）</span>
                 <CustomerSelect
-                  value={customerId || customers[0]?.id || ""}
+                  value={customerId}
                   onChange={(id) => {
                     setCustomerId(id);
                     setNewCustomerName(null);
@@ -402,7 +467,47 @@ export default function CashierPage() {
             提交订单 {cart.length > 0 ? `（${money(effectivePaid)}）` : ""}
           </Button>
         </div>
+
+        {/* 右侧（lg:col-span-2）：小票系统 */}
+        <Panel title="小票系统" meta="下单后自动生成" className="lg:col-span-2">
+          {lastOrder ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-line bg-paper p-3 font-mono text-xs">
+                <div className="flex justify-between"><span className="text-muted">订单号</span><span>{lastOrder.orderNo}</span></div>
+                <div className="flex justify-between"><span className="text-muted">客户</span><span>{lastOrder.customerName}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-muted">支付方式</span>
+                  <span>{lastOrder.payMethod === "wallet" ? "钱包（质押）" : "现金（预收）"}</span>
+                </div>
+                <div className="flex justify-between"><span className="text-muted">实付</span><span>{money(lastOrder.paid)}</span></div>
+                {lastOrder.discount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted">折扣</span>
+                    <span className="text-danger">-{money(lastOrder.discount)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="mb-1 font-mono text-[11px] text-muted">商品清单</p>
+                <ul className="divide-y divide-line rounded-md border border-line bg-paper font-mono text-xs">
+                  {lastOrder.items.map((it, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2 px-3 py-1.5">
+                      <span className="min-w-0 truncate">{it.productName} × {it.quantity}</span>
+                      <span className="tabular-nums">{money(it.paid)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <Button className="w-full" onClick={() => setReceiptOpen(true)}>生成小票</Button>
+            </div>
+          ) : (
+            <p className="py-10 text-center font-mono text-xs text-muted">下单成功后小票将在这里生成</p>
+          )}
+        </Panel>
       </div>
+
       {/* 下单失败弹窗 */}
       <Modal open={!!fail} title="下单失败" onClose={() => setFail(null)}>
         <div className="space-y-4">
@@ -434,6 +539,9 @@ export default function CashierPage() {
           </div>
         </div>
       </Modal>
+
+      {/* 小票编辑器：下单成功后自动弹出 */}
+      <ReceiptEditor order={lastOrder} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
     </div>
   );
 }
