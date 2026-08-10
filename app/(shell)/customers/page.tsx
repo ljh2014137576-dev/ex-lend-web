@@ -8,13 +8,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { CUSTOMERS, CUSTOMER_LEDGERS, type Customer } from "@/lib/mock-data";
+import { CUSTOMERS, CUSTOMER_LEDGERS, RECHARGE_PACKAGES, type Customer, type RechargePackage } from "@/lib/mock-data";
 import { customerLedgerTypeLabel } from "@/lib/ledger";
-import { apiCustomers } from "@/lib/supabase-api";
+import { apiCustomers, apiRechargePackages, rpcRechargeCustom, apiCustomerLedgers } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { supabase } from "@/lib/supabase";
-import { rpcRechargeCustom, apiCustomerLedgers } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
@@ -32,6 +31,7 @@ interface LedgerEntry {
 export default function CustomersPage() {
   const { data: customers, real, error, loading, mutate: setCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: ledgers, mutate: setLedgers } = useResource<LedgerEntry>("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
+  const { data: packages, loading: packagesLoading } = useResource<RechargePackage>("rechargePackages", apiRechargePackages, RECHARGE_PACKAGES);
   const [keyword, setKeyword] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [rechargeTarget, setRechargeTarget] = useState<Customer | null>(null);
@@ -204,25 +204,24 @@ export default function CustomersPage() {
           </div>
           {recharge.mode === "package" ? (
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { amount: 500, bonus: 50 },
-                { amount: 1000, bonus: 150 },
-                { amount: 2000, bonus: 400 },
-                { amount: 5000, bonus: 1200 },
-              ].map((pkg) => (
-                <button
-                  key={pkg.amount}
-                  type="button"
-                  onClick={() => setRecharge({ ...recharge, amount: pkg.amount, bonus: pkg.bonus })}
-                  className={[
-                    "rounded-md border px-3 py-2 text-left text-xs transition-colors",
-                    recharge.amount === pkg.amount && recharge.bonus === pkg.bonus ? "border-ink bg-ink text-paper" : "border-line bg-paper hover:bg-surface2",
-                  ].join(" ")}
-                >
-                  <span className="block font-mono">充值 {money(pkg.amount)}</span>
-                  <span className="block font-mono text-[11px] opacity-70">赠送 {money(pkg.bonus)}</span>
-                </button>
-              ))}
+              {packagesLoading ? (
+                <p className="col-span-2 py-2 text-center font-mono text-[11px] text-muted">套餐加载中…</p>
+              ) : (
+                packages.map((pkg) => (
+                  <button
+                    key={pkg.id ?? pkg.amount}
+                    type="button"
+                    onClick={() => setRecharge({ ...recharge, amount: pkg.amount, bonus: pkg.bonus })}
+                    className={[
+                      "rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                      recharge.amount === pkg.amount && recharge.bonus === pkg.bonus ? "border-ink bg-ink text-paper" : "border-line bg-paper hover:bg-surface2",
+                    ].join(" ")}
+                  >
+                    <span className="block font-mono">充值 {money(pkg.amount)}</span>
+                    <span className="block font-mono text-[11px] opacity-70">赠送 {money(pkg.bonus)}</span>
+                  </button>
+                ))
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">

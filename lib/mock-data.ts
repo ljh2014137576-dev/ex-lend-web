@@ -330,9 +330,12 @@ export const VIP_UPGRADE_RULES: VipUpgradeRule[] = [
 ];
 
 export const RECHARGE_PACKAGES: RechargePackage[] = [
-  { id: "rp1", amount: 500, bonus: 50, status: "enabled" },
-  { id: "rp2", amount: 1000, bonus: 150, status: "enabled" },
-  { id: "rp3", amount: 2000, bonus: 400, status: "disabled" },
+  { id: "rp1", amount: 500, bonus: 10, status: "enabled" },
+  { id: "rp2", amount: 1000, bonus: 50, status: "enabled" },
+  { id: "rp3", amount: 1000, bonus: 25, status: "enabled" },
+  { id: "rp4", amount: 3000, bonus: 100, status: "enabled" },
+  { id: "rp5", amount: 5000, bonus: 200, status: "enabled" },
+  { id: "rp6", amount: 10000, bonus: 500, status: "enabled" },
 ];
 
 export const TODOS: Todo[] = [
