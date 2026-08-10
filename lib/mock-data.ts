@@ -122,6 +122,17 @@ export const PRODUCTS: Product[] = [
   { id: "p8", name: "和平精英 王牌", category: "正常单", categoryId: "g4", price: 300, commissionType: "grade", fixedRate: null, status: "off_shelf" },
 ];
 
+// 收银台「常用」商品：按历史下单频率从 PRODUCTS 里挑选，顺序即常用度排序（模拟 Top 12）
+export const TOP_PRODUCTS: Product[] = [
+  { id: "p1", name: "王者荣耀代练 100星", category: "手游大于300", categoryId: "g2", price: 480, commissionType: "grade", fixedRate: null, status: "on_sale" },
+  { id: "p5", name: "英雄联盟排位 大师", category: "手游大于300", categoryId: "g2", price: 520, commissionType: "grade", fixedRate: null, status: "on_sale" },
+  { id: "p6", name: "体验单-咨询", category: "体验单", categoryId: "g1", price: 30, commissionType: "fixed", fixedRate: 0.05, status: "on_sale" },
+  { id: "p2", name: "原神代肝 45级", category: "手游小于300", categoryId: "g3", price: 260, commissionType: "fixed", fixedRate: 0.08, status: "on_sale" },
+  { id: "p3", name: "王者荣耀代练 50星", category: "手游小于300", categoryId: "g3", price: 180, commissionType: "fixed", fixedRate: 0.08, status: "on_sale" },
+  { id: "p4", name: "梦幻西游跑环", category: "正常单", categoryId: "g4", price: 120, commissionType: "fixed", fixedRate: 0.1, status: "on_sale" },
+  { id: "p7", name: "穿越火线 枪王段位", category: "手游小于300", categoryId: "g3", price: 220, commissionType: "fixed", fixedRate: 0.08, status: "on_sale" },
+];
+
 export const ORDERS: Order[] = [
   {
     id: "o1", orderNo: "ORD20260801103001", customerName: "张三", customerType: "vip", vipLevel: 3,

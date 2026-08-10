@@ -15,6 +15,7 @@ import {
   EMPLOYEES,
   ORDERS,
   PRODUCTS,
+  TOP_PRODUCTS,
   VIP_DISCOUNT_RULES,
   type Customer,
   type Employee,
@@ -23,7 +24,7 @@ import {
   type Order,
   type VipDiscountRule,
 } from "@/lib/mock-data";
-import { apiCustomers, apiEmployees, apiOrders, apiProducts, apiVipDiscountRules, rpcCreateOrderMulti } from "@/lib/supabase-api";
+import { apiCustomers, apiEmployees, apiOrders, apiProducts, apiTopProducts, apiVipDiscountRules, rpcCreateOrderMulti } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
@@ -69,6 +70,7 @@ function resolveVipRate(
 export default function CashierPage() {
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
+  const [catalogMode, setCatalogMode] = useState<"popular" | "all">("popular"); // 商品目录默认「常用」
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
@@ -87,6 +89,7 @@ export default function CashierPage() {
   const { mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: products, real: productsReal } = useResource<Product>("products", apiProducts, PRODUCTS);
+  const { data: topProducts } = useResource<Product>("topProducts", apiTopProducts, TOP_PRODUCTS);
   const { data: vipDiscounts } = useResource<VipDiscountRule>("vipDiscounts", apiVipDiscountRules, VIP_DISCOUNT_RULES);
   const { session } = useAuth();
 
@@ -123,6 +126,11 @@ export default function CashierPage() {
       ),
     [category, keyword, products],
   );
+
+  // 「常用」模式：展示历史下单最多的商品；未加载成功或为空时回退显示全部在售商品，避免目录空白
+  const popularProducts = useMemo(() => topProducts.filter((p) => p.status === "on_sale"), [topProducts]);
+  const catalogProducts =
+    catalogMode === "popular" ? (popularProducts.length > 0 ? popularProducts : filteredProducts) : filteredProducts;
 
   const add = (p: Product) => {
     setReceipt(null);
@@ -313,13 +321,29 @@ export default function CashierPage() {
       <div className="grid gap-6 lg:grid-cols-5">
         {/* 左侧（lg:col-span-3）：创建订单的全部信息 */}
         <div className="space-y-6 lg:col-span-3">
-          <Panel title="商品目录" meta={`${filteredProducts.length} 项在售`}>
+          <Panel title="商品目录" meta={`${catalogProducts.length} 项在售`}>
             <div className="mb-4 space-y-3">
+              <div className="flex gap-1">
+                {([["popular", "常用"], ["all", "全部"]] as const).map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setCatalogMode(m)}
+                    aria-pressed={catalogMode === m}
+                    className={[
+                      "flex-1 rounded-md px-3 py-2 text-xs transition-colors",
+                      catalogMode === m ? "bg-nav-active text-nav-active-text" : "border border-line bg-paper hover:bg-surface2",
+                    ].join(" ")}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <Input placeholder="搜索商品名称 / 分类…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
               <FilterTabs tabs={categories} active={category} onChange={setCategory} />
             </div>
             <ul className="divide-y divide-line border border-line bg-surface">
-              {filteredProducts.map((p) => (
+              {catalogProducts.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
@@ -336,7 +360,7 @@ export default function CashierPage() {
                   </button>
                 </li>
               ))}
-              {filteredProducts.length === 0 && <li className="px-3 py-6 font-mono text-xs text-muted">无匹配商品</li>}
+              {catalogProducts.length === 0 && <li className="px-3 py-6 font-mono text-xs text-muted">无匹配商品</li>}
             </ul>
           </Panel>
 

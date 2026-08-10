@@ -197,6 +197,59 @@ export async function apiDeletedProducts(): Promise<Product[] | null> {
   }));
 }
 
+// 收银台「常用商品目录」：后端 RPC top_products_by_orders 按历史下单次数返回 Top N 在售商品
+export interface TopProductRow {
+  productId: string;
+  name: string;
+  category: string;
+  categoryId: string | null;
+  price: number;
+  commissionType: "fixed" | "grade";
+  fixedRate: number | null;
+  status: "on_sale" | "off_shelf";
+  orderCount: number;
+}
+
+// RPC 返回行的原始形状（PostgREST 不做类型推导，需显式标注）
+interface TopProductsRawRow {
+  product_id: string;
+  name: string;
+  category: string | null;
+  category_id: string | null;
+  price: number;
+  commission_type: string;
+  fixed_rate: number | null;
+  status: string;
+  order_count: number;
+}
+
+export async function apiTopProducts(): Promise<Product[] | null> {
+  const { data } = await supabase.rpc("top_products_by_orders", { p_limit: 12 });
+  if (!data) return null;
+  const rows: TopProductRow[] = (data as TopProductsRawRow[]).map((r) => ({
+    productId: r.product_id,
+    name: r.name,
+    category: r.category ?? "",
+    categoryId: r.category_id ?? null,
+    price: Number(r.price ?? 0),
+    commissionType: r.commission_type === "grade" ? "grade" : "fixed",
+    fixedRate: r.fixed_rate != null ? Number(r.fixed_rate) : null,
+    status: r.status === "off_shelf" ? "off_shelf" : "on_sale",
+    orderCount: Number(r.order_count ?? 0),
+  }));
+  // 转成 Product 形状，供页面 useResource<Product> 与购物车直接使用（orderCount 仅用于后端排序）
+  return rows.map((r) => ({
+    id: r.productId,
+    name: r.name,
+    category: r.category,
+    categoryId: r.categoryId,
+    price: r.price,
+    commissionType: r.commissionType,
+    fixedRate: r.fixedRate,
+    status: r.status,
+  }));
+}
+
 export async function apiCategories(): Promise<ProductCategory[] | null> {
   const { data } = await supabase
     .from("product_category")
