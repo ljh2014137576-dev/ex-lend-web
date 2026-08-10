@@ -71,9 +71,6 @@ export default function CashierPage() {
   const [category, setCategory] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [catalogMode, setCatalogMode] = useState<"popular" | "all">("popular"); // 商品目录默认「常用」
-  const [allModalOpen, setAllModalOpen] = useState(false);
-  const [modalCategory, setModalCategory] = useState("all");
-  const [modalKeyword, setModalKeyword] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
@@ -143,25 +140,6 @@ export default function CashierPage() {
   );
   const catalogProducts =
     catalogMode === "popular" ? (popularProducts.length > 0 ? popularProducts : filteredProducts) : filteredProducts;
-
-  // 弹窗打开时重置为默认筛选，避免残留上次筛选
-  useEffect(() => {
-    if (allModalOpen) {
-      setModalCategory("all");
-      setModalKeyword("");
-    }
-  }, [allModalOpen]);
-
-  const allModalProducts = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          p.status === "on_sale" &&
-          (modalCategory === "all" || p.category === modalCategory) &&
-          (modalKeyword === "" || p.name.includes(modalKeyword) || p.category.includes(modalKeyword)),
-      ),
-    [modalCategory, modalKeyword, products],
-  );
 
   const add = (p: Product) => {
     setReceipt(null);
@@ -370,13 +348,6 @@ export default function CashierPage() {
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={() => setAllModalOpen(true)}
-                className="w-full rounded-md border border-line bg-paper px-3 py-2 text-xs text-accent transition-colors hover:bg-surface2"
-              >
-                + 查看全部商品
-              </button>
               <Input placeholder="搜索商品名称 / 分类…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
               <FilterTabs tabs={categories} active={category} onChange={setCategory} />
             </div>
@@ -599,34 +570,6 @@ export default function CashierPage() {
               切换现金
             </Button>
           </div>
-        </div>
-      </Modal>
-
-      {/* 查看全部商品弹窗：双列网格 + 分类筛选 + 搜索，点击加购后保持打开可连续加购 */}
-      <Modal open={allModalOpen} title="全部商品" onClose={() => setAllModalOpen(false)} xwide>
-        <div className="space-y-3">
-          <Input placeholder="搜索商品名称 / 分类…" value={modalKeyword} onChange={(e) => setModalKeyword(e.target.value)} />
-          <FilterTabs tabs={categories} active={modalCategory} onChange={setModalCategory} />
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {allModalProducts.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => add(p)}
-                  className="flex w-full items-center justify-between gap-3 rounded-md border border-line bg-paper px-3 py-2.5 text-left transition-colors hover:bg-surface2"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm">{p.name}</span>
-                    <span className="block font-mono text-[11px] text-muted">
-                      {p.category} · {p.commissionType === "grade" ? "按等级提成" : "固定提成"}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-mono text-sm tabular-nums">{money(p.price)}</span>
-                </button>
-              </li>
-            ))}
-            {allModalProducts.length === 0 && <li className="col-span-full px-3 py-6 text-center font-mono text-xs text-muted">无匹配商品</li>}
-          </ul>
         </div>
       </Modal>
 
