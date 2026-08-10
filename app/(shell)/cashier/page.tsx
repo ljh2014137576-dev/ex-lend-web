@@ -342,25 +342,25 @@ export default function CashierPage() {
               <Input placeholder="搜索商品名称 / 分类…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
               <FilterTabs tabs={categories} active={category} onChange={setCategory} />
             </div>
-            <ul className="divide-y divide-line border border-line bg-surface">
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {catalogProducts.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
                     onClick={() => add(p)}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface2"
+                    className="flex w-full items-center justify-between gap-3 rounded-md border border-line bg-paper px-3 py-2.5 text-left transition-colors hover:bg-surface2"
                   >
-                    <span>
-                      <span className="block text-sm">{p.name}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{p.name}</span>
                       <span className="block font-mono text-[11px] text-muted">
                         {p.category} · {p.commissionType === "grade" ? "按等级提成" : "固定提成"}
                       </span>
                     </span>
-                    <span className="font-mono text-sm tabular-nums">{money(p.price)}</span>
+                    <span className="shrink-0 font-mono text-sm tabular-nums">{money(p.price)}</span>
                   </button>
                 </li>
               ))}
-              {catalogProducts.length === 0 && <li className="px-3 py-6 font-mono text-xs text-muted">无匹配商品</li>}
+              {catalogProducts.length === 0 && <li className="col-span-full px-3 py-6 text-center font-mono text-xs text-muted">无匹配商品</li>}
             </ul>
           </Panel>
 
