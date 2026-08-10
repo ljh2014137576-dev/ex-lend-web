@@ -127,8 +127,17 @@ export default function CashierPage() {
     [category, keyword, products],
   );
 
-  // 「常用」模式：展示历史下单最多的商品；未加载成功或为空时回退显示全部在售商品，避免目录空白
-  const popularProducts = useMemo(() => topProducts.filter((p) => p.status === "on_sale"), [topProducts]);
+  // 「常用」模式：展示历史下单最多的商品（同样应用分类/搜索过滤）；未加载成功或为空时回退显示全部在售商品，避免目录空白
+  const popularProducts = useMemo(
+    () =>
+      topProducts.filter(
+        (p) =>
+          p.status === "on_sale" &&
+          (category === "all" || p.category === category) &&
+          (keyword === "" || p.name.includes(keyword) || p.category.includes(keyword)),
+      ),
+    [topProducts, category, keyword],
+  );
   const catalogProducts =
     catalogMode === "popular" ? (popularProducts.length > 0 ? popularProducts : filteredProducts) : filteredProducts;
 
