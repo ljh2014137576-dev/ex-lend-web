@@ -43,10 +43,10 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 
 ## Pixiv 爬虫工具
 
-- 位置：`scripts/pixiv-crawler/`（独立 Node.js + TypeScript，零运行时依赖）。
+- 位置：`H:\pixiv-crawler`（独立 Node.js + TypeScript，零运行时依赖；2026-08-11 从 `scripts/pixiv-crawler` 移出仓库）。
 - 用途：爬取指定 Pixiv 用户（user id）的全部作品原图，仅下载图片。
-- 使用：在 `scripts/pixiv-crawler` 下 `npm install` → 写入 `cookie.txt`（完整 Cookie，utf-8）或设 `PIXIV_COOKIE` 环境变量 → `npm run build && npm run start -- <userId>`。
-- 说明：带 Referer/Cookie 防 403，请求节流默认 900ms（`PIXIV_DELAY_MS` 调整），失败重试 3 次指数退避，已下载图片自动跳过（断点续爬），详见 [scripts/pixiv-crawler/README.md](scripts/pixiv-crawler/README.md)。
+- 使用：在 `H:\pixiv-crawler` 下 `npm install` → 写入 `cookie.txt`（完整 Cookie，utf-8）或设 `PIXIV_COOKIE` 环境变量 → `npm run build && npm run start -- <userId>`。
+- 说明：带 Referer/Cookie 防 403，请求节流默认 900ms（`PIXIV_DELAY_MS` 调整），失败重试 3 次指数退避，已下载图片自动跳过（断点续爬），详见 `H:\pixiv-crawler\README.md`。
 
 ## SQL 模块化索引（Ex-Lend）
 
