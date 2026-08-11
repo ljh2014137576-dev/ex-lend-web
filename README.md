@@ -41,13 +41,6 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 - [数据库备份](ALL_IN_ONE.sql)：Ex-Lend 一键初始化脚本（重建版）
 
 
-## Pixiv 爬虫工具
-
-- 位置：`H:\pixiv-crawler`（独立 Node.js + TypeScript，零运行时依赖；2026-08-11 从 `scripts/pixiv-crawler` 移出仓库）。
-- 用途：爬取指定 Pixiv 用户（user id）的全部作品原图，仅下载图片。
-- 使用：在 `H:\pixiv-crawler` 下 `npm install` → 写入 `cookie.txt`（完整 Cookie，utf-8）或设 `PIXIV_COOKIE` 环境变量 → `npm run build && npm run start -- <userId>`。
-- 说明：带 Referer/Cookie 防 403，请求节流默认 900ms（`PIXIV_DELAY_MS` 调整），失败重试 3 次指数退避，已下载图片自动跳过（断点续爬），详见 `H:\pixiv-crawler\README.md`。
-
 ## SQL 模块化索引（Ex-Lend）
 
 - [模块索引](sql/README.md)：按业务域切分的 11 个 SQL 模块（schema/rls/triggers/customer/employee/order/commission/refund/system/auth/seed），查什么读什么，不用读全量。
