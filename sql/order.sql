@@ -1086,7 +1086,7 @@ begin
     if v_was_approved then
       update public.customer set total_consumption = total_consumption + p_new_paid where id = v_customer.id;
       insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, order_id, operator_id, remark)
-      values (v_customer.id, 'consume_from_pending', 0,
+      values (v_customer.id, 'consume_from_pending', p_new_paid,
         v_customer.principal_balance - v_principal_consume, v_customer.bonus_balance - v_bonus_consume, p_order_id, v_operator, '改价-预收转消费');
     end if;
   else
@@ -1096,7 +1096,7 @@ begin
     if v_was_approved then
       update public.customer set total_consumption = total_consumption + p_new_paid where id = v_customer.id;
       insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, order_id, operator_id, remark)
-      values (v_customer.id, 'consume_from_pending', 0, 0, 0, p_order_id, v_operator, '改价-现金预收转收入');
+      values (v_customer.id, 'consume_from_pending', p_new_paid, 0, 0, p_order_id, v_operator, '改价-现金预收转收入');
     else
       insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, order_id, operator_id, remark)
       values (v_customer.id, 'cash_received', p_new_paid, v_customer.principal_balance, v_customer.bonus_balance, p_order_id, v_operator, '改价-现金预收');

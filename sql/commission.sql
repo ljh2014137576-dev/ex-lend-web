@@ -138,14 +138,14 @@ begin
       total_consumption = total_consumption + v_ord.paid_amount
     where id = v_cust.id;
     insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, order_id, operator_id, remark)
-    values (v_cust.id, 'consume_from_pending', 0, v_cust.principal_balance, v_cust.bonus_balance, p_order_id, v_op, '订单完成-预收转消费');
+    values (v_cust.id, 'consume_from_pending', v_ord.paid_amount, v_cust.principal_balance, v_cust.bonus_balance, p_order_id, v_op, '订单完成-预收转消费');
   else
     update public.customer set
       pending_balance = pending_balance - v_ord.paid_amount,
       total_consumption = total_consumption + v_ord.paid_amount
     where id = v_ord.customer_id;
     insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, order_id, operator_id, remark)
-    values (v_ord.customer_id, 'consume_from_pending', 0, 0, 0, p_order_id, v_op, '订单完成-现金预收转收入');
+    values (v_ord.customer_id, 'consume_from_pending', v_ord.paid_amount, 0, 0, p_order_id, v_op, '订单完成-现金预收转收入');
   end if;
 
   v_gross_profit := v_real_income - v_total_commission;
@@ -327,7 +327,7 @@ begin
       total_consumption = greatest(total_consumption - v_order.paid_amount, 0)
   where id = v_customer.id;
   insert into public.customer_wallet_ledger (customer_id, type, amount, principal_after, bonus_after, order_id, operator_id, remark)
-  values (v_customer.id, 'consume_from_pending', 0, v_customer.principal_balance, v_customer.bonus_balance, p_order_id, v_operator, '撤销订单审核-消费恢复为预收');
+  values (v_customer.id, 'consume_from_pending', -v_order.paid_amount, v_customer.principal_balance, v_customer.bonus_balance, p_order_id, v_operator, '撤销订单审核-消费恢复为预收');
 
   update public.order_member
   set grade_snapshot = null,
