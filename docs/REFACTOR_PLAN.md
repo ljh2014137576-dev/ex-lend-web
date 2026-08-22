@@ -8,7 +8,7 @@
 
 项目当前可构建、可类型检查，核心业务已经覆盖登录、收银、订单、审核、财务、工资、客户/员工/商品与 Supabase 持久化。整体判断：值得进行**中等规模、渐进式重构**，不建议重写。
 
-主要问题不是当前无法运行，而是边界逐渐失真：页面既负责 UI、状态、数据加载和部分写库；`lib/supabase-api.ts` 集中约 641 行读写；`useResource` 被 19 个入口共享；认证、Mock、缓存、local/sessionStorage 交叉影响数据源；SQL 同时存在模块文件、迁移补丁和 `ALL_IN_ONE.sql` 三套维护面。最大风险是资金、提成、钱包流水和权限行为在重构中被意外改变。
+主要问题不是当前无法运行，而是边界逐渐失真：页面既负责 UI、状态、数据加载和部分写库；`lib/supabase-api.ts` 集中约 641 行读写；`useResource` 被 19 个入口共享；认证、Mock、缓存、local/sessionStorage 交叉影响数据源；SQL 同时存在模块文件、迁移补丁和 `ALL_IN_ONE.sql` 三套维护面。最大风险是资金、提成、钱包流水和权限行为在重构中被意外改变。只读 SQL 审计还发现线上权限状态必须单独核实：仓库脚本存在历史旧版函数和宽泛 `FOR ALL` 策略，不能仅凭源码确认线上已闭环。
 
 建议强度：先建立测试/基线，再做低风险数据访问边界与状态契约，之后按业务域拆分；数据库 schema、RPC、RLS、Storage 路径和公共数据形状列为 RED ZONE。预计首轮涉及 10–18 个新增/调整文件，后续按业务域分批，不做 Big Bang Rewrite。
 
@@ -115,7 +115,11 @@ CashierPage.doSubmit
 
 ### P0
 
-当前静态扫描未确认新的 P0 漏洞；现有安全修复记录显示历史上曾存在充值权限、Storage 路径和默认 EXECUTE 风险，故相关 SQL 仍是 P0 级 RED ZONE。证据：`sql/p0_security_fixes.sql`、`sql/rls.sql`、README 的 P0 修复记录。
+1. **线上数据库权限/函数版本未核实，可能保留任意认证用户充值路径。** `sql/customer.sql` 存在早期 `recharge_wallet`，`sql/p0_security_fixes.sql` 才加入角色校验；若线上未按正确顺序执行补丁，任意 authenticated 用户可能修改客户余额。必须只读检查当前 `pg_proc` 定义、`proacl` 与 `pg_policies`，不能把仓库脚本当成线上事实。
+2. **财务表存在宽泛 staff 直写策略的证据。** `sql/rls.sql` 对 `customer`、`order`、`order_member`、`customer_wallet_ledger` 定义 `FOR ALL` 写策略；`lib/supabase-api.ts:updateOrderStatus()` 也直接更新订单。账本、余额、订单金额和审核字段若可被 REST 直写，会绕过 RPC 状态机。线上是否已收紧为 UNKNOWN，必须单独核验。
+3. **SECURITY DEFINER 函数的 search_path 与授权面需要核验。** `sql/system.sql` 的 `update_self_avatar`、`update_self_profile` 等函数缺少统一 `SET search_path = public` 证据；需检查线上函数配置与 EXECUTE ACL。
+
+现有安全修复记录显示历史上还存在 Storage 路径和默认 EXECUTE 风险，故 `sql/p0_security_fixes.sql`、`sql/rls.sql`、README 的 P0 修复记录均属于 RED ZONE 证据。
 
 ### P1
 
@@ -156,6 +160,7 @@ CashierPage.doSubmit
 
 - `sql/schema.sql`、`sql/rls.sql`、`sql/order.sql`、`sql/commission.sql`、`sql/refund.sql`、`ALL_IN_ONE.sql`：改变会影响表结构、资金状态机、RLS 与重建库；任何修改必须数据库副本验证和人工复审。
 - `create_order_multi`、`approve_commission`、`payout_salary`、`refund_order`、`delete_order`、`adjust_order_price`：核心资金与不可变流水；必须保持金额、舍入、状态转移和幂等行为。
+- `sql/rls.sql` 的 `FOR ALL` staff policies、`sql/customer.sql` 的旧 `recharge_wallet`、`sql/system.sql` 的 SECURITY DEFINER 函数：线上状态未知，禁止凭仓库文本推断已安全；必须先做只读权限核查。
 - `lib/auth.tsx`、`RequireAuth`、`RequireRole`、`sql/p0_security_fixes.sql`：认证和权限；不能将 Mock role、JWT claim、users 表角色混用为新行为。
 - `lib/mock-data.ts`、`useResource`、`useRealData`：公共数据形状和失败语义；页面广泛依赖。
 - Storage bucket/path：`avatars`、`payment-proofs` 及 `is_proof_path_valid`；路径格式变化会导致历史凭证不可读。
@@ -367,6 +372,30 @@ CURRENT → TARGET 的理由：保留现有页面和 RPC 合同，只将基础�
 
 禁止行为：不重写 RPC、不改 RLS/schema、不自动执行线上 SQL、不删除历史迁移。成功标准：全量 drift 清晰、重建脚本可审查、数据库副本回归通过。依赖：TASK-002；后续：TASK-011。
 
+### TASK-010A
+
+标题：只读核验线上 Supabase 的 RLS、RPC ACL 与 SECURITY DEFINER 状态
+
+优先级：P0  | Risk: CRITICAL  | Executor: 5.6 Sol Review Required
+
+目标：确认线上数据库是否已经应用 `p0_security_fixes.sql`，并证明 manager/staff 无法直接改写余额、账本、订单金额和审核字段。
+
+问题证据：`sql/customer.sql` 有旧版 `recharge_wallet`；`sql/p0_security_fixes.sql` 才加入权限校验；`sql/rls.sql` 有 customer/order/order_member/customer_wallet_ledger 的 `FOR ALL` 策略；`sql/system.sql` 的 SECURITY DEFINER 函数缺少统一 search_path 证据。
+
+需要修改：本 TASK 默认**不修改仓库 SQL、不执行线上写操作**。允许新建只读核验 SQL/报告，例如 `sql/audit_live_permissions.sql`；禁止修改 schema、RPC、RLS、ACL、数据。
+
+具体操作步骤：
+
+1. 在有授权的 Supabase SQL Editor 只读查询 `pg_proc` 当前函数定义、`prosecdef`、`proconfig`、`proacl`，以及 `pg_policies`、表 grants、`has_function_privilege`。
+2. 按 anonymous、manager、boss、disabled user 建立权限矩阵；重点测试 recharge、订单金额、余额、账本、审核、Storage proof。
+3. 将每个差异标记为 LIVE CONFIRMED / REPOSITORY ONLY / UNKNOWN；若发现可利用权限，立即停止后续重构并升级安全修复任务。
+
+修改前行为：线上安全状态未被仓库证据证明。修改后行为：得到可审计的只读核验结果；业务行为保持不变。
+
+禁止行为：不执行 UPDATE/INSERT/DELETE/ALTER/CREATE OR REPLACE；不直接运行补丁；不以客户端 RequireAuth 作为数据库安全证明。
+
+验证方式：只读 SQL 结果、权限矩阵、函数定义对比、Storage policy 检查。成功标准：所有 P0 项有 LIVE CONFIRMED 或明确阻塞原因；失败判断：任一匿名/manager 可绕过资金约束则停止并报告。回滚方式：无数据变更，无需回滚。依赖任务：TASK-002；后续任务：TASK-010、TASK-011。
+
 ### TASK-011
 
 标题：最终删除兼容 facade 与确认无用代码
@@ -379,7 +408,7 @@ CURRENT → TARGET 的理由：保留现有页面和 RPC 合同，只将基础�
 
 步骤：逐项列出候选；确认 fan-in=0 且无动态引用；一次删除一个小批次；运行完整验证和 smoke。
 
-禁止行为：不按目录美化、不删除未知 SQL/公共导出、不升级依赖。成功标准：无新增 P1/P0、所有 checkpoint 通过。依赖：TASK-006~010；后续：TASK-012。
+禁止行为：不按目录美化、不删除未知 SQL/公共导出、不升级依赖。成功标准：无新增 P1/P0、所有 checkpoint 通过。依赖：TASK-006~010A；后续：TASK-012。
 
 ### TASK-012
 
@@ -411,6 +440,8 @@ graph TD
   T007 --> T009
   T008 --> T009
   T002 --> T010
+  T002 --> T010A
+  T010A --> T010
   T006 --> T011
   T007 --> T011
   T008 --> T011
@@ -423,7 +454,7 @@ graph TD
 
 可并行：TASK-002、TASK-003、TASK-004（均依赖 TASK-001）；TASK-006 与 TASK-010 可在 TASK-005/002 后并行；TASK-008 与 TASK-009 只有在各自前置契约完成后可并行。
 
-必须串行：TASK-001 → TASK-005 → TASK-006 → TASK-007；TASK-007 必须先于高风险页面拆分；TASK-011、TASK-012 必须最后执行。数据库/权限任务不得与订单行为任务并行合并。
+必须串行：TASK-001 → TASK-005 → TASK-006 → TASK-007；TASK-002 → TASK-010A → TASK-010；TASK-007 必须先于高风险页面拆分；TASK-011、TASK-012 必须最后执行。数据库/权限任务不得与订单行为任务并行合并。
 
 ## 16. Checkpoints
 
@@ -480,9 +511,10 @@ graph TD
 | 7 | TASK-007 订单/Storage 迁移 | CRITICAL | Sol review | 003/004/005/006 | cashier/order/settings/etc. | contract/build/smoke |
 | 8 | TASK-008 Cashier 拆分 | HIGH | Sol review | 003/005/007 | cashier + tests | payload regression |
 | 9 | TASK-009 订单详情/小票拆分 | HIGH | Sol review | 007/008 | business components | export/storage smoke |
-| 10 | TASK-010 SQL canonical/drift | CRITICAL | Sol review | 002 | sql/scripts/docs | drift + DB copy |
-| 11 | TASK-011 清理 facade | MEDIUM | Sol review | 006–010 | approved files | full regression |
-| 12 | TASK-012 最终验收 | HIGH | Sol review | 011 | docs/logs | complete validation |
+| 10 | TASK-010 SQL canonical/drift | CRITICAL | Sol review | 002/010A | sql/scripts/docs | drift + DB copy |
+| 11 | TASK-010A 线上权限只读核验 | CRITICAL | Sol review | 002 | audit SQL/report | pg_proc/policies/ACL matrix |
+| 12 | TASK-011 清理 facade | MEDIUM | Sol review | 006–010A | approved files | full regression |
+| 13 | TASK-012 最终验收 | HIGH | Sol review | 011 | docs/logs | complete validation |
 
 ## 扫描结论
 
