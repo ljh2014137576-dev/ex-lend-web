@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useBoot } from "@/lib/boot";
 
 /** 最短展示时长：即使数据瞬间加载完成，启动界面也至少显示这么久，避免一闪而过 */
-const MIN_BOOT_MS = 1200;
+const MIN_BOOT_MS = 600;
 
 /**
  * 启动加载界面：展示初始化进度条 + 动效预留区。
@@ -17,7 +17,14 @@ export function BootLoading() {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    if (phase !== "ready") return;
+    if (phase !== "ready") {
+      // 兜底：即使 PrefetchAll 卡住，10s 后也强制放行，避免永久遮挡导致标签点不动
+      const t = window.setTimeout(() => {
+        setLeaving(true);
+        window.setTimeout(() => setHidden(true), 350);
+      }, 10_000);
+      return () => window.clearTimeout(t);
+    }
     const remaining = Math.max(0, MIN_BOOT_MS - (Date.now() - started));
     const t1 = window.setTimeout(() => setLeaving(true), remaining);
     const t2 = window.setTimeout(() => setHidden(true), remaining + 350);
@@ -31,7 +38,7 @@ export function BootLoading() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-paper"
+      className={["fixed inset-0 z-50 flex items-center justify-center bg-paper", leaving ? "pointer-events-none" : ""].join(" ")}
       style={{ opacity: leaving ? 0 : 1, transition: "opacity 0.35s ease" }}
     >
       <div className="w-full max-w-xs px-6 text-center">
