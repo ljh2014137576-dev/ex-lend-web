@@ -20,7 +20,15 @@ function decodeRole(token?: string): Role | null {
   if (!token) return null;
   try {
     const payload = JSON.parse(base64UrlDecode(token.split(".")[1]));
-    const r = payload?.user_role?.role ?? payload?.app_metadata?.user_role?.role;
+    // 兼容多种 JWT 写入位置：custom_access_token_hook 顶层 user_role、app_metadata、claims 等
+    const r =
+      payload?.user_role?.role ??
+      payload?.app_metadata?.user_role?.role ??
+      payload?.app_metadata?.role ??
+      payload?.user_metadata?.user_role?.role ??
+      payload?.claims?.user_role?.role ??
+      payload?.role ??
+      null;
     return r === "boss" ? "boss" : r === "manager" ? "manager" : null;
   } catch {
     return null;

@@ -42,16 +42,18 @@ export function PrefetchAll() {
 
   useEffect(() => {
     const has = !!session;
-    // 安全超时：优先加载最长等待 10s，避免启动界面因请求卡住而永久遮挡
-    const safety = window.setTimeout(() => markReady(), 10_000);
+    // 安全超时：优先加载最长等待 8s，避免启动界面因请求卡住而永久遮挡
+    const safety = window.setTimeout(() => markReady(), 8_000);
     let done = 0;
     (async () => {
-      // 1) 优先加载高频资源（逐个等待，驱动启动进度条）
-      for (const [key, fetcher, fallback] of JOBS) {
-        await store.load(key, fetcher, fallback, has);
-        done += 1;
-        setProgress((done / JOBS.length) * 100);
-      }
+      // 1) 优先加载高频资源（并行，逐个更新进度条；串行曾导致首次切页等 3-5s）
+      await Promise.all(
+        JOBS.map(async ([key, fetcher, fallback]) => {
+          await store.load(key, fetcher, fallback, has);
+          done += 1;
+          setProgress((done / JOBS.length) * 100);
+        }),
+      );
       setProgress(100);
       // 2) 高频数据就绪 → 隐藏启动加载界面
       markReady();

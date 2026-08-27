@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useBoot } from "@/lib/boot";
 
 /** 最短展示时长：即使数据瞬间加载完成，启动界面也至少显示这么久，避免一闪而过 */
-const MIN_BOOT_MS = 600;
+const MIN_BOOT_MS = 350;
 
 /**
  * 启动加载界面：展示初始化进度条 + 动效预留区。
@@ -18,11 +18,11 @@ export function BootLoading() {
 
   useEffect(() => {
     if (phase !== "ready") {
-      // 兜底：即使 PrefetchAll 卡住，10s 后也强制放行，避免永久遮挡导致标签点不动
+      // 兜底：即使 PrefetchAll 卡住，8s 后也强制放行，避免永久遮挡导致标签点不动
       const t = window.setTimeout(() => {
         setLeaving(true);
         window.setTimeout(() => setHidden(true), 350);
-      }, 10_000);
+      }, 8_000);
       return () => window.clearTimeout(t);
     }
     const remaining = Math.max(0, MIN_BOOT_MS - (Date.now() - started));
