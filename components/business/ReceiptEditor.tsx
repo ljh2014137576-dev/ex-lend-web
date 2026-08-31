@@ -16,6 +16,7 @@ declare global {
 }
 
 const DEFAULT_FONT = '"YouSheBiaoTiHei", "Noto Sans CJK", sans-serif';
+const RECEIPT_RENDER_OPTIONS = { pixelRatio: 3, cacheBust: true, skipFonts: true } as const;
 
 function money(value: number) {
   return (Math.round((Number.isFinite(value) ? value : 0) * 100) / 100).toFixed(2);
@@ -76,6 +77,23 @@ async function waitForReceiptAssets(node: HTMLElement) {
     if (image.naturalWidth > 0) await image.decode().catch(() => undefined);
   }));
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
+function dataUrlToBlob(dataUrl: string) {
+  const [header, encoded] = dataUrl.split(",", 2);
+  const mime = header.match(/data:(.*?);base64/)?.[1] || "application/octet-stream";
+  const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+  return new Blob([bytes], { type: mime });
+}
+
+function downloadDataUrl(dataUrl: string, filename: string) {
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 export function ReceiptEditor({
@@ -215,7 +233,7 @@ export function ReceiptEditor({
     if (!receiptRef.current) throw new Error("小票预览尚未准备好");
     await waitForReceiptAssets(receiptRef.current);
     const { toPng } = await import("html-to-image");
-    return toPng(receiptRef.current, { pixelRatio: 3, cacheBust: true });
+    return toPng(receiptRef.current, RECEIPT_RENDER_OPTIONS);
   }
 
   async function copyPng() {
@@ -225,14 +243,22 @@ export function ReceiptEditor({
       if (window.receiptDesktop) {
         await window.receiptDesktop.copyPng(dataUrl);
       } else if (navigator.clipboard?.write && "ClipboardItem" in window) {
-        const blob = await (await fetch(dataUrl)).blob();
+        const blob = dataUrlToBlob(dataUrl);
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       } else {
         throw new Error("当前浏览器不支持图片剪贴板");
       }
       notify("PNG 已复制到剪贴板");
-    } catch {
-      notify("无法写入剪贴板，请检查系统权限或下载 PNG");
+    } catch (error) {
+      console.error("Receipt PNG copy failed", error);
+      notify("无法写入剪贴板，正在下载 PNG…");
+      try {
+        downloadDataUrl(await renderPng(), "receipt-" + (receiptNo || "sample") + ".png");
+        notify("浏览器不支持图片剪贴板，PNG 已下载");
+      } catch (downloadError) {
+        console.error("Receipt PNG fallback download failed", downloadError);
+        notify("复制和下载都失败，请稍后重试");
+      }
     }
   }
 
@@ -241,11 +267,10 @@ export function ReceiptEditor({
     try {
       notify("正在生成文件…");
       await waitForReceiptAssets(receiptRef.current);
-      const options = { pixelRatio: 3, cacheBust: true };
       const { toJpeg, toPng } = await import("html-to-image");
       const dataUrl = format === "jpeg"
-        ? await toJpeg(receiptRef.current, { ...options, backgroundColor: "#f8f8f5", quality: 0.94 })
-        : await toPng(receiptRef.current, options);
+        ? await toJpeg(receiptRef.current, { ...RECEIPT_RENDER_OPTIONS, backgroundColor: "#f8f8f5", quality: 0.94 })
+        : await toPng(receiptRef.current, RECEIPT_RENDER_OPTIONS);
       if (format === "pdf") {
         const { jsPDF } = await import("jspdf");
         const height = (receiptRef.current.offsetHeight / receiptRef.current.offsetWidth) * paperWidth;
@@ -255,13 +280,11 @@ export function ReceiptEditor({
         pdf.addImage(dataUrl, "PNG", 0, 0, paperWidth, height);
         pdf.save("receipt-" + (receiptNo || "sample") + ".pdf");
       } else {
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = "receipt-" + (receiptNo || "sample") + "." + format;
-        link.click();
+        downloadDataUrl(dataUrl, "receipt-" + (receiptNo || "sample") + "." + format);
       }
       notify(format.toUpperCase() + " 已导出");
-    } catch {
+    } catch (error) {
+      console.error("Receipt export failed", { format, error });
       notify("导出失败，请稍后重试");
     }
   }

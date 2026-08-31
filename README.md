@@ -7,7 +7,7 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 - 启动：`npm install` → `npm run dev` → http://localhost:3000
 - 页面规划见 [docs/FE_PLAN.md](docs/FE_PLAN.md)；接口与业务逻辑见 [docs/EX_LEND_API_AND_BUSINESS.md](docs/EX_LEND_API_AND_BUSINESS.md)
 - 工资结算：老板专用 /payroll，汇总员工工资（累计佣金/已发/结余）并可导出 Excel
-- 小票生成：订单详情（弹窗/详情页）一键生成小票并导出 PNG/JPEG/PDF（迁移自 img-cre Receipt Studio）
+- 小票生成：收银台和订单详情均可一键生成小票并导出 PNG/JPEG/PDF，支持复制 PNG；导出时跳过全局大字体嵌入，避免浏览器资源加载失败（迁移自 img-cre Receipt Studio）
 - 营业额口径：/finance 按日期范围筛选（默认本周），名义收入=字面金额、真实收入=实付且不含已取消；详见 [docs/EX_LEND_API_AND_BUSINESS.md §13](docs/EX_LEND_API_AND_BUSINESS.md)
 - 规划进度：脚手架 ✓ → 登录/角色守卫 → 订单闭环（收银/订单/审核）→ 财务+目录 → 设置
 - 待办 /todos：新建待办真实会话下乐观插入 + 写库 todo_item（失败回滚提示，刷新不丢失）；提及暂仅本地展示，真实映射后续再做
