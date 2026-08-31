@@ -1,10 +1,14 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { FilterTabs } from "@/components/ui/FilterTabs";
+import { Input } from "@/components/ui/Input";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { dateKey } from "@/lib/date";
 import { useResource } from "@/lib/data-store";
@@ -16,9 +20,13 @@ import { useAuth } from "@/lib/auth";
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function WorkbenchPage() {
-  const { isBoss } = useAuth();
+  const { isBoss, session, name } = useAuth();
   const { data: orders, real, loading } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: employees } = useResource("employees", apiEmployees, EMPLOYEES);
+
+  const [mineDateFrom, setMineDateFrom] = useState("");
+  const [mineDateTo, setMineDateTo] = useState("");
+  const [mineStatus, setMineStatus] = useState("all");
 
   const today = dateKey(new Date());
   const todayOrders = orders.filter((o) => dateKey(o.createdAt) === today);
@@ -31,6 +39,19 @@ export default function WorkbenchPage() {
   const recent = [...orders]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
+
+  const myCreatedOrders = useMemo(() => {
+    return orders
+      .filter((o) => (session ? o.operatorId === session.user.id : name !== "" && o.operator === name))
+      .filter((o) => {
+        const day = dateKey(o.createdAt);
+        if (mineDateFrom && day < mineDateFrom) return false;
+        if (mineDateTo && day > mineDateTo) return false;
+        if (mineStatus !== "all" && o.status !== mineStatus) return false;
+        return true;
+      })
+      .sort((a, b) => (b.createdAtRaw || b.createdAt).localeCompare(a.createdAtRaw || a.createdAt));
+  }, [orders, session, name, mineDateFrom, mineDateTo, mineStatus]);
 
   // 按身份展示：老板看全局（含待审核提成），管理员看日常（不含老板视角指标）
   const stats = isBoss
@@ -77,6 +98,37 @@ export default function WorkbenchPage() {
           ]}
           rows={recent}
           empty={loading ? "加载中…" : "暂无订单"}
+        />
+      </Panel>
+
+      <Panel title="我创建的订单" meta={`${myCreatedOrders.length} 笔`}>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Input type="date" value={mineDateFrom} onChange={(e) => setMineDateFrom(e.target.value)} className="w-36" aria-label="我创建的订单开始日期" />
+          <span className="font-mono text-[10px] text-muted">至</span>
+          <Input type="date" value={mineDateTo} onChange={(e) => setMineDateTo(e.target.value)} className="w-36" aria-label="我创建的订单结束日期" />
+          <FilterTabs
+            tabs={[
+              { id: "all", label: "状态-全部" },
+              { id: "booking", label: "待开始" },
+              { id: "in_progress", label: "进行中" },
+              { id: "completed", label: "已完成" },
+              { id: "cancelled", label: "已取消" },
+            ]}
+            active={mineStatus}
+            onChange={setMineStatus}
+          />
+        </div>
+        <DataTable<Order>
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "orderNo", label: "订单号", mono: true, render: (r) => <Link className="underline decoration-line underline-offset-2 hover:text-accent" href={`/orders/${r.id}`}>{r.orderNo}</Link> },
+            { key: "customer", label: "客户", render: (r) => `${r.customerName}${r.customerType === "vip" ? ` · VIP${r.vipLevel}` : ""}` },
+            { key: "paid", label: "实付", align: "right", mono: true, render: (r) => money(r.paid) },
+            { key: "status", label: "状态", render: (r) => <OrderStatusTag status={r.status} /> },
+            { key: "createdAt", label: "时间", mono: true, render: (r) => r.createdAt },
+          ]}
+          rows={myCreatedOrders}
+          empty={loading ? "加载中…" : "暂无符合条件的订单"}
         />
       </Panel>
 

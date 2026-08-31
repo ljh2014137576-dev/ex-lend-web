@@ -362,6 +362,7 @@ export default function OrdersPage() {
               ),
             },
             { key: "orderNo", label: "订单号", mono: true, render: (r) => <Link className="underline decoration-line underline-offset-2 hover:text-accent" href={`/orders/${r.id}`}>{r.orderNo}</Link> },
+            { key: "operator", label: "创建用户", render: (r) => r.operator || <span className="text-muted">—</span> },
             { key: "customer", label: "客户", render: (r) => `${r.customerName}${r.customerType === "vip" ? ` · VIP${r.vipLevel}` : ""}` },
             { key: "members", label: "员工", render: (r) => (r.members.length > 0 ? r.members.map((m) => m.name).join("、") : <span className="text-muted">—</span>) },
             { key: "payMethod", label: "支付", mono: true, render: (r) => (r.payMethod === "wallet" ? "钱包" : "现金") },

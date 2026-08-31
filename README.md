@@ -11,6 +11,7 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 - 营业额口径：/finance 按日期范围筛选（默认本周），名义收入=字面金额、真实收入=实付且不含已取消；详见 [docs/EX_LEND_API_AND_BUSINESS.md §13](docs/EX_LEND_API_AND_BUSINESS.md)
 - 规划进度：脚手架 ✓ → 登录/角色守卫 → 订单闭环（收银/订单/审核）→ 财务+目录 → 设置
 - 待办 /todos：新建待办真实会话下乐观插入 + 写库 todo_item（失败回滚提示，刷新不丢失）；提及暂仅本地展示，真实映射后续再做
+- 工作台：新增“我创建的订单”区域，支持按日期范围和订单状态筛选；订单列表新增“创建用户”列，显示订单创建人。
 ## 数据库备份（Ex-Lend）
 
 - `ALL_IN_ONE.sql`：Ex-Lend（员工提成与客户账户管理系统）Supabase 一键初始化脚本（重建版）。
