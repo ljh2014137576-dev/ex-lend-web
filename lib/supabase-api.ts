@@ -468,6 +468,78 @@ export async function apiAnnouncements(): Promise<Announcement[] | null> {
   }));
 }
 
+type AnnouncementRecord = {
+  id: string;
+  title: string;
+  content: string | null;
+  is_pinned: boolean;
+  updated_at: string | null;
+};
+
+function savedAnnouncement(row: AnnouncementRecord): Announcement {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content ?? "",
+    pinned: row.is_pinned,
+    createdBy: "—",
+    updatedAt: row.updated_at ? new Date(row.updated_at).toLocaleString("zh-CN") : "—",
+  };
+}
+
+export async function apiCreateAnnouncement(
+  input: Pick<Announcement, "title" | "content" | "pinned">,
+): Promise<Announcement> {
+  const { data, error } = await supabase
+    .from("announcement")
+    .insert({ title: input.title, content: input.content, is_pinned: input.pinned })
+    .select("id, title, content, is_pinned, updated_at")
+    .single<AnnouncementRecord>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("发布未返回公告记录，请刷新后重试");
+  return savedAnnouncement(data);
+}
+
+export async function apiUpdateAnnouncementPin(id: string, pinned: boolean): Promise<Announcement> {
+  const { data, error } = await supabase
+    .from("announcement")
+    .update({ is_pinned: pinned })
+    .eq("id", id)
+    .select("id, title, content, is_pinned, updated_at")
+    .single<AnnouncementRecord>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("保存未返回公告记录，请刷新后重试");
+  return savedAnnouncement(data);
+}
+
+export async function apiUpdateGradeRate(grade: number, rate: number): Promise<GradeRule> {
+  if (!Number.isFinite(rate) || rate < 0 || rate > 1) throw new Error("提成比例必须是 0 到 1 之间的数字");
+  const { data, error } = await supabase
+    .from("grade_commission_rule")
+    .update({ rate })
+    .eq("grade", grade)
+    .select("grade, rate")
+    .single<{ grade: number; rate: number }>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("保存未返回等级记录，请刷新后重试");
+  return { grade: data.grade, rate: Number(data.rate) };
+}
+
+export async function apiUpdateRechargePackageStatus(
+  id: string,
+  status: RechargePackage["status"],
+): Promise<Pick<RechargePackage, "id" | "status">> {
+  const { data, error } = await supabase
+    .from("recharge_package")
+    .update({ status })
+    .eq("id", id)
+    .select("id, status")
+    .single<{ id: string; status: RechargePackage["status"] }>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("保存未返回套餐记录，请刷新后重试");
+  return data;
+}
+
 export async function apiNotes(): Promise<Note[] | null> {
   const { data } = await supabase
     .from("note")
