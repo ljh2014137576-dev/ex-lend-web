@@ -105,7 +105,7 @@ export async function apiCurrentProfile(userId: string): Promise<CurrentProfile 
 }
 
 export async function apiUpdateMyName(userId: string, name: string) {
-  return supabase.from("users").update({ name }).eq("id", userId);
+  return supabase.from("users").update({ name }).eq("id", userId).select("id, name").single();
 }
 
 export async function uploadAvatar(file: File, userId: string): Promise<string> {
@@ -438,7 +438,7 @@ export function updateOrderStatus(id: string, status: "booking" | "in_progress" 
 export async function apiTodos(): Promise<Todo[] | null> {
   const { data } = await supabase
     .from("todo_item")
-    .select("id, title, content, status, mentioned_user_ids, created_by, updated_at")
+    .select("id, title, content, status, mentioned_employee_names, created_by, updated_at")
     .order("updated_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
@@ -446,7 +446,7 @@ export async function apiTodos(): Promise<Todo[] | null> {
     title: r.title,
     content: r.content ?? "",
     status: r.status as Todo["status"],
-    mentions: r.mentioned_user_ids ?? [],
+    mentions: r.mentioned_employee_names ?? [],
     createdBy: "—",
     updatedAt: r.updated_at ? new Date(r.updated_at).toLocaleString("zh-CN") : "—",
   }));
@@ -540,7 +540,9 @@ export async function apiUpdateRechargePackageStatus(
   return data;
 }
 
-export async function apiNotes(): Promise<Note[] | null> {
+export type NoteWithOwner = Note & { createdById?: string | null };
+
+export async function apiNotes(): Promise<NoteWithOwner[] | null> {
   const { data } = await supabase
     .from("note")
     .select("id, title, content, is_published, created_by, updated_at")
@@ -551,9 +553,93 @@ export async function apiNotes(): Promise<Note[] | null> {
     title: r.title,
     content: r.content ?? "",
     published: !!r.is_published,
+    createdById: r.created_by ?? null,
     createdBy: "—",
     updatedAt: r.updated_at ? new Date(r.updated_at).toLocaleString("zh-CN") : "—",
   }));
+}
+
+type TodoWriteRow = {
+  id: string; title: string; content: string | null; status: Todo["status"];
+  mentioned_employee_names: string[] | null; updated_at: string | null;
+};
+
+function todoFromWrite(row: TodoWriteRow): Todo {
+  return { id: row.id, title: row.title, content: row.content ?? "", status: row.status,
+    mentions: row.mentioned_employee_names ?? [], createdBy: "—",
+    updatedAt: row.updated_at ? new Date(row.updated_at).toLocaleString("zh-CN") : "—" };
+}
+
+export async function apiCreateTodo(input: { title: string; content: string; mentionedEmployeeNames: string[] }): Promise<Todo> {
+  const { data, error } = await supabase.from("todo_item")
+    .insert({ title: input.title, content: input.content, status: "pending", mentioned_user_ids: [], mentioned_employee_names: input.mentionedEmployeeNames })
+    .select("id, title, content, status, mentioned_employee_names, updated_at").single<TodoWriteRow>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("创建未返回待办记录，请刷新后重试");
+  return todoFromWrite(data);
+}
+
+export async function apiUpdateTodoStatus(id: string, status: Todo["status"]): Promise<Todo> {
+  const { data, error } = await supabase.from("todo_item").update({ status }).eq("id", id)
+    .select("id, title, content, status, mentioned_employee_names, updated_at").single<TodoWriteRow>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("保存未返回待办记录，请刷新后重试");
+  return todoFromWrite(data);
+}
+
+type NoteWriteRow = {
+  id: string; title: string; content: string | null; is_published: boolean;
+  created_by: string | null; updated_at: string | null;
+};
+
+function noteFromWrite(row: NoteWriteRow): NoteWithOwner {
+  return { id: row.id, title: row.title, content: row.content ?? "", published: row.is_published,
+    createdById: row.created_by, createdBy: "—",
+    updatedAt: row.updated_at ? new Date(row.updated_at).toLocaleString("zh-CN") : "—" };
+}
+
+export async function apiCreateNote(input: Pick<Note, "title" | "content" | "published">): Promise<NoteWithOwner> {
+  const { data, error } = await supabase.from("note")
+    .insert({ title: input.title, content: input.content, is_published: input.published })
+    .select("id, title, content, is_published, created_by, updated_at").single<NoteWriteRow>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("创建未返回笔记记录，请刷新后重试");
+  return noteFromWrite(data);
+}
+
+export async function apiUpdateNotePublished(id: string, published: boolean): Promise<NoteWithOwner> {
+  const { data, error } = await supabase.from("note").update({ is_published: published }).eq("id", id)
+    .select("id, title, content, is_published, created_by, updated_at").single<NoteWriteRow>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("笔记未更新，可能已无权限，请刷新后重试");
+  return noteFromWrite(data);
+}
+
+export async function apiCreateCategory(input: Pick<ProductCategory, "name" | "description">): Promise<ProductCategory> {
+  const { data, error } = await supabase.from("product_category")
+    .insert({ name: input.name, description: input.description, status: "enabled" })
+    .select("id, name, description, status").single<ProductCategory>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("创建未返回分类记录，请刷新后重试");
+  return { ...data, description: data.description ?? "" };
+}
+
+export async function apiUpdateCategoryStatus(id: string, status: ProductCategory["status"]): Promise<ProductCategory> {
+  const { data, error } = await supabase.from("product_category").update({ status }).eq("id", id)
+    .select("id, name, description, status").single<ProductCategory>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("保存未返回分类记录，请刷新后重试");
+  return { ...data, description: data.description ?? "" };
+}
+
+export async function apiMarkNotificationsRead(recipientId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from("notification")
+    .update({ read_at: new Date().toISOString() }).eq("recipient_id", recipientId)
+    .in("id", [...new Set(ids)]).is("read_at", null).select("id, read_at");
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error("通知状态未更新或已发生变化，请刷新后重试");
+  return data.filter((row) => row.read_at !== null).map((row) => String(row.id));
 }
 
 export async function apiNotifications(): Promise<NotificationItem[] | null> {

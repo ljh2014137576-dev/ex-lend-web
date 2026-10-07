@@ -189,8 +189,8 @@ function ProfileSettings() {
       try {
         const file = new File([blob], "avatar.png", { type: "image/png" });
         const path = await uploadAvatar(file, session.user.id);
-        const { error } = await rpcUpdateSelfAvatar(path);
-        if (error) return setMsg("头像保存失败：" + error.message);
+        const { data: saved, error } = await rpcUpdateSelfAvatar(path);
+        if (error || saved?.success !== true) return setMsg("头像保存失败：" + String(error?.message ?? saved?.message ?? "服务端未确认成功"));
         const { data } = await supabase.storage.from("avatars").createSignedUrl(path, 300);
         if (data?.signedUrl) applyAvatar(data.signedUrl);
         window.dispatchEvent(new Event("avatar-updated")); // 顶栏头像立即刷新

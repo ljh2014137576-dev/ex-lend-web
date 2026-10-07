@@ -141,6 +141,7 @@ export default function EmployeesPage() {
             name: optimistic.name,
             // nickname 必填，取昵称兜底（防线上列无默认值报错）
             nickname: optimistic.name,
+            phone: form.phone.trim() || null,
             grade: optimistic.grade,
             status: optimistic.status,
           },
