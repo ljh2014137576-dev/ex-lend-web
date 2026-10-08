@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -13,37 +13,54 @@ import { ORDERS, type Order, type OrderItem, type OrderMember } from "@/lib/mock
 import { apiOrders, apiOrderDetail, rpcRefundOrder, rpcDeleteOrder, updateOrderStatus } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { ReceiptEditor } from "@/components/business/ReceiptEditor";
-import { useAuth } from "@/lib/auth";
-import { BossOnly } from "@/components/business/RequireRole";
+import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
+import { orderActionMessage } from "@/lib/order-actions";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
-  const { data: orders, real, loading: ordersLoading } = useResource<Order>("orders", apiOrders, ORDERS);
+  const { data: orders, real, loading: ordersLoading, mutate: setOrders } = useResource<Order>("orders", apiOrders, ORDERS);
   const cachedOrder = orders.find((o) => o.id === params.id) ?? null;
   const [localOrder, setLocalOrder] = useState<Order | null>(null);
   const [realDetail, setRealDetail] = useState<Awaited<ReturnType<typeof apiOrderDetail>>>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const { session, isBoss, isManager } = useAuth();
-
-  // 优先用缓存订单立即渲染；真实详情（含明细/成员）异步到达后合并
-  useEffect(() => {
-    if (!localOrder && cachedOrder) setLocalOrder(cachedOrder);
-  }, [localOrder, cachedOrder]);
-  useEffect(() => {
-    if (realDetail?.order) setLocalOrder((prev) => prev ?? realDetail.order);
-  }, [realDetail]);
+  const { session, isBoss, isManager, mockRole } = useAuth();
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [deletedId, setDeletedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [syncRequired, setSyncRequired] = useState(false);
+  const syncRequiredRef = useRef(false);
+  const readVersion = useRef(0);
+  const markSyncRequired = (value: boolean) => { syncRequiredRef.current = value; setSyncRequired(value); };
+  const busyRef = useRef(false);
+  const requestVersion = useRef(0);
+  const activeId = useRef(params.id);
+  activeId.current = params.id;
 
   useEffect(() => {
     let mounted = true;
+    const version = ++requestVersion.current;
+    const read = ++readVersion.current;
+    setLocalOrder(null);
+    setRealDetail(null);
+    setDeletedId(null);
+    setDetailError(null);
+    markSyncRequired(false);
     if (session && params.id) {
       setDetailLoading(true);
-      apiOrderDetail(params.id).then((r) => {
-        if (!mounted) return;
+      apiOrderDetail(params.id, true).then((r) => {
+        if (!mounted || version !== requestVersion.current || read !== readVersion.current) return;
         setRealDetail(r);
-        setDetailLoading(false);
-      });
+        setLocalOrder(r?.order ?? null);
+        if (!r) { setDetailError("未找到当前账号可读取的订单，请刷新列表核对。"); markSyncRequired(true); }
+      }).catch(err => {
+        if (!mounted || version !== requestVersion.current || read !== readVersion.current) return;
+        setDetailError("订单详情读取失败：" + orderActionMessage(err));
+        markSyncRequired(true);
+      }).finally(() => { if (mounted && version === requestVersion.current && read === readVersion.current) setDetailLoading(false); });
+    } else {
+      setDetailLoading(false);
     }
     return () => {
       mounted = false;
@@ -55,9 +72,34 @@ export default function OrderDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
 
-  const o = localOrder;
-  const items = realDetail?.items ?? o?.items ?? [];
-  const members = realDetail?.members ?? o?.members ?? [];
+  const o = deletedId === params.id ? null : localOrder?.id === params.id ? localOrder : cachedOrder;
+  const items = realDetail?.order.id === params.id ? realDetail.items : o?.items ?? [];
+  const members = realDetail?.order.id === params.id ? realDetail.members : o?.members ?? [];
+
+  const refreshOrder = async (id = params.id) => {
+    if (activeId.current !== id) return null;
+    const version = requestVersion.current;
+    const read = ++readVersion.current;
+    const fresh = await apiOrderDetail(id, true);
+    if (activeId.current !== id || version !== requestVersion.current || read !== readVersion.current) return null;
+    if (!fresh) throw new Error("未找到当前账号可读取的订单，请刷新列表核对。");
+    setDetailLoading(false);
+    setRealDetail(fresh);
+    setLocalOrder(fresh.order);
+    setOrders(prev => prev.map(order => order.id === id ? fresh.order : order));
+    setDetailError(null);
+    markSyncRequired(false);
+    return fresh;
+  };
+
+  const refreshManually = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try { await refreshOrder(); setNotice("订单已刷新。"); }
+    catch (err) { setDetailError(orderActionMessage(err)); }
+    finally { busyRef.current = false; setBusy(false); }
+  };
 
   if (!o) {
     if (ordersLoading || (session && detailLoading)) {
@@ -70,51 +112,123 @@ export default function OrderDetailPage() {
     }
     return (
       <div>
-        <PageHeader title="订单不存在或已删除" meta="/orders/[id]" />
+        <PageHeader title={deletedId === params.id ? "订单已删除" : detailError ? "订单详情暂时不可读取" : "未找到可读取的订单"} meta="/orders/[id]" />
+        {detailError && <p role="alert" className="text-sm text-danger">{detailError}</p>}
+        {notice && <p role="status" className="text-sm text-muted">{notice}</p>}
         <Link href="/orders" className="font-mono text-xs underline underline-offset-2">← 返回订单列表</Link>
       </div>
     );
   }
 
   const setStatus = async (status: "booking" | "in_progress" | "completed") => {
+    if (busyRef.current || syncRequiredRef.current) return;
+    if (!session && !(MOCK_LOGIN_ENABLED && mockRole)) return setNotice("请先登录后操作订单。");
+    const id = o.id;
+    const version = requestVersion.current;
+    const current = () => activeId.current === id && requestVersion.current === version;
+    busyRef.current = true;
+    ++readVersion.current;
+    setDetailLoading(false);
+    setBusy(true);
     setNotice(null);
-    if (session && o.id) {
-      const { error } = await updateOrderStatus(o.id, status);
-      if (error) return setNotice("状态更新失败：" + error.message);
+    let confirmed = false;
+    try {
+      if (session) {
+        const { data, error } = await updateOrderStatus(id, status);
+        if (!current()) return;
+        if (error || data?.success !== true) {
+          if (error?.uncertain) markSyncRequired(true);
+          return setNotice("状态未更新：" + orderActionMessage(error ?? data?.message));
+        }
+        confirmed = true;
+        // Only apply the status explicitly confirmed for this UUID by the server.
+        setLocalOrder({ ...o, status });
+        setOrders(prev => prev.map(order => order.id === id ? { ...order, status } : order));
+        await refreshOrder(id);
+        if (current()) setNotice(data.unchanged ? "订单已处于目标状态，本次未重复更新。" : "订单状态已由服务器确认。");
+      } else setLocalOrder({ ...o, status });
+    } catch (err) {
+      if (current()) { markSyncRequired(!!session); setNotice((confirmed ? "状态已保存，但详情刷新失败，请刷新核对：" : "状态结果未确认，请刷新核对：") + orderActionMessage(err)); }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    setLocalOrder({ ...o, status });
   };
 
   const refund = async () => {
+    if (busyRef.current || syncRequiredRef.current) return;
+    if (!session && !(MOCK_LOGIN_ENABLED && mockRole)) return setNotice("请先登录后操作订单。");
+    const id = o.id;
+    const version = requestVersion.current;
+    const current = () => activeId.current === id && requestVersion.current === version;
+    busyRef.current = true;
+    ++readVersion.current;
+    setDetailLoading(false);
+    setBusy(true);
     setNotice(null);
-    if (session && o.id) {
-      const { data, error } = await rpcRefundOrder(o.id, refundMethod);
-      if (error || data?.success === false) {
-        return setNotice("退款失败：" + (error?.message ?? data?.message ?? "未知错误"));
-      }
+    let confirmed = false;
+    try {
+      if (session) {
+        const { data, error } = await rpcRefundOrder(id, refundMethod);
+        if (!current()) return;
+        if (error || data?.success !== true) {
+          if (error?.uncertain) markSyncRequired(true);
+          return setNotice("退款未完成：" + orderActionMessage(error ?? data?.message));
+        }
+        confirmed = true;
+        setRefundOpen(false);
+        await refreshOrder(id);
+      } else setLocalOrder({ ...o, status: "cancelled", auditStatus: "rejected", commission: 0, grossProfit: 0 });
+      if (current()) { setRefundOpen(false); setNotice("退款已确认，订单状态已刷新。"); }
+    } catch (err) {
+      if (current()) { markSyncRequired(!!session); setNotice((confirmed ? "退款已确认，但详情刷新失败，勿重复退款：" : "退款结果未确认，请刷新核对：") + orderActionMessage(err)); }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    setLocalOrder({ ...o, status: "cancelled", auditStatus: "rejected", commission: 0, grossProfit: 0 });
-    setRefundOpen(false);
-    setNotice(`已退款（${refundMethod === "wallet" ? "钱包" : "现金"}），订单置为已取消/已拒绝`);
   };
 
   const removeOrder = async () => {
-    setDeleteOpen(false);
-    if (session && o.id) {
-      const { data, error } = await rpcDeleteOrder(o.id, "前端删除");
-      if (error || data?.success === false) {
-        return setNotice("删除失败：" + (error?.message ?? data?.message ?? "未知错误"));
+    if (busyRef.current || syncRequiredRef.current) return;
+    if (!session && !(MOCK_LOGIN_ENABLED && mockRole)) return setNotice("请先登录后操作订单。");
+    const id = o.id;
+    const version = requestVersion.current;
+    const current = () => activeId.current === id && requestVersion.current === version;
+    busyRef.current = true;
+    ++readVersion.current;
+    setDetailLoading(false);
+    setBusy(true);
+    setNotice(null);
+    try {
+      if (session) {
+        const { data, error } = await rpcDeleteOrder(id, "前端删除");
+        if (!current()) return;
+        if (error || data?.success !== true) {
+          if (error?.uncertain) markSyncRequired(true);
+          return setNotice("删除未完成：" + orderActionMessage(error ?? data?.message));
+        }
       }
+      setOrders(prev => prev.filter(order => order.id !== id));
+      if (!current()) return;
+      setDeleteOpen(false);
+      setDeletedId(id);
+      setRealDetail(null);
+      setLocalOrder(null);
+      setNotice(`订单 ${o.orderNo} 已确认删除。`);
+    } catch (err) {
+      if (current()) { markSyncRequired(!!session); setNotice("删除结果未确认，请刷新列表核对：" + orderActionMessage(err)); }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    setNotice(`订单 ${o.orderNo} 已删除（已写入删除审计）`);
-    setLocalOrder(null);
   };
 
   return (
     <div className="space-y-6">
       {notice && (
-        <div className="border border-line bg-surface p-3 font-mono text-xs text-muted">{notice}</div>
+        <div role="status" className="border border-line bg-surface p-3 font-mono text-xs text-muted">{notice}</div>
       )}
+      {detailError && <p role="alert" className="text-sm text-danger">{detailError}</p>}
 
       <PageHeader title={o.orderNo} meta={`/orders/${o.id} · ${real ? "真实数据" : "Mock 数据"} · ${o.createdAt}`} />
 
@@ -138,18 +252,19 @@ export default function OrderDetailPage() {
           <AuditStatusTag status={o.auditStatus} />
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setStatus("booking")} disabled={o.status === "booking"}>待开始</Button>
-          <Button size="sm" variant="secondary" onClick={() => setStatus("in_progress")} disabled={o.status === "in_progress"}>开始</Button>
-          <Button size="sm" variant="secondary" onClick={() => setStatus("completed")} disabled={o.status === "completed"}>完成</Button>
+          <Button size="sm" variant="secondary" disabled title="订单状态只向前推进，不退回待开始">待开始</Button>
+          <Button size="sm" variant="secondary" onClick={() => setStatus("in_progress")} disabled={busy || syncRequired || o.status !== "booking" || o.auditStatus === "rejected"}>开始</Button>
+          <Button size="sm" variant="secondary" onClick={() => setStatus("completed")} disabled={busy || syncRequired || !["booking", "in_progress"].includes(o.status) || o.auditStatus === "rejected"}>完成</Button>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => { void refreshManually(); }}>刷新详情</Button>
           <Button size="sm" variant="secondary" onClick={() => setReceiptOpen(true)}>生成小票</Button>
           <Link href="/audit"><Button size="sm">去审核</Button></Link>
-          <BossOnly><Button size="sm" variant="danger" onClick={() => setRefundOpen(true)} disabled={o.status === "cancelled"}>退款</Button></BossOnly>
-          {(isBoss || (isManager && o.operatorId === session?.user?.id)) && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={o.status !== "booking" || o.auditStatus !== "pending"}>删除</Button>}
+          {(isBoss || (isManager && o.auditStatus !== "approved")) && <Button size="sm" variant="danger" onClick={() => { setRefundMethod(o.payMethod); setRefundOpen(true); }} disabled={busy || syncRequired || o.status === "cancelled" || o.auditStatus === "rejected"}>退款</Button>}
+          {(isBoss || (isManager && o.operatorId === session?.user?.id)) && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)} disabled={busy || syncRequired}>删除</Button>}
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="商品明细" meta={`${o.items.length} 项`}>
+        <Panel title="商品明细" meta={`${items.length} 项`}>
           <DataTable<OrderItem>
             rowKey={(r, i) => r.productName + i}
             columns={[
@@ -200,25 +315,25 @@ export default function OrderDetailPage() {
             ))}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setRefundOpen(false)}>取消</Button>
-            <Button variant="danger" onClick={refund}>确认退款（{money(o.paid)}）</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => setRefundOpen(false)}>取消</Button>
+            <Button variant="danger" disabled={busy || syncRequired} onClick={refund}>确认退款（{money(o.paid)}）</Button>
           </div>
         </div>
       </Modal>
 
       <Modal open={deleteOpen} title={`删除订单 — ${o.orderNo}`} onClose={() => setDeleteOpen(false)}>
         <div className="space-y-4">
-          <p className="text-sm">仅「待开始 + 未审核 + 未产生提成」的订单可删除；删除后写入审计日志。</p>
+          <p className="text-sm">服务器会校验删除权限并处理关联资金与审计；恢复旧单仍维持财务保护。</p>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>取消</Button>
-            <Button variant="danger" onClick={removeOrder}>确认删除</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => setDeleteOpen(false)}>取消</Button>
+            <Button variant="danger" disabled={busy || syncRequired} onClick={removeOrder}>确认删除</Button>
           </div>
         </div>
       </Modal>
 
       <p className="font-mono text-[11px] text-muted">
         <Link href="/orders" className="underline underline-offset-2 hover:text-accent">← 返回订单列表</Link>
-        {real ? " · 状态/退款/删除直连数据库 RPC" : " · 状态/退款/删除为本地 Mock 交互"}
+        {real ? " · 订单状态以服务器确认为准（支持待开始直接完成）" : " · 状态/退款/删除为本地 Mock 交互"}
       </p>
       <ReceiptEditor order={o} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
     </div>

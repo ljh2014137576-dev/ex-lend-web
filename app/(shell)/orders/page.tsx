@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
@@ -15,7 +15,8 @@ import { DataSourceBadge } from "@/lib/use-real-data";
 import { dateKey } from "@/lib/date";
 import { apiOrders, apiEmployees, rpcBatchStartOrders, rpcBatchApproveOrders, rpcBatchCompleteOrders } from "@/lib/supabase-api";
 import { ORDERS, EMPLOYEES, type Order } from "@/lib/mock-data";
-import { useAuth } from "@/lib/auth";
+import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
+import { orderActionMessage, verifiedBatchCount } from "@/lib/order-actions";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -50,7 +51,7 @@ function exportCsv(rows: Order[], from: string, to: string) {
 
 export default function OrdersPage() {
   const { data: orders, real, error, loading, mutate } = useResource<Order>("orders", apiOrders, ORDERS);
-  const { session, isBoss } = useAuth();
+  const { session, isBoss, mockRole } = useAuth();
 
   const [status, setStatus] = useState("all");
   const [audit, setAudit] = useState("all");
@@ -76,6 +77,12 @@ export default function OrdersPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
+  const batchRef = useRef(false);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [syncRequired, setSyncRequired] = useState(false);
+  const syncRequiredRef = useRef(false);
+  const refreshVersion = useRef(0);
+  const markSyncRequired = (value: boolean) => { syncRequiredRef.current = value; setSyncRequired(value); };
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -141,43 +148,70 @@ export default function OrdersPage() {
 
   const countBy = (key: "status" | "auditStatus", v: string) => orders.filter((o) => o[key] === v).length;
 
-  const batchStart = async () => {
-    if (selected.length === 0) return;
-    if (session) {
-      const { data, error } = await rpcBatchStartOrders(selected);
-      if (error || data?.success === false) return setBatchMsg("批量开始失败：" + (error?.message ?? data?.message));
-    }
-    mutate((prev) =>
-      prev.map((o) => (selected.includes(o.id) && o.status === "booking" ? { ...o, status: "in_progress" } : o)),
-    );
-    setBatchMsg(`已批量开始 ${selected.length} 笔`);
-    setSelected([]);
+  const refreshOrders = async () => {
+    const version = ++refreshVersion.current;
+    const rows = await apiOrders();
+    if (!Array.isArray(rows)) throw new Error("订单列表读取失败，请稍后刷新核对。");
+    if (version !== refreshVersion.current) return rows;
+    mutate(() => rows);
+    markSyncRequired(false);
+    return rows;
   };
 
+  const refreshManually = async () => {
+    if (batchRef.current) return;
+    batchRef.current = true;
+    setBatchBusy(true);
+    try { await refreshOrders(); setBatchMsg("订单已刷新，请按当前状态操作。"); }
+    catch (err) { setBatchMsg(orderActionMessage(err)); }
+    finally { batchRef.current = false; setBatchBusy(false); }
+  };
 
-  const batchComplete = async () => {
-    if (selected.length === 0) return;
-    if (session) {
-      const { data, error } = await rpcBatchCompleteOrders(selected);
-      if (error || data?.success === false) return setBatchMsg("批量完成失败：" + (error?.message ?? data?.message));
+  const runBatch = async (kind: "start" | "complete" | "approve") => {
+    if (batchRef.current || syncRequiredRef.current || selected.length === 0) return;
+    if (kind === "approve" && !isBoss) return setBatchMsg("仅老板可批量审核");
+    if (!session && !(MOCK_LOGIN_ENABLED && mockRole)) return setBatchMsg("请先登录后操作订单。");
+    const ids = [...new Set(selected)];
+    if (ids.length > 200) return setBatchMsg("一次最多操作 200 笔，请减少勾选数量。");
+    batchRef.current = true;
+    ++refreshVersion.current;
+    setBatchBusy(true);
+    setBatchMsg(null);
+    const label = kind === "start" ? "开始" : kind === "complete" ? "完成" : "审核";
+    let confirmed = false;
+    let count = 0;
+    try {
+      if (session) {
+        const { data, error: actionError } = await (kind === "start" ? rpcBatchStartOrders(ids) : kind === "complete" ? rpcBatchCompleteOrders(ids) : rpcBatchApproveOrders(ids));
+        if (actionError || data?.success !== true) {
+          if (actionError?.uncertain) markSyncRequired(true);
+          const reasons = data?.skipped?.map(item => orderActionMessage(item.message ?? item.code)).filter(Boolean) ?? [];
+          return setBatchMsg("本次 0 笔变更；批量" + label + "未完成：" + orderActionMessage(actionError ?? data?.message) + (reasons.length ? "；" + [...new Set(reasons)].join("；") : ""));
+        }
+        confirmed = true;
+        count = verifiedBatchCount(data, ids);
+        await refreshOrders();
+        const skipped = data.skipped?.map(item => orderActionMessage(item.message ?? item.code)).filter(Boolean) ?? [];
+        setBatchMsg("本次实际" + label + " " + count + " 笔；未变更 " + (ids.length - count) + " 笔。" + (skipped.length ? " " + [...new Set(skipped)].join("；") : ""));
+        setSelected(data.updated_ids ? prev => prev.filter(id => !data.updated_ids!.includes(id)) : []);
+      } else {
+        const changed = orders.filter(o => ids.includes(o.id) && o.auditStatus !== "rejected" && (kind === "start" ? o.status === "booking" : kind === "complete" ? o.status === "booking" || o.status === "in_progress" : o.status === "completed" && o.auditStatus === "pending"));
+        const changedIds = new Set(changed.map(o => o.id));
+        mutate(prev => prev.map(o => changedIds.has(o.id) ? kind === "approve" ? { ...o, auditStatus: "approved" } : { ...o, status: kind === "start" ? "in_progress" : "completed" } : o));
+        setBatchMsg("Mock：本次实际" + label + " " + changed.length + " 笔。");
+        setSelected(prev => prev.filter(id => !changedIds.has(id)));
+      }
+    } catch (err) {
+      markSyncRequired(!!session);
+      setBatchMsg((confirmed ? "服务端已确认操作，但列表刷新或结果核对未完成，请刷新核对，勿重复提交：" : "操作结果未确认，请刷新核对：") + orderActionMessage(err));
+    } finally {
+      batchRef.current = false;
+      setBatchBusy(false);
     }
-    mutate((prev) => prev.map((o) => (selected.includes(o.id) && o.status === "in_progress" ? { ...o, status: "completed" } : o)));
-    setBatchMsg(`已批量完成 ${selected.length} 笔`);
-    setSelected([]);
   };
-  const batchApprove = async () => {
-    if (selected.length === 0) return;
-    if (!isBoss) return setBatchMsg("仅老板可批量审核");
-    if (session) {
-      const { data, error } = await rpcBatchApproveOrders(selected);
-      if (error || data?.success === false) return setBatchMsg("批量审核失败：" + (error?.message ?? data?.message));
-    }
-    mutate((prev) =>
-      prev.map((o) => (selected.includes(o.id) && o.auditStatus === "pending" ? { ...o, auditStatus: "approved" } : o)),
-    );
-    setBatchMsg(`已批量审核 ${selected.length} 笔`);
-    setSelected([]);
-  };
+  const batchStart = () => runBatch("start");
+  const batchComplete = () => runBatch("complete");
+  const batchApprove = () => runBatch("approve");
 
   return (
     <div className="space-y-6">
@@ -188,7 +222,7 @@ export default function OrdersPage() {
         />
         <div className="flex items-center gap-3">
           <DataSourceBadge real={real} />
-          <Button size="sm" variant="secondary" onClick={() => { void apiOrders().then((rows) => { if (Array.isArray(rows)) mutate(() => rows as Order[]); }); }} title="重新拉取订单（应对缓存陈旧）">
+          <Button size="sm" variant="secondary" disabled={batchBusy} onClick={() => { void refreshManually(); }} title="重新拉取订单（应对缓存陈旧）">
             刷新
           </Button>
           <Button size="sm" variant="secondary" onClick={() => exportCsv(filtered, dateFrom, dateTo)} disabled={filtered.length === 0}>
@@ -321,13 +355,14 @@ export default function OrdersPage() {
       {selected.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 border border-line bg-surface p-3">
           <span className="font-mono text-xs text-muted">已选 {selected.length} 笔</span>
-          <Button size="sm" variant="secondary" onClick={batchStart}>批量开始</Button>
-          <Button size="sm" variant="secondary" onClick={() => void batchComplete()}>批量完成</Button>
-          {isBoss && <Button size="sm" variant="secondary" onClick={batchApprove}>批量审核</Button>}
-          <Button size="sm" variant="ghost" onClick={() => setSelected([])}>取消选择</Button>
-          {batchMsg && <span className="font-mono text-[11px] text-muted">{batchMsg}</span>}
+          <Button size="sm" variant="secondary" disabled={batchBusy || syncRequired} onClick={batchStart}>批量开始</Button>
+          <Button size="sm" variant="secondary" disabled={batchBusy || syncRequired} onClick={() => void batchComplete()}>批量完成</Button>
+          {isBoss && <Button size="sm" variant="secondary" disabled={batchBusy || syncRequired} onClick={batchApprove}>批量审核</Button>}
+          <Button size="sm" variant="ghost" disabled={batchBusy} onClick={() => setSelected([])}>取消选择</Button>
         </div>
       )}
+
+      {batchMsg && <p role="status" className="font-mono text-xs text-muted">{batchMsg}</p>}
 
       <Panel title={`订单列表（${filtered.length}）`} meta="双击行查看详情 · 支持勾选批量操作">
         <DataTable<Order>
@@ -347,6 +382,7 @@ export default function OrdersPage() {
                   }}
                   onClick={(e) => e.stopPropagation()}
                   className="h-4 w-4 accent-black"
+                  disabled={batchBusy}
                   aria-label="全选当前筛选结果"
                 />
               ),
@@ -355,6 +391,7 @@ export default function OrdersPage() {
                 <input
                   type="checkbox"
                   checked={selected.includes(r.id)}
+                  disabled={batchBusy}
                   onChange={() => toggleSelect(r.id)}
                   onClick={(e) => e.stopPropagation()}
                   className="h-4 w-4 accent-black"
@@ -390,9 +427,7 @@ export default function OrdersPage() {
           setDetailId(null);
         }}
         onChanged={() => {
-          apiOrders().then((rows) => {
-            if (Array.isArray(rows)) mutate(() => rows as Order[]);
-          });
+          void refreshManually();
         }}
       />
     </div>

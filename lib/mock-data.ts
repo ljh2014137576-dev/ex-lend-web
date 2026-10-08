@@ -57,6 +57,7 @@ export interface OrderMember {
 }
 
 export interface OrderItem {
+  productId?: string | null;
   productName: string;
   category: string;
   unitPrice: number;
@@ -69,6 +70,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  customerId?: string | null;
   orderNo: string;
   customerName: string;
   customerType: "normal" | "vip";

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { normalizeOrderResult, type OrderActionResult } from "@/lib/order-actions";
 import type {
   Customer,
   Employee,
@@ -267,12 +268,13 @@ export async function apiCategories(): Promise<ProductCategory[] | null> {
 export async function apiOrders(): Promise<Order[] | null> {
   const { data } = await supabase
     .from("order")
-    .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, pending_amount, created_at, customer(name), creator:operator_id(name), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))")
+    .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, pending_amount, created_at, customer(name), creator:operator_id(name), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, commission_override_amount, employee(nickname, name))")
     .order("created_at", { ascending: false });
   if (!data) return null;
   return data.map((r) => ({
     id: r.id,
     orderNo: r.order_no,
+    customerId: r.customer_id ?? null,
     customerName: (r.customer as { name?: string } | null)?.name ?? "—",
     customerType: (r.customer_type_snapshot === "vip" ? "vip" : "normal") as "vip" | "normal",
     vipLevel: r.vip_level_snapshot ?? 0,
@@ -299,20 +301,23 @@ export async function apiOrders(): Promise<Order[] | null> {
       base: Number(m.base_amount ?? 0),
       rate: Number(m.applied_rate ?? 0),
       commission: Number(m.commission_amount ?? 0),
+      override: m.commission_override_amount == null ? null : Number(m.commission_override_amount),
     })),
   }));
 }
 
-export async function apiOrderDetail(id: string): Promise<{ order: Order; items: OrderItem[]; members: OrderMember[] } | null> {
-  const { data } = await supabase
+export async function apiOrderDetail(id: string, throwOnError = false): Promise<{ order: Order; items: OrderItem[]; members: OrderMember[] } | null> {
+  const { data, error } = await supabase
     .from("order")
     .select(
-      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, proof_path, proof_paths, created_at, customer(name), order_item(id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, employee(nickname, name))",
+      "id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, proof_path, proof_paths, created_at, customer(name), order_item(id, product_id, product_name_snapshot, category_snapshot, unit_price, quantity, original_amount, discount_amount, paid_amount, commission_type_snapshot), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, commission_override_amount, employee(nickname, name))",
     )
     .eq("id", id)
     .maybeSingle();
+  if (error && throwOnError) throw new Error(error.message);
   if (!data) return null;
   const items = (data.order_item ?? []).map((it) => ({
+    productId: it.product_id ?? null,
     productName: it.product_name_snapshot ?? "—",
     category: it.category_snapshot ?? "",
     unitPrice: Number(it.unit_price ?? 0),
@@ -330,10 +335,12 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
     base: Number(m.base_amount ?? 0),
     rate: Number(m.applied_rate ?? 0),
     commission: Number(m.commission_amount ?? 0),
+    override: m.commission_override_amount == null ? null : Number(m.commission_override_amount),
   }));
   const order: Order = {
     id: data.id,
     orderNo: data.order_no,
+    customerId: data.customer_id ?? null,
     customerName: (data.customer as { name?: string } | null)?.name ?? "—",
     customerType: (data.customer_type_snapshot === "vip" ? "vip" : "normal") as "vip" | "normal",
     vipLevel: data.vip_level_snapshot ?? 0,
@@ -357,6 +364,15 @@ export async function apiOrderDetail(id: string): Promise<{ order: Order; items:
   return { order, items, members };
 }
 
+async function orderRpc(name: string, params: Record<string, unknown>): Promise<OrderActionResult> {
+  try {
+    const { data, error } = await supabase.rpc(name, params);
+    return normalizeOrderResult(data, error);
+  } catch (error) {
+    return normalizeOrderResult(null, error);
+  }
+}
+
 // RPC（写入类，真实会话下调用）
 export const rpc = {
   createOrderMulti: (params: {
@@ -365,7 +381,7 @@ export const rpc = {
     p_employee_ids: string[];
     p_pay_method: "wallet" | "cash";
     p_paid_amount: number | null;
-  }) => supabase.rpc("create_order_multi", params),
+  }) => orderRpc("create_order_multi", params),
 };
 // RPC：写入类（真实会话下调用，错误返回 {success:false,message}）
 export function rpcCorrectOrder(params: {
@@ -376,7 +392,7 @@ export function rpcCorrectOrder(params: {
   p_pay_method: "wallet" | "cash";
   p_paid_amount?: number | null;
 }) {
-  return supabase.rpc("correct_order", params);
+  return orderRpc("correct_order", params);
 }
 
 export function rpcEditOrder(params: {
@@ -387,7 +403,7 @@ export function rpcEditOrder(params: {
   p_pay_method: "wallet" | "cash";
   p_paid_amount?: number | null;
 }) {
-  return supabase.rpc("edit_order", params);
+  return orderRpc("edit_order", params);
 }
 
 export async function rpcCreateOrderMulti(params: {
@@ -397,23 +413,23 @@ export async function rpcCreateOrderMulti(params: {
   p_pay_method: "wallet" | "cash";
   p_paid_amount: number | null;
 }) {
-  return supabase.rpc("create_order_multi", params);
+  return orderRpc("create_order_multi", params);
 }
 
 export function rpcAdjustOrderPrice(p_order_id: string, p_new_paid: number, p_reason?: string | null) {
-  return supabase.rpc("adjust_order_price", { p_order_id, p_new_paid, p_reason: p_reason ?? null });
+  return orderRpc("adjust_order_price", { p_order_id, p_new_paid, p_reason: p_reason ?? null });
 }
 
 export function rpcDeleteOrder(p_order_id: string, p_reason?: string | null) {
-  return supabase.rpc("delete_order", { p_order_id, p_reason: p_reason ?? null });
+  return orderRpc("delete_order", { p_order_id, p_reason: p_reason ?? null });
 }
 
 export function rpcApproveCommission(p_order_id: string) {
-  return supabase.rpc("approve_commission", { p_order_id });
+  return orderRpc("approve_commission", { p_order_id });
 }
 
 export function rpcRefundOrder(p_order_id: string, p_refund_method: "wallet" | "cash") {
-  return supabase.rpc("refund_order", { p_order_id, p_refund_method });
+  return orderRpc("refund_order", { p_order_id, p_refund_method });
 }
 
 export function rpcRechargeCustom(params: {
@@ -430,8 +446,12 @@ export function rpcPayoutSalary(p_items: { employee_id: string; amount: number }
   return supabase.rpc("payout_salary", { p_items, p_batch_no });
 }
 
-export function updateOrderStatus(id: string, status: "booking" | "in_progress" | "completed") {
-  return supabase.from("order").update({ status }).eq("id", id);
+export async function updateOrderStatus(id: string, status: "booking" | "in_progress" | "completed"): Promise<OrderActionResult> {
+  const result = await orderRpc("set_order_status", { p_order_id: id, p_status: status });
+  if (!result.error && (result.data?.order_id !== id || result.data?.status !== status || !((result.data.count === 1) || (result.data.count === 0 && result.data.unchanged === true)))) {
+    return { data: result.data, error: { message: "服务端未确认目标订单状态，请刷新核对，勿重复提交。", code: "STATE_RESULT_UNCONFIRMED", uncertain: true } };
+  }
+  return result;
 }
 // ============ 协作 / 规则 / 财务（预取用） ============
 
@@ -806,27 +826,27 @@ export async function apiDeleteLogs(): Promise<DeleteLog[] | null> {
   }));
 }
 export function rpcBatchCompleteOrders(p_order_ids: string[]) {
-  return supabase.rpc("batch_complete_orders", { p_order_ids });
+  return orderRpc("batch_complete_orders", { p_order_ids });
 }
 
 export function rpcBatchStartOrders(p_order_ids: string[]) {
-  return supabase.rpc("batch_start_orders", { p_order_ids });
+  return orderRpc("batch_start_orders", { p_order_ids });
 }
 
 export function rpcBatchApproveOrders(p_order_ids: string[]) {
-  return supabase.rpc("batch_approve_orders", { p_order_ids });
+  return orderRpc("batch_approve_orders", { p_order_ids });
 }
 
 export function rpcUpdateOrderProof(p_order_id: string, p_proof_path: string) {
-  return supabase.rpc("update_order_proof", { p_order_id, p_proof_path });
+  return orderRpc("update_order_proof", { p_order_id, p_proof_path });
 }
 
 export function rpcAddOrderProof(p_order_id: string, p_proof_path: string) {
-  return supabase.rpc("add_order_proof", { p_order_id, p_proof_path });
+  return orderRpc("add_order_proof", { p_order_id, p_proof_path });
 }
 
 export function rpcRemoveOrderProof(p_order_id: string, p_proof_path: string) {
-  return supabase.rpc("remove_order_proof", { p_order_id, p_proof_path });
+  return orderRpc("remove_order_proof", { p_order_id, p_proof_path });
 }
 
 export async function uploadProof(file: File, userId: string, orderId: string): Promise<string> {
@@ -838,12 +858,12 @@ export async function uploadProof(file: File, userId: string, orderId: string): 
   if (error) throw error;
   return path;
 }
-export function rpcSetPendingOrderCommissions(p_order_id: string, p_commissions: { employee_id: string; amount: number }[]) {
-  return supabase.rpc("set_pending_order_commissions", { p_order_id, p_commissions });
+export function rpcSetPendingOrderCommissions(p_order_id: string, p_commissions: { employee_id: string; amount: number | null }[]) {
+  return orderRpc("set_pending_order_commissions", { p_order_id, p_commissions });
 }
 
 export function rpcRejectOrderAudit(p_order_id: string) {
-  return supabase.rpc("reject_order_audit", { p_order_id });
+  return orderRpc("reject_order_audit", { p_order_id });
 }
 
 export function rpcHideProduct(p_product_id: string) {

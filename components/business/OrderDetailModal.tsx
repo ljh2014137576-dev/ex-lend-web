@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { apiOrderDetail, apiCustomers, apiEmployees, apiProducts, rpcAddOrderProof, rpcRemoveOrderProof, rpcSetPendingOrderCommissions, rpcRejectOrderAudit, rpcEditOrder, rpcCorrectOrder, rpcDeleteOrder, rpcAdjustOrderPrice, uploadProof } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
+import { commissionChanges, orderActionMessage, RECOVERY_HISTORY_MESSAGE, type OrderActionResult } from "@/lib/order-actions";
 import { compressPaymentProof } from "@/lib/image-compression";
 import { useResource } from "@/lib/data-store";
 import { CustomerSelect } from "@/components/business/CustomerSelect";
@@ -16,6 +17,8 @@ import { ProductSelect } from "@/components/business/ProductSelect";
 import { EmployeePicker } from "@/components/business/EmployeePicker";
 import { ORDERS, CUSTOMERS, EMPLOYEES, PRODUCTS, type Order, type OrderItem, type OrderMember, type Customer, type Employee, type Product } from "@/lib/mock-data";
 import { ReceiptEditor } from "@/components/business/ReceiptEditor";
+
+type ActionToken = { selection: string | null; version: number; confirmed: boolean };
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -30,7 +33,7 @@ export function OrderDetailModal({
   onDeleted?: (orderId: string) => void;
   onChanged?: () => void;
 }) {
-  const { session, isBoss, isManager } = useAuth();
+  const { session, isBoss, isManager, mockRole } = useAuth();
   const { data: products } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
@@ -59,9 +62,28 @@ export function OrderDetailModal({
   const [priceValue, setPriceValue] = useState("");
   const [priceReason, setPriceReason] = useState("");
   const [pricing, setPricing] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [syncRequired, setSyncRequired] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [loadedSelection, setLoadedSelection] = useState<string | null>(null);
+  const [pendingProofPaths, setPendingProofPaths] = useState<string[]>([]);
+  const actionRef = useRef(false);
+  const syncRef = useRef(false);
+  const viewVersion = useRef(0);
+  const readVersion = useRef(0);
+  const selectionRef = useRef(orderId);
+  selectionRef.current = orderId;
+  const visibleDetail = loadedSelection === orderId ? detail : null;
+  const markSync = (value: boolean) => { syncRef.current = value; setSyncRequired(value); };
+  const currentView = (token: ActionToken) => token.selection === selectionRef.current && token.version === viewVersion.current;
 
   useEffect(() => {
-    if (!orderId) return;
+    let mounted = true;
+    const version = ++viewVersion.current;
+    const read = ++readVersion.current;
+    setLoadedSelection(orderId);
+    markSync(false);
+    setPendingProofPaths([]);
     setDetail(null);
     setMockOrder(null);
     setProofs([]);
@@ -86,23 +108,32 @@ export function OrderDetailModal({
     setPriceReason("");
     setPricing(false);
     setUploading(false);
+    if (!orderId) { setDetailLoading(false); return; }
     if (session) {
-      apiOrderDetail(orderId).then((d) => {
+      setDetailLoading(true);
+      apiOrderDetail(orderId, true).then(d => {
+        if (!mounted || version !== viewVersion.current || read !== readVersion.current) return;
         if (d) setDetail(d);
-      });
+        else { setModalMsg("未找到当前账号可读取的订单。"); markSync(true); }
+      }).catch(err => {
+        if (!mounted || version !== viewVersion.current || read !== readVersion.current) return;
+        setModalMsg("订单详情读取失败：" + orderActionMessage(err)); markSync(true);
+      }).finally(() => { if (mounted && version === viewVersion.current && read === readVersion.current) setDetailLoading(false); });
     } else {
-      setMockOrder(ORDERS.find((o) => o.id === orderId) ?? null);
+      setDetailLoading(false);
+      if (MOCK_LOGIN_ENABLED && mockRole) setMockOrder(ORDERS.find(o => o.id === orderId) ?? null);
     }
-  }, [orderId, session]);
+    return () => { mounted = false; };
+  }, [orderId, session, mockRole]);
 
   // 真实凭证：私有桶 → 签名 URL 展示（支持多张）
   useEffect(() => {
     let mounted = true;
     const paths =
-      detail?.order.proofPaths && detail.order.proofPaths.length > 0
-        ? detail.order.proofPaths
-        : detail?.order.proofPath
-          ? [detail.order.proofPath]
+      visibleDetail?.order.proofPaths && visibleDetail.order.proofPaths.length > 0
+        ? visibleDetail.order.proofPaths
+        : visibleDetail?.order.proofPath
+          ? [visibleDetail.order.proofPath]
           : [];
     setProofs([]);
     if (session && paths.length > 0) {
@@ -112,182 +143,219 @@ export function OrderDetailModal({
           return data?.signedUrl ? { path, url: data.signedUrl } : null;
         }),
       ).then((list) => {
-        if (mounted) setProofs(list.filter(Boolean) as { path: string; url: string }[]);
-      });
+        if (mounted) {
+          setProofs(list.filter(Boolean) as { path: string; url: string }[]);
+          if (list.some(item => !item)) setProofMsg("部分凭证引用存在，但文件不可读取或签名失败。");
+        }
+      }).catch(err => { if (mounted) setProofMsg("凭证读取失败：" + orderActionMessage(err)); });
     }
     return () => {
       mounted = false;
     };
-  }, [detail, session]);
+  }, [visibleDetail, session, orderId]);
+
+  const o = visibleDetail?.order ?? (mockOrder?.id === orderId ? mockOrder : null);
+  const items = visibleDetail?.items ?? o?.items ?? [];
+  const members = visibleDetail?.members ?? o?.members ?? [];
+  const canEditCommission = o?.status === "completed" && o?.auditStatus === "pending" && members.length > 0;
+  const incompleteAssociations = !!session && !!o && (!o.customerId || items.length === 0 || items.some(item => !item.productId));
+
+  const loadDetail = async (id: string, token: ActionToken) => {
+    if (!currentView(token)) return null;
+    const read = ++readVersion.current;
+    const fresh = await apiOrderDetail(id, true);
+    if (!currentView(token) || read !== readVersion.current) return null;
+    if (!fresh) throw new Error("未找到当前账号可读取的订单，请刷新列表核对。");
+    setDetail(fresh);
+    setLoadedSelection(token.selection);
+    setDetailLoading(false);
+    markSync(false);
+    return fresh;
+  };
+
+  const runAction = async (task: (token: ActionToken) => Promise<void>, report = setModalMsg, allowRefresh = false) => {
+    if (actionRef.current || (!allowRefresh && syncRef.current)) return;
+    if (!session && !(MOCK_LOGIN_ENABLED && mockRole)) return report("请先登录后操作订单。");
+    actionRef.current = true;
+    ++readVersion.current;
+    setDetailLoading(false);
+    setActionBusy(true);
+    const token: ActionToken = { selection: orderId, version: viewVersion.current, confirmed: false };
+    try { await task(token); }
+    catch (err) {
+      if (currentView(token)) {
+        markSync(!!session);
+        report((token.confirmed ? "操作已确认，但详情刷新未完成，请刷新核对，勿重复提交：" : "操作结果未确认，请刷新核对：") + orderActionMessage(err));
+      }
+    } finally {
+      actionRef.current = false;
+      setActionBusy(false);
+      setUploading(false);
+      setPricing(false);
+      setDeleting(false);
+    }
+  };
+
+  const acceptResult = (result: OrderActionResult, token: ActionToken, report = setModalMsg): boolean => {
+    if (!currentView(token)) return false;
+    if (result.error || result.data?.success !== true) {
+      if (result.error?.uncertain) markSync(true);
+      report(orderActionMessage(result.error ?? result.data?.message));
+      return false;
+    }
+    token.confirmed = true;
+    return true;
+  };
+
+  const refreshModal = () => runAction(async token => {
+    const target = o?.id ?? orderId;
+    if (session && target) await loadDetail(target, token);
+    if (currentView(token)) setModalMsg("订单详情已刷新，请按当前结果操作。");
+  }, setModalMsg, true);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-    setUploading(true);
-    setProofMsg(null);
-    try {
-      if (session && detail) {
-        // 逐张压缩上传（HEIC/过小/无法解码时原样上传），一个订单可挂多张凭证
-        const added: string[] = [];
-        for (const file of files) {
-          const compressed = await compressPaymentProof(file);
-          const uploadFile = compressed
-            ? new File([compressed.blob], "proof." + compressed.extension, { type: compressed.contentType })
-            : file;
-          const path = await uploadProof(uploadFile, session.user.id, detail.order.id);
-          const { data: rpcData, error } = await rpcAddOrderProof(detail.order.id, path);
-          if (error || rpcData?.success === false) {
-            // 数据库未写入：清理已上传的孤儿文件（尽力而为），并显示真实原因
-            await supabase.storage.from("payment-proofs").remove([path]).catch(() => undefined);
-            throw new Error(error?.message ?? (rpcData as { message?: string })?.message ?? "更新凭证失败");
-          }
-          added.push(path);
-        }
-        const existing =
-          detail.order.proofPaths && detail.order.proofPaths.length > 0
-            ? detail.order.proofPaths
-            : detail.order.proofPath
-              ? [detail.order.proofPath]
-              : [];
-        setDetail({ ...detail, order: { ...detail.order, proofPath: added[added.length - 1], proofPaths: [...existing, ...added] } });
-        setProofMsg("已上传 " + added.length + " 张凭证");
-      } else {
+    e.target.value = "";
+    if (!files.length || !o) return;
+    if (session && !visibleDetail) return setProofMsg("请先读取真实订单详情再上传凭证。");
+    const target = o.id;
+    await runAction(async token => {
+      setUploading(true);
+      setProofMsg(null);
+      if (!session) {
         const reader = new FileReader();
-        reader.onload = () => {
-          setProofs([{ path: "", url: String(reader.result) }]);
-          setProofMsg("Mock 模式：凭证仅本地预览");
-        };
+        reader.onload = () => { if (currentView(token)) { setProofs([{ path: "", url: String(reader.result) }]); setProofMsg("Mock 模式：凭证仅本地预览"); } };
         reader.readAsDataURL(files[0]);
+        return;
       }
-    } catch (err) {
-      setProofMsg("上传失败：" + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+      const uploaded: string[] = [];
+      let confirmedCount = 0;
+      let incomplete = "";
+      let uncertain = false;
+      for (const file of files) {
+        try {
+          const compressed = await compressPaymentProof(file);
+          const uploadFile = compressed ? new File([compressed.blob], "proof." + compressed.extension, { type: compressed.contentType }) : file;
+          const path = await uploadProof(uploadFile, session.user.id, target);
+          uploaded.push(path);
+          if (currentView(token)) setPendingProofPaths(uploaded);
+          const result = await rpcAddOrderProof(target, path);
+          if (result.error || result.data?.success !== true) {
+            incomplete = orderActionMessage(result.error ?? result.data?.message);
+            uncertain = result.error?.uncertain ?? true;
+            // A lost RPC response may follow a committed reference: never delete the object here.
+            break;
+          }
+          confirmedCount++;
+          token.confirmed = true;
+        } catch (err) { incomplete = orderActionMessage(err); uncertain = true; break; }
+      }
+      onChanged?.();
+      const fresh = await loadDetail(target, token);
+      if (!currentView(token) || !fresh) return;
+      const paths = new Set(fresh.order.proofPaths?.length ? fresh.order.proofPaths : fresh.order.proofPath ? [fresh.order.proofPath] : []);
+      const verified = uploaded.filter(path => paths.has(path));
+      const pending = uploaded.filter(path => !paths.has(path));
+      setPendingProofPaths(pending);
+      if (uncertain && pending.length) markSync(true);
+      const count = Math.max(confirmedCount, verified.length);
+      setProofMsg(incomplete ? "已确认关联 " + count + " 张凭证；其余未完成：" + incomplete + "。已上传文件保留，请刷新核对。" : "已确认关联 " + count + " 张凭证。");
+    }, setProofMsg);
   };
 
   const removeProof = async (path: string) => {
-    if (!detail || !session) return;
-    setProofMsg(null);
-    const { data: rpcData, error } = await rpcRemoveOrderProof(detail.order.id, path);
-    if (error || rpcData?.success === false) {
-      return setProofMsg(error?.message ?? (rpcData as { message?: string })?.message ?? "删除凭证失败");
-    }
-    await supabase.storage.from("payment-proofs").remove([path]).catch(() => undefined);
-    const prev =
-      detail.order.proofPaths && detail.order.proofPaths.length > 0
-        ? detail.order.proofPaths
-        : detail.order.proofPath
-          ? [detail.order.proofPath]
-          : [];
-    const next = prev.filter((x) => x !== path);
-    setDetail({ ...detail, order: { ...detail.order, proofPaths: next, proofPath: next.length ? next[next.length - 1] : null } });
-    setProofs((list) => list.filter((x) => x.path !== path));
-    setProofMsg("已删除一张凭证");
+    if (!visibleDetail || !session) return;
+    const target = visibleDetail.order.id;
+    await runAction(async token => {
+      setProofMsg(null);
+      const result = await rpcRemoveOrderProof(target, path);
+      if (!acceptResult(result, token, setProofMsg)) return;
+      onChanged?.();
+      let storageError: string | null = null;
+      try {
+        const removal = await supabase.storage.from("payment-proofs").remove([path]);
+        if (removal.error) storageError = removal.error.message;
+      } catch (err) { storageError = orderActionMessage(err); }
+      await loadDetail(target, token);
+      if (currentView(token)) setProofMsg(storageError ? "订单凭证引用已移除，但文件删除未确认：" + storageError : "订单凭证引用和文件已删除。");
+    }, setProofMsg);
   };
 
-  const o = detail?.order ?? mockOrder;
-  const items = detail?.items ?? o?.items ?? [];
-  const members = detail?.members ?? o?.members ?? [];
-
-  const canEditCommission = o?.status === "completed" && o?.auditStatus === "pending" && members.length > 0;
-
   const openCommissionEditor = () => {
-    const init: Record<string, string> = {};
-    members.forEach((m) => (init[m.employeeId] = String(m.commission)));
-    setDrafts(init);
+    if (actionRef.current || syncRef.current) return;
+    if (incompleteAssociations) return setModalMsg(RECOVERY_HISTORY_MESSAGE);
+    setDrafts(Object.fromEntries(members.map(member => [member.employeeId, member.override == null ? "" : String(member.override)])));
     setEditCommissions(true);
     setModalMsg(null);
   };
 
   const saveCommissions = async () => {
-    if (!detail) return;
-    const commissions = members.map((m) => ({ employee_id: m.employeeId, amount: Number(drafts[m.employeeId]) || 0 }));
-    if (session) {
-      const { data, error } = await rpcSetPendingOrderCommissions(detail.order.id, commissions);
-      if (error || data?.success === false) {
-        return setModalMsg("修改失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+    if (!visibleDetail) return;
+    let commissions: ReturnType<typeof commissionChanges>;
+    try { commissions = commissionChanges(members, drafts); }
+    catch (err) { return setModalMsg(orderActionMessage(err)); }
+    const target = visibleDetail.order.id;
+    await runAction(async token => {
+      if (session) {
+        const result = await rpcSetPendingOrderCommissions(target, commissions);
+        if (!acceptResult(result, token)) return;
+        onChanged?.();
+        await loadDetail(target, token);
       }
-    }
-    setDetail({
-      ...detail,
-      members: members.map((m) => ({ ...m, commission: Number(drafts[m.employeeId]) || 0 })),
-      order: { ...detail.order, commission: commissions.reduce((s, c) => s + c.amount, 0) },
+      if (currentView(token)) { setEditCommissions(false); setModalMsg("提成覆盖已保存；留空的员工恢复自动计算。"); }
     });
-    setEditCommissions(false);
-    setModalMsg("提成已修改（审核时将按此入账）");
   };
 
   const rejectAudit = async () => {
-    if (!detail) return;
-    if (session) {
-      const { data, error } = await rpcRejectOrderAudit(detail.order.id);
-      if (error || data?.success === false) {
-        return setModalMsg("驳回失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
-      }
-    }
-    setDetail({ ...detail, order: { ...detail.order, auditStatus: "pending", commission: 0, grossProfit: 0 } });
-    setModalMsg("已驳回审核，订单恢复为待审核");
+    if (!visibleDetail || !isBoss) return;
+    const target = visibleDetail.order.id;
+    await runAction(async token => {
+      const result = await rpcRejectOrderAudit(target);
+      if (!acceptResult(result, token)) return;
+      onChanged?.();
+      await loadDetail(target, token);
+      if (currentView(token)) setModalMsg("已撤销审核，服务器状态已刷新为待审核。");
+    });
   };
 
   const adjustPrice = async () => {
     if (!o) return;
     const newPaid = Number(priceValue);
-    setPricing(true);
-    setModalMsg(null);
-    if (Number.isNaN(newPaid) || newPaid < 0 || newPaid > o.original) {
-      setPricing(false);
-      return setModalMsg("实际收款需在 0 与订单原价之间");
-    }
-    if (session) {
-      const { data, error } = await rpcAdjustOrderPrice(o.id, newPaid, priceReason.trim() || null);
-      if (error || data?.success === false) {
-        setPricing(false);
-        return setModalMsg("改价失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
-      }
-      const fresh = await apiOrderDetail(o.id);
-      if (fresh) setDetail(fresh);
-    } else {
-      // Mock 模式：本地更新金额
-      if (mockOrder) {
-        setMockOrder({ ...mockOrder, paid: newPaid, discount: o.original - newPaid, pending: newPaid });
-      }
-    }
-    setPriceOpen(false);
-    setPricing(false);
-    setModalMsg("价格已修改：实付 " + money(newPaid) + "（原价 " + money(o.original) + "）");
+    if (!priceValue.trim() || !Number.isFinite(newPaid) || newPaid < 0 || newPaid > o.original) return setModalMsg("实际收款须为 0 与订单原价之间的有限金额。");
+    const target = o.id;
+    await runAction(async token => {
+      setPricing(true);
+      if (session) {
+        const result = await rpcAdjustOrderPrice(target, newPaid, priceReason.trim() || null);
+        if (!acceptResult(result, token)) return;
+        onChanged?.();
+        await loadDetail(target, token);
+      } else if (mockOrder && currentView(token)) setMockOrder({ ...mockOrder, paid: newPaid, discount: o.original - newPaid, pending: newPaid });
+      if (currentView(token)) { setPriceOpen(false); setModalMsg("价格修改已确认，订单已刷新。"); }
+    });
   };
 
   const confirmDelete = async () => {
     if (!o) return;
-    setDeleting(true);
-    setModalMsg(null);
-    if (session && detail) {
-      const { data, error } = await rpcDeleteOrder(detail.order.id, deleteReason.trim() || null);
-      if (error || data?.success === false) {
-        setDeleting(false);
-        return setModalMsg("删除失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
+    const target = o.id;
+    await runAction(async token => {
+      setDeleting(true);
+      if (session) {
+        const result = await rpcDeleteOrder(target, deleteReason.trim() || null);
+        if (!acceptResult(result, token)) return;
       }
-    }
-    onDeleted?.(o.id);
-    setDeleting(false);
+      if (currentView(token)) { setDeleteOpen(false); onDeleted?.(target); onClose(); }
+    });
   };
 
   const openEdit = () => {
-    if (!o) return;
-    const cust = customers.find((c) => c.name === o.customerName);
-    setEditCust(cust?.id ?? customers[0]?.id ?? "");
+    if (!o || actionRef.current || syncRef.current) return;
+    if (!o.customerId || !items.length || items.some(item => !item.productId)) return setModalMsg(RECOVERY_HISTORY_MESSAGE);
+    if (!customers.some(customer => customer.id === o.customerId) || items.some(item => !products.some(product => product.id === item.productId))) return setModalMsg("原客户或商品尚不可读取，请刷新详情和列表；不会按名称替换关联对象。");
+    setEditCust(o.customerId);
     setEditPay(o.payMethod);
-    setEditItems(
-      o.items
-        .map((it) => {
-          const prod = products.find((p) => p.name === it.productName);
-          return { product_id: prod?.id ?? "", quantity: it.quantity };
-        })
-        .filter((x) => x.product_id),
-    );
-    setEditEmps(o.members.map((m) => m.employeeId));
+    setEditItems(items.map(item => ({ product_id: item.productId!, quantity: item.quantity })));
+    setEditEmps(members.map(member => member.employeeId));
     setEditPaid(String(o.paid));
     setEditMsg(null);
     setEditOpen(true);
@@ -296,58 +364,34 @@ export function OrderDetailModal({
   const saveEdit = async () => {
     if (!o) return;
     setEditMsg(null);
-    if (editItems.length === 0) return setEditMsg("请至少保留一个商品");
-    if (!editCust) return setEditMsg("请选择客户");
-    const isBooking = o.status === "booking";
+    if (!editItems.length || editItems.some(item => !item.product_id || !Number.isInteger(item.quantity) || item.quantity <= 0)) return setEditMsg("请保留有效商品和正整数数量。");
+    if (!editCust) return setEditMsg("请选择客户。");
     const editPaidAmount = editPaid.trim() === "" ? null : Number(editPaid);
-    if (editPaidAmount !== null && (Number.isNaN(editPaidAmount) || editPaidAmount < 0)) {
-      return setEditMsg("实际收款需大于等于 0");
-    }
-    if (!session) {
-      // Mock 模式：本地模拟保存（不写库）
-      setEditOpen(false);
-      setEditMsg(null);
-      setModalMsg("Mock 模式：订单已保存（本地演示，不写数据库）");
+    if (editPaidAmount !== null && (!Number.isFinite(editPaidAmount) || editPaidAmount < 0)) return setEditMsg("实际收款须为有限的非负金额。");
+    const target = o.id;
+    const isBooking = o.status === "booking";
+    await runAction(async token => {
+      if (!session) { if (currentView(token)) { setEditOpen(false); setModalMsg("Mock 模式：本地演示，不写数据库。"); } return; }
+      const args = { p_order_id: target, p_customer_id: editCust, p_items: editItems, p_employee_ids: editEmps, p_pay_method: editPay, p_paid_amount: editPaidAmount };
+      const result = await (isBooking ? rpcEditOrder(args) : rpcCorrectOrder(args));
+      if (!acceptResult(result, token, setEditMsg)) return;
+      const targetId = isBooking ? target : result.data?.order_id;
+      if (!targetId) throw new Error("更正已确认，但新订单 ID 未返回，请刷新列表核对。");
       onChanged?.();
-      return;
-    }
-    const { data, error } = isBooking
-      ? await rpcEditOrder({
-          p_order_id: o.id,
-          p_customer_id: editCust,
-          p_items: editItems,
-          p_employee_ids: editEmps,
-          p_pay_method: editPay,
-          p_paid_amount: editPaidAmount,
-        })
-      : await rpcCorrectOrder({
-          p_order_id: o.id,
-          p_customer_id: editCust,
-          p_items: editItems,
-          p_employee_ids: editEmps,
-          p_pay_method: editPay,
-          p_paid_amount: editPaidAmount,
-        });
-    if (error || data?.success === false) {
-      return setEditMsg("保存失败：" + (error?.message ?? (data as { message?: string })?.message ?? "未知错误"));
-    }
-    // 更正订单会重建新单（新 order_id）：切换到新单，避免停留在已取消的旧单
-    const targetId = (data?.order_id as string | undefined) ?? o.id;
-    const fresh = await apiOrderDetail(targetId);
-    if (fresh) setDetail(fresh);
-    setEditOpen(false);
-    setEditMsg(null);
-    setModalMsg(
-      isBooking
-        ? "订单已更新（金额/客户/商品已按新口径重算）"
-        : "已更正：新订单号 " + (data?.order_no ?? "") + "（原单已取消）",
-    );
-    onChanged?.();
+      await loadDetail(targetId, token);
+      if (currentView(token)) {
+        setEditOpen(false);
+        setEditMsg(null);
+        setModalMsg(isBooking ? "订单修改已确认，服务器数据已刷新。" : "更正已确认，当前显示新订单；原单已取消。");
+      }
+    }, setEditMsg);
   };
 
   return (
     <>
-    <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={onClose} xxl>
+    <Modal open={!!orderId} title={o ? `订单 ${o.orderNo}` : "订单详情"} onClose={() => { if (!actionRef.current) onClose(); }} xxl>
+      {modalMsg && <p role="status" className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-ink">{modalMsg}</p>}
+      <Button size="sm" variant="secondary" disabled={actionBusy} onClick={() => void refreshModal()}>刷新详情</Button>
       {o ? (editOpen ? (
         <div className="space-y-4">
           {editMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{editMsg}</p>}
@@ -439,8 +483,8 @@ export function OrderDetailModal({
           </div>
 
           <div className="flex justify-end gap-2 border-t border-line pt-3">
-            <Button variant="secondary" onClick={() => { setEditOpen(false); setEditMsg(null); }}>取消</Button>
-            <Button onClick={() => void saveEdit()}>保存修改</Button>
+            <Button variant="secondary" disabled={actionBusy} onClick={() => { setEditOpen(false); setEditMsg(null); }}>取消</Button>
+            <Button disabled={actionBusy || syncRequired} onClick={() => void saveEdit()}>保存修改</Button>
           </div>
         </div>
       ) : (
@@ -539,28 +583,29 @@ export function OrderDetailModal({
           {/* ⑤ 操作区（底部工具条） */}
           <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
             <span className="mr-auto font-mono text-[11px] text-muted">订单操作</span>
-            {(o.status === "booking" || o.status === "in_progress" || o.status === "completed") && (
-              <Button size="sm" variant="secondary" onClick={openEdit}>
+            {(o.status === "booking" ? isBoss : (isBoss || isManager) && ["in_progress", "completed"].includes(o.status) && (o.auditStatus !== "approved" || isBoss)) && o.auditStatus !== "rejected" && (
+              <Button size="sm" variant="secondary" disabled={actionBusy || syncRequired} onClick={openEdit}>
                 {o.status === "booking" ? "编辑订单" : "更正订单"}
               </Button>
             )}
-            {(isBoss || isManager) && o.status !== "cancelled" && o.auditStatus !== "rejected" && (
-              <Button size="sm" variant="secondary" onClick={() => { setPriceValue(String(o.paid)); setPriceReason(""); setPriceOpen(true); }}>修改价格</Button>
+            {(isBoss || isManager) && o.status !== "cancelled" && o.auditStatus !== "rejected" && (o.auditStatus !== "approved" || isBoss) && (
+              <Button size="sm" variant="secondary" disabled={actionBusy || syncRequired} onClick={() => { setPriceValue(String(o.paid)); setPriceReason(""); setPriceOpen(true); }}>修改价格</Button>
             )}
-            {canEditCommission && <Button size="sm" variant="secondary" onClick={openCommissionEditor}>修改提成</Button>}
-            {o.auditStatus === "approved" && <Button size="sm" variant="danger" onClick={rejectAudit}>驳回审核</Button>}
-            {(isBoss || (isManager && o.operatorId === session?.user?.id)) && <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>删除订单</Button>}
+            {canEditCommission && <Button size="sm" variant="secondary" disabled={actionBusy || syncRequired} onClick={openCommissionEditor}>修改提成</Button>}
+            {isBoss && o.status === "completed" && o.auditStatus === "approved" && <Button size="sm" variant="danger" disabled={actionBusy || syncRequired} onClick={rejectAudit}>驳回审核</Button>}
+            {(isBoss || (isManager && o.operatorId === session?.user?.id)) && <Button size="sm" variant="danger" disabled={actionBusy || syncRequired} onClick={() => setDeleteOpen(true)}>删除订单</Button>}
           </div>
 
           {/* ⑥ 面板：提成 / 改价 / 删除（统一在底部展开，不打断内容流） */}
           {editCommissions && (
             <div className="space-y-2 border border-line bg-paper p-3">
-              <p className="font-mono text-[11px] text-muted">修改提成（审核时将按此入账）</p>
+              <p className="font-mono text-[11px] text-muted">修改提成（留空恢复自动计算；0 表示明确覆盖为零）</p>
               {members.map((m) => (
                 <label key={m.employeeId} className="flex items-center gap-2">
                   <span className="w-20 font-mono text-[11px] text-muted">{m.name}</span>
                   <Input
                     type="number"
+                    disabled={actionBusy}
                     value={drafts[m.employeeId] ?? ""}
                     onChange={(e) => setDrafts({ ...drafts, [m.employeeId]: e.target.value })}
                   />
@@ -568,7 +613,7 @@ export function OrderDetailModal({
               ))}
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setEditCommissions(false)}>取消</Button>
-                <Button size="sm" onClick={saveCommissions}>保存提成</Button>
+                <Button size="sm" disabled={actionBusy || syncRequired} onClick={saveCommissions}>保存提成</Button>
               </div>
             </div>
           )}
@@ -598,7 +643,7 @@ export function OrderDetailModal({
               />
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setPriceOpen(false)}>取消</Button>
-                <Button size="sm" onClick={() => void adjustPrice()} disabled={pricing}>
+                <Button size="sm" onClick={() => void adjustPrice()} disabled={actionBusy || syncRequired || pricing}>
                   {pricing ? "保存中…" : "保存改价"}
                 </Button>
               </div>
@@ -617,14 +662,13 @@ export function OrderDetailModal({
               />
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setDeleteOpen(false)}>取消</Button>
-                <Button size="sm" variant="danger" onClick={() => void confirmDelete()} disabled={deleting}>
+                <Button size="sm" variant="danger" onClick={() => void confirmDelete()} disabled={actionBusy || syncRequired || deleting}>
                   {deleting ? "删除中…" : "确认删除"}
                 </Button>
               </div>
             </div>
           )}
 
-          {modalMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-ink">{modalMsg}</p>}
 
           {/* ⑦ 支付凭证 */}
           <div className="border border-line bg-paper p-3">
@@ -644,6 +688,7 @@ export function OrderDetailModal({
                     {pr.path && session && (
                       <button
                         type="button"
+                        disabled={actionBusy || syncRequired}
                         onClick={() => void removeProof(pr.path)}
                         className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/80"
                       >
@@ -656,9 +701,10 @@ export function OrderDetailModal({
             ) : (
               <p className="font-mono text-xs text-muted">暂无凭证</p>
             )}
-            {proofMsg && <p className="mt-2 font-mono text-[11px] text-danger">{proofMsg}</p>}
+            {pendingProofPaths.length > 0 && <p className="break-all font-mono text-[10px] text-muted">待核对文件（已保留）：{pendingProofPaths.join("；")}</p>}
+            {proofMsg && <p role="status" className="mt-2 font-mono text-[11px] text-danger">{proofMsg}</p>}
             <div className="mt-3 flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()} disabled={actionBusy || syncRequired || uploading}>
                 {uploading ? "上传中…" : "上传支付凭证"}
               </Button>
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
@@ -668,7 +714,7 @@ export function OrderDetailModal({
         </div>
         ))
       : (
-        <p className="py-8 text-center font-mono text-xs text-muted">订单不存在</p>
+        <p className="py-8 text-center font-mono text-xs text-muted">{detailLoading ? "正在读取订单详情…" : "订单详情暂不可用，请查看提示并刷新。"}</p>
       )}
       <ReceiptEditor order={o} open={receiptOpen} onClose={() => setReceiptOpen(false)} />
     </Modal>
