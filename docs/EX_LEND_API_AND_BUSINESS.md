@@ -1,5 +1,7 @@
 # Ex-Lend 接口与业务逻辑文档
 
+> 现状说明：本文包含恢复前的接口与业务设计，函数数量、删除权限、VIP 手动调整和待办通知等条目不代表当前部署。2026-10-10 对当前源码与在线权限的梳理见 [系统功能全景](SYSTEM_FUNCTION_MAP_20261010.md)。下文保留作历史设计参考。
+
 > 适用范围：Ex-Lend（员工提成与客户账户管理系统）
 > 数据层：Supabase（PostgreSQL + PL/pgSQL + RLS + Auth + Storage + Realtime）
 > 项目地址：E:\GLM-Z\ex-lend；备份副本：G:\new-ui\ALL_IN_ONE.sql

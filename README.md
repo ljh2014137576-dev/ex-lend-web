@@ -36,6 +36,8 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 
 ## 文档索引
 
+- [系统功能全景（2026-10-10）](docs/SYSTEM_FUNCTION_MAP_20261010.md)：现有页面、业务流程、角色权限、资金口径、占位入口与恢复限制
+
 - [Ex-Lend 接口与业务逻辑文档](docs/EX_LEND_API_AND_BUSINESS.md)
 - [前端规划 v0.1](docs/FE_PLAN.md)：页面清单/布局骨架/黑白 token/数据闭环（待确认）：全部 RPC/表/Storage/Realtime 接口、返回内容与完整业务逻辑
 - [操作日志](logs/INDEX.md)：每次操作记录，每 100 条一个文件
