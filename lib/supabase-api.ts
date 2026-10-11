@@ -19,46 +19,11 @@ import type {
   DeleteLog,
 } from "@/lib/mock-data";
 
-export interface WalletLedgerRow {
-  id: string;
-  employeeId?: string;
-  employee: string;
-  type: string;
-  amount: number;
-  balance: number;
-  orderNo: string;
-  at: string;
-}
-
-export interface CustomerLedgerRow {
-  id: string;
-  customer: string;
-  type: string;
-  amount: number;
-  principal: number;
-  bonus: number;
-  at: string;
-}
-
-export interface PayoutRow {
-  id: string;
-  batchNo: string;
-  operator: string;
-  total: number;
-  count: number;
-  status: string;
-  at: string;
-  proofPath?: string | null;
-}
-
-export interface PayoutDetailRow {
-  id: string;
-  employeeId: string;
-  employee: string;
-  amount: number;
-  balanceBefore: number;
-  balanceAfter: number;
-}
+import type { WalletLedgerRow, CustomerLedgerRow, PayoutRow, PayoutDetailRow, PayoutItem, PayoutMutationResult, PayoutLookupResult } from "@/lib/ledger-types";
+export type { WalletLedgerRow, CustomerLedgerRow, PayoutRow, PayoutDetailRow, PayoutItem, PayoutReceipt, PayoutApiError, PayoutMutationResult, PayoutLookupResult } from "@/lib/ledger-types";
+import { readAllLedgerPages, ledgerCursorFilter, type CursorRow } from "@/lib/ledger-pagination";
+import { ledgerNumber } from "@/lib/ledger";
+import { readPayoutReceipt, validatePayoutRequest, payoutProofObjectPath, PAYOUT_UUID } from "@/lib/ledger-payout";
 
 // ============================================================
 // 真实数据层（线上 Supabase 表结构，与 lib/mock-data 形状对齐）
@@ -266,11 +231,15 @@ export async function apiCategories(): Promise<ProductCategory[] | null> {
 }
 
 export async function apiOrders(): Promise<Order[] | null> {
-  const { data } = await supabase
+  const data = await readAllLedgerPages(async (cursor, pageSize) => {
+    let query = supabase
     .from("order")
     .select("id, order_no, customer_id, customer_type_snapshot, vip_level_snapshot, pay_method, original_amount, paid_amount, discount_amount, total_commission, gross_profit, status, audit_status, operator_id, pending_amount, created_at, customer(name), creator:operator_id(name), order_member(id, employee_id, grade_snapshot, base_amount, applied_rate, commission_amount, commission_override_amount, employee(nickname, name))")
-    .order("created_at", { ascending: false });
-  if (!data) return null;
+    .order("created_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false }).limit(pageSize);
+    if (cursor) query = query.or(ledgerCursorFilter(cursor));
+    const { data, error } = await query;
+    return { data, error };
+  });
   return data.map((r) => ({
     id: r.id,
     orderNo: r.order_no,
@@ -301,6 +270,7 @@ export async function apiOrders(): Promise<Order[] | null> {
       base: Number(m.base_amount ?? 0),
       rate: Number(m.applied_rate ?? 0),
       commission: Number(m.commission_amount ?? 0),
+      recordedCommission: ledgerNumber(m.commission_amount),
       override: m.commission_override_amount == null ? null : Number(m.commission_override_amount),
     })),
   }));
@@ -335,6 +305,7 @@ export async function apiOrderDetail(id: string, throwOnError = false): Promise<
     base: Number(m.base_amount ?? 0),
     rate: Number(m.applied_rate ?? 0),
     commission: Number(m.commission_amount ?? 0),
+      recordedCommission: ledgerNumber(m.commission_amount),
     override: m.commission_override_amount == null ? null : Number(m.commission_override_amount),
   }));
   const order: Order = {
@@ -442,8 +413,31 @@ export function rpcRechargeCustom(params: {
   return supabase.rpc("recharge_custom", params);
 }
 
-export function rpcPayoutSalary(p_items: { employee_id: string; amount: number }[], p_batch_no: string) {
-  return supabase.rpc("payout_salary", { p_items, p_batch_no });
+export async function rpcPayoutSalary(p_items: PayoutItem[], p_batch_no: string): Promise<PayoutMutationResult> {
+  let request: ReturnType<typeof validatePayoutRequest>;
+  try { request = validatePayoutRequest(p_items, p_batch_no); }
+  catch (error) { return { data: null, error: { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : String(error), uncertain: false } }; }
+  try {
+    const { data, error } = await supabase.rpc("payout_salary", { p_items: request.items, p_batch_no });
+    if (error) return { data: null, error: { code: error.code || "TRANSPORT_ERROR", message: error.message, uncertain: true } };
+    if (data?.success === false && typeof data.code === "string") {
+      // Only these explicit rejections certify this request made no money writes.
+      const definitive = ["FORBIDDEN", "REQUEST_TOKEN_REQUIRED", "INVALID_ITEMS", "INVALID_AMOUNT_PRECISION", "DUPLICATE_EMPLOYEE", "AMOUNT_TOO_LARGE", "EMPLOYEE_NOT_FOUND", "INVALID_EMPLOYEE_BALANCE", "INSUFFICIENT_BALANCE"];
+      return { data: null, error: { code: data.code, message: data.message || data.error || "工资结算未确认，请按原批次核对。", uncertain: !definitive.includes(data.code) } };
+    }
+    return { data: readPayoutReceipt(data, { batchNo: p_batch_no, actorId: request.actorId, items: request.items }), error: null };
+  } catch (error) {
+    return { data: null, error: { code: "RESULT_UNCONFIRMED", message: error instanceof Error ? error.message : String(error), uncertain: true } };
+  }
+}
+
+export async function apiPayoutByBatch(batchNo: string, actorId: string): Promise<PayoutLookupResult> {
+  if (!PAYOUT_UUID.test(actorId) || !batchNo) throw new Error("核对工资批次需要原操作人和批次编号。");
+  const { data, error } = await supabase.rpc("get_payout_receipt", { p_batch_no: batchNo });
+  if (error) throw error;
+  if (data?.success === false && data.code === "NOT_FOUND" && data.definitive === false && data.retry_same_request === true) return { kind: "not_found" };
+  if (data?.success === false && data.code === "LEGACY_UNVERIFIED" && data.settlement_exists === true) return { kind: "found", receipt: null, reason: "历史批次缺少完整回执，只可查看和补凭证，不能再次发放。" };
+  return { kind: "found", receipt: readPayoutReceipt(data, { batchNo, actorId }) };
 }
 
 export async function updateOrderStatus(id: string, status: "booking" | "in_progress" | "completed"): Promise<OrderActionResult> {
@@ -723,89 +717,75 @@ export async function apiRechargePackages(): Promise<RechargePackage[] | null> {
   }));
 }
 
-export async function apiWalletLedgers(): Promise<WalletLedgerRow[] | null> {
-  const { data } = await supabase
-    .from("wallet_ledger")
-    .select("id, employee_id, type, amount, balance_after, order_id, payout_id, created_at, employee(nickname, name), order:order_id(order_no), payout:payout_id(batch_no)")
-    .order("created_at", { ascending: false });
-  if (!data) return null;
-  return data.map((r) => ({
-    id: r.id,
-    employeeId: r.employee_id ?? undefined,
-    employee: (r.employee as { nickname?: string; name?: string } | null)?.nickname || (r.employee as { name?: string } | null)?.name || "—",
-    type: r.type,
-    amount: Number(r.amount ?? 0),
-    balance: Number(r.balance_after ?? 0),
-    orderNo: (r.order as { order_no?: string } | null)?.order_no || (r.payout as { batch_no?: string } | null)?.batch_no || "—",
-    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+// Descending (created_at, id) cursor, including NULL dates last. An empty page is
+// the only completion signal: PostgREST may cap each response below our limit.
+async function ledgerRows(table: string, projection: string, filter?: { column: string; value: string }): Promise<(CursorRow & Record<string, unknown>)[]> {
+  return readAllLedgerPages(async (cursor, pageSize) => {
+    let query = supabase.from(table).select(projection)
+      .order("created_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false }).limit(pageSize);
+    if (filter) query = query.eq(filter.column, filter.value);
+    if (cursor) query = query.or(ledgerCursorFilter(cursor));
+    const { data, error } = await query;
+    return { data: data as unknown as (CursorRow & Record<string, unknown>)[] | null, error };
+  });
+}
+const relation = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const ledgerText = (value: unknown): string | null => typeof value === "string" && value !== "" ? value : null;
+const ledgerDate = (value: unknown): string => typeof value === "string" && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString("zh-CN") : "时间未知";
+
+export async function apiWalletLedgers(): Promise<WalletLedgerRow[]> {
+  const data = await ledgerRows("wallet_ledger", "id,employee_id,type,amount,balance_after,order_id,payout_id,operator_id,remark,created_at,employee(nickname,name),order:order_id(order_no),payout:payout_id(batch_no,proof_path),creator:operator_id(name)");
+  return data.map(r => ({
+    id: r.id, employeeId: ledgerText(r.employee_id), employee: ledgerText(relation(r.employee).nickname) || ledgerText(relation(r.employee).name) || "—",
+    type: String(r.type ?? "unknown"), amount: ledgerNumber(r.amount), balance: ledgerNumber(r.balance_after),
+    orderId: ledgerText(r.order_id), orderNo: ledgerText(relation(r.order).order_no), payoutId: ledgerText(r.payout_id), batchNo: ledgerText(relation(r.payout).batch_no),
+    operatorId: ledgerText(r.operator_id), operator: ledgerText(relation(r.creator).name), remark: ledgerText(r.remark), proofPath: ledgerText(relation(r.payout).proof_path),
+    createdAtRaw: ledgerText(r.created_at), at: ledgerDate(r.created_at),
   }));
 }
 
-export async function apiCustomerLedgers(): Promise<CustomerLedgerRow[] | null> {
-  const { data } = await supabase
-    .from("customer_wallet_ledger")
-    .select("id, customer_id, type, amount, principal_after, bonus_after, created_at, customer(name)")
-    .order("created_at", { ascending: false });
-  if (!data) return null;
-  return data.map((r) => ({
-    id: r.id,
-    customer: (r.customer as { name?: string } | null)?.name ?? "—",
-    type: r.type,
-    amount: Number(r.amount ?? 0),
-    principal: Number(r.principal_after ?? 0),
-    bonus: Number(r.bonus_after ?? 0),
-    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
+export async function apiCustomerLedgers(): Promise<CustomerLedgerRow[]> {
+  const data = await ledgerRows("customer_wallet_ledger", "id,customer_id,type,amount,principal_after,bonus_after,order_id,operator_id,remark,proof_path,created_at,customer(name),order:order_id(order_no),creator:operator_id(name)");
+  return data.map(r => ({
+    id: r.id, customerId: ledgerText(r.customer_id), customer: ledgerText(relation(r.customer).name) ?? "—", type: String(r.type ?? "unknown"),
+    amount: ledgerNumber(r.amount), principal: ledgerNumber(r.principal_after), bonus: ledgerNumber(r.bonus_after), orderId: ledgerText(r.order_id), orderNo: ledgerText(relation(r.order).order_no),
+    operatorId: ledgerText(r.operator_id), operator: ledgerText(relation(r.creator).name), remark: ledgerText(r.remark), proofPath: ledgerText(r.proof_path),
+    createdAtRaw: ledgerText(r.created_at), at: ledgerDate(r.created_at),
   }));
 }
 
-export async function apiPayouts(): Promise<PayoutRow[] | null> {
-  const { data } = await supabase
-    .from("payout")
-    .select("id, batch_no, operator_id, total_amount, detail_count, status, proof_path, created_at, creator:operator_id(name)")
-    .order("created_at", { ascending: false });
-  if (!data) return null;
-  return data.map((r) => ({
-    id: r.id,
-    batchNo: r.batch_no,
-    operator: (r.creator as { name?: string } | null)?.name ?? "—",
-    total: Number(r.total_amount ?? 0),
-    count: r.detail_count ?? 0,
-    status: r.status,
-    at: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "—",
-    proofPath: r.proof_path ?? null,
-  }));
+const PAYOUT_FIELDS = "id,batch_no,operator_id,total_amount,detail_count,status,proof_path,created_at,creator:operator_id(name)";
+function payoutRow(r: Record<string, unknown>): PayoutRow {
+  if (typeof r.id !== "string" || !PAYOUT_UUID.test(r.id)) throw new Error("工资批次 ID 不完整。");
+  return { id: r.id, batchNo: ledgerText(r.batch_no) ?? "批次编号未保留", operatorId: ledgerText(r.operator_id), operator: ledgerText(relation(r.creator).name) ?? "—", total: ledgerNumber(r.total_amount), count: ledgerNumber(r.detail_count), status: String(r.status ?? "unknown"), proofPath: ledgerText(r.proof_path), createdAtRaw: ledgerText(r.created_at), at: ledgerDate(r.created_at) };
 }
-
-export async function apiPayoutDetails(payoutId: string): Promise<PayoutDetailRow[] | null> {
-  const { data } = await supabase
-    .from("payout_detail")
-    .select("id, employee_id, amount, balance_before, balance_after, created_at, employee(nickname, name)")
-    .eq("payout_id", payoutId)
-    .order("created_at", { ascending: true });
-  if (!data) return null;
-  return data.map((r) => ({
-    id: r.id,
-    employeeId: r.employee_id,
-    employee: (r.employee as { nickname?: string; name?: string } | null)?.nickname || (r.employee as { name?: string } | null)?.name || "—",
-    amount: Number(r.amount ?? 0),
-    balanceBefore: Number(r.balance_before ?? 0),
-    balanceAfter: Number(r.balance_after ?? 0),
-  }));
+export async function apiPayouts(): Promise<PayoutRow[]> {
+  return (await ledgerRows("payout", PAYOUT_FIELDS)).map(payoutRow);
 }
-
-export async function uploadPayoutProof(file: File, userId: string, batchNo: string): Promise<string> {
-  const ext = file.name.split(".").pop() || "dat";
-  const safe = batchNo.replace(/[^\w-]/g, "");
-  const path = userId + "/payout-" + safe + "-" + Date.now() + "." + ext;
-  const { error } = await supabase.storage
-    .from("payment-proofs")
-    .upload(path, file, { upsert: false, contentType: file.type || "application/octet-stream" });
+export async function apiPayoutById(id: string): Promise<PayoutRow | null> {
+  if (!PAYOUT_UUID.test(id)) throw new Error("需要有效的工资批次 ID。");
+  const { data, error } = await supabase.from("payout").select(PAYOUT_FIELDS).eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (data && data.id !== id) throw new Error("工资批次读取结果与目标不一致。");
+  return data ? payoutRow(data as unknown as Record<string, unknown>) : null;
+}
+export async function apiPayoutDetails(payoutId: string): Promise<PayoutDetailRow[]> {
+  if (!PAYOUT_UUID.test(payoutId)) throw new Error("需要有效的工资批次 ID。");
+  const data = await ledgerRows("payout_detail", "id,payout_id,employee_id,amount,balance_before,balance_after,created_at,employee(nickname,name)", { column: "payout_id", value: payoutId });
+  return data.map(r => ({ id: r.id, payoutId: ledgerText(r.payout_id), employeeId: ledgerText(r.employee_id), employee: ledgerText(relation(r.employee).nickname) || ledgerText(relation(r.employee).name) || "—", amount: ledgerNumber(r.amount), balanceBefore: ledgerNumber(r.balance_before), balanceAfter: ledgerNumber(r.balance_after), createdAtRaw: ledgerText(r.created_at) }));
+}
+export async function uploadPayoutProof(file: File, userId: string, payoutId: string, uploadUUID = crypto.randomUUID()): Promise<string> {
+  const path = payoutProofObjectPath(file.name, userId, payoutId, uploadUUID);
+  const { error } = await supabase.storage.from("payment-proofs").upload(path, file, { upsert: false, contentType: file.type || "application/octet-stream" });
   if (error) throw error;
   return path;
 }
-
-export async function apiUpdatePayoutProof(payoutId: string, proofPath: string) {
-  return supabase.from("payout").update({ proof_path: proofPath }).eq("id", payoutId);
+export async function apiUpdatePayoutProof(payoutId: string, proofPath: string, expectedProofPath: string | null = null): Promise<{ id: string; proofPath: string }> {
+  if (!PAYOUT_UUID.test(payoutId) || !proofPath) throw new Error("工资凭证需要真实批次 ID 和上传路径。");
+  const { data, error } = await supabase.rpc("attach_payout_proof", { p_payout_id: payoutId, p_proof_path: proofPath, p_expected_proof_path: expectedProofPath });
+  if (error) throw error;
+  if (data?.success !== true || data.attached !== true || data.payout_id !== payoutId || data.batch_id !== payoutId || data.proof_path !== proofPath) throw Object.assign(new Error(data?.message || data?.error || "凭证关联未确认，请读取原批次核对后重试附件。"), { code: data?.code || "PROOF_RESULT_UNCONFIRMED" });
+  return { id: payoutId, proofPath };
 }
 
 export async function apiDeleteLogs(): Promise<DeleteLog[] | null> {

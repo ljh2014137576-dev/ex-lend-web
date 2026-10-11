@@ -13,13 +13,13 @@ import { apiEmployees, apiUpdateEmployee, apiWalletLedgers, type WalletLedgerRow
 import { useResource } from "@/lib/data-store";
 import { WALLET_LEDGERS, ORDERS, type Order } from "@/lib/mock-data";
 import { OrderNoPreview } from "@/components/business/OrderPreview";
-import { LedgerPartners } from "@/components/business/LedgerPartners";
+import { LedgerPartners, LedgerProofLink } from "@/components/business/LedgerPartners";
 import { apiOrders } from "@/lib/supabase-api";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
-const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
+import { ledgerMoney as money, ledgerSignedAmount, walletLedgerTypeLabel, employeeLedgerTotals, employeeCommissionReferences, type EmployeeCommissionReference } from "@/lib/ledger";
 
 export default function EmployeesPage() {
   const { session } = useAuth();
@@ -32,32 +32,23 @@ export default function EmployeesPage() {
   const [editMode, setEditMode] = useState(false);
   const [editMsg, setEditMsg] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ realName: "", alipay: "", bankCard: "", grade: 1, status: "active" as "active" | "resigned" });
-  const { data: ledgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
-  const { data: orders } = useResource<Order>("orders", apiOrders, ORDERS);
+  const { data: ledgers, loading: ledgersLoading, error: ledgersError, real: ledgersReal, invalidate: reloadLedgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
+  const { data: orders, loading: ordersLoading, error: ordersError, real: ordersReal, invalidate: reloadOrders } = useResource<Order>("orders", apiOrders, ORDERS);
 
   const filtered = useMemo(
     () => employees.filter((e) => keyword === "" || e.name.includes(keyword)),
     [employees, keyword],
   );
 
-  // 按员工聚合工资流水（累计佣金 / 已发放 / 调整扣减），与工资结算页逻辑一致
-  const ledgerByEmployee = useMemo(() => {
-    const map = new Map<string, { commission: number; payout: number; other: number }>();
-    for (const l of ledgers) {
-      const key = l.employeeId || l.employee;
-      const g = map.get(key) ?? { commission: 0, payout: 0, other: 0 };
-      if (l.type === "commission") g.commission += l.amount;
-      else if (l.type === "payout") g.payout += Math.abs(l.amount);
-      else g.other += Math.abs(l.amount);
-      map.set(key, g);
-    }
-    return map;
-  }, [ledgers]);
-
-  // 当前详情员工的三项聚合金额（优先按 id，找不到再按 name）
-  const detailLedger = detailEmp
-    ? ledgerByEmployee.get(detailEmp.id) ?? ledgerByEmployee.get(detailEmp.name) ?? { commission: 0, payout: 0, other: 0 }
-    : { commission: 0, payout: 0, other: 0 };
+  const ledgerReady = !ledgersLoading && !ledgersError && (!session || ledgersReal);
+  const ordersReady = !ordersLoading && !ordersError && (!session || ordersReal);
+  const ledgerByEmployee = useMemo(() => employeeLedgerTotals(ledgers), [ledgers]);
+  const detailLedger = detailEmp && ledgerReady
+    ? ledgerByEmployee.get(detailEmp.id) ?? { commission: 0, payout: 0, other: 0 }
+    : { commission: null, payout: null, other: null };
+  const visibleLedgers = ledgerEmployee && ledgerReady ? ledgers.filter(row => row.employeeId === ledgerEmployee.id) : [];
+  const commissionReferences = useMemo(() => ledgerEmployee && ledgerReady && ordersReady
+    ? employeeCommissionReferences(ledgerEmployee.id, orders, ledgers) : [], [ledgerEmployee, ledgerReady, ordersReady, orders, ledgers]);
 
   const openDetail = (r: Employee) => {
     setDetailEmp(r);
@@ -225,9 +216,9 @@ export default function EmployeesPage() {
                 { label: "状态", value: detailEmp.status === "active" ? "在职" : "离职" },
                 { label: "钱包余额", value: money(detailEmp.wallet) },
                 { label: "欠款", value: detailEmp.isDebt ? "是" : "否" },
-                { label: "累计佣金", value: money(detailLedger.commission) },
-                { label: "已发放", value: money(detailLedger.payout) },
-                { label: "调整/扣减", value: money(detailLedger.other) },
+                { label: "已保存流水·佣金净额", value: money(detailLedger.commission) },
+                { label: "已保存流水·工资净变动", value: money(detailLedger.payout) },
+                { label: "已保存流水·其他净变动", value: money(detailLedger.other) },
               ].map((x) => (
                 <div key={x.label} className="bg-surface p-3">
                   <p className="font-mono text-[10px] text-muted">{x.label}</p>
@@ -235,6 +226,7 @@ export default function EmployeesPage() {
                 </div>
               ))}
             </div>
+            <p className="text-xs text-muted">仅统计已保存的钱包流水，历史流水缺失时不代表累计收入；订单提成参考不计入此处。{!ledgerReady && " 流水尚未完整读取，金额未知。"}</p>
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="secondary" onClick={() => setLedgerEmployee(detailEmp)}>查看流水</Button>
               <Button size="sm" onClick={() => { setEditMsg(null); setEditMode(true); }}>修改信息</Button>
@@ -291,19 +283,42 @@ export default function EmployeesPage() {
           <p className="font-mono text-[11px] text-muted">
             当前钱包余额：{money(ledgerEmployee?.wallet ?? 0)}
           </p>
-          <div className="max-h-[55vh] overflow-y-auto">
+          <p className="text-xs text-muted">已保存的钱包资金变动。缺失的历史流水、订单关联或余额不会推算补齐。</p>
+          {ledgersLoading && <p role="status">正在读取流水…</p>}
+          {ledgersError && <p role="alert" className="text-danger">流水读取失败：{ledgersError}</p>}
+          {(ledgersError || (!ledgersLoading && !ledgerReady)) && <Button size="sm" onClick={reloadLedgers}>重新读取流水</Button>}
+          {ledgerReady && <div className="max-h-[40vh] overflow-y-auto">
             <DataTable<WalletLedgerRow>
-              rowKey={(r) => r.id}
+              rowKey={r => r.id}
               columns={[
-                { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
-                { key: "balance", label: "变动后余额", align: "right", mono: true, render: (r) => money(r.balance) },
-                { key: "orderNo", label: "关联订单", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
-                { key: "partner", label: "协作", render: (r) => <LedgerPartners orderNo={r.orderNo} currentEmployee={ledgerEmployee?.name} orders={orders} /> },
-                { key: "at", label: "时间", mono: true },
+                { key: "type", label: "类型", render: r => walletLedgerTypeLabel(r.type) },
+                { key: "amount", label: "变动金额", align: "right", mono: true, render: r => ledgerSignedAmount(r.amount) },
+                { key: "balance", label: "变动后余额", align: "right", mono: true, render: r => money(r.balance) },
+                { key: "orderNo", label: "关联订单 / 批次", render: r => r.payoutId ? <a className="text-accent underline" href={`/payouts?payoutId=${encodeURIComponent(r.payoutId)}`}>{r.batchNo || "查看工资批次"}</a> : <OrderNoPreview orderId={r.orderId} orderNo={r.orderNo} orders={ordersReady ? orders : []} /> },
+                { key: "partner", label: "协作", render: r => <LedgerPartners orderId={r.orderId} currentEmployeeId={ledgerEmployee?.id} orders={ordersReady ? orders : []} /> },
+                { key: "operator", label: "操作人", render: r => r.operator || "未知" },
+                { key: "remark", label: "备注", render: r => r.remark || "—" },
+                { key: "proof", label: "凭证", render: r => <LedgerProofLink path={r.proofPath} /> },
+                { key: "at", label: "流水时间", mono: true },
               ]}
-              rows={ledgers.filter((l) => l.employee === ledgerEmployee?.name)}
-              empty="暂无流水"
+              rows={visibleLedgers}
+              empty="此员工没有现存钱包流水；这不表示没有历史订单或收入。可查看下方订单提成参考。"
             />
+          </div>}
+          <div className="border-t border-line pt-3">
+            <h3 className="text-sm font-medium">已保存订单提成参考</h3>
+            <p className="my-2 text-xs text-muted">用于核对，不代表钱包流水。仅列出此员工已审核、且未找到对应提成流水的订单快照；不参与钱包余额或累计流水统计。日期为订单日期，历史入账时间和变动后余额未知。</p>
+            {!ledgerReady && <p className="text-xs text-muted">需先完整读取钱包流水，才能核对未关联流水的订单参考。</p>}
+            {ordersLoading && <p role="status">正在读取订单参考…</p>}
+            {ordersError && <p role="alert" className="text-danger">订单参考读取失败：{ordersError}</p>}
+            {(ordersError || (!ordersLoading && !ordersReady)) && <Button size="sm" onClick={reloadOrders}>重新读取订单参考</Button>}
+            {ledgerReady && ordersReady && <DataTable<EmployeeCommissionReference> rowKey={r => r.id} columns={[
+              { key: "orderNo", label: "订单", render: r => <OrderNoPreview orderId={r.orderId} orderNo={r.orderNo} orders={orders} /> },
+              { key: "amount", label: "已审核提成快照", render: r => money(r.amount), align: "right", mono: true },
+              { key: "orderDate", label: "订单日期", mono: true },
+              { key: "postedAt", label: "历史入账时间", render: () => "未知" },
+              { key: "balance", label: "变动后余额", render: () => "未知" },
+            ]} rows={commissionReferences} empty="已读取订单中没有可列出的未关联提成参考。" />}
           </div>
         </div>
       </Modal>

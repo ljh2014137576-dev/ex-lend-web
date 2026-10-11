@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { CUSTOMERS, CUSTOMER_LEDGERS, RECHARGE_PACKAGES, type Customer, type RechargePackage } from "@/lib/mock-data";
-import { customerLedgerTypeLabel } from "@/lib/ledger";
-import { apiCustomers, apiRechargePackages, rpcRechargeCustom, apiCustomerLedgers } from "@/lib/supabase-api";
+import { customerLedgerTypeLabel, ledgerMoney, ledgerSignedAmount } from "@/lib/ledger";
+import { apiCustomers, apiRechargePackages, rpcRechargeCustom, apiCustomerLedgers, type CustomerLedgerRow } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
+import { OrderNoPreview } from "@/components/business/OrderPreview";
+import { LedgerProofLink } from "@/components/business/LedgerPartners";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { supabase } from "@/lib/supabase";
 import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
@@ -37,20 +39,10 @@ function savedCustomer(row: Record<string, unknown> | null): Customer | null {
   return { id: row.id, name: row.name, phone: typeof row.phone === "string" ? row.phone : "—", type: row.type, vipLevel, principal, bonus, pending, total, status: row.status };
 }
 
-interface LedgerEntry {
-  id: string;
-  customer: string;
-  type: string;
-  amount: number;
-  principal: number;
-  bonus: number;
-  at: string;
-}
-
 export default function CustomersPage() {
   const { session, mockRole } = useAuth();
   const { data: customers, real, error, loading, mutate: setCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
-  const { data: ledgers, mutate: setLedgers } = useResource<LedgerEntry>("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
+  const { data: ledgers, mutate: setLedgers, loading: ledgersLoading, error: ledgersError, real: ledgersReal, invalidate: reloadLedgers } = useResource<CustomerLedgerRow>("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
   const { data: packages, loading: packagesLoading } = useResource<RechargePackage>("rechargePackages", apiRechargePackages, RECHARGE_PACKAGES);
   const [keyword, setKeyword] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -181,7 +173,7 @@ export default function CustomersPage() {
       }
       const updated = { ...current, principal: current.principal + amount, bonus: current.bonus + bonus };
       setCustomers((prev) => prev.map((customer) => customer.id === target.id ? updated : customer));
-      setLedgers((prev) => [{ id: "cl" + Date.now(), customer: updated.name, type: "recharge_principal", amount, principal: updated.principal, bonus: updated.bonus, at: new Date().toLocaleString("zh-CN") }, ...prev]);
+      setLedgers((prev) => [{ id: "cl" + Date.now(), customerId: target.id, orderId: null, orderNo: null, operatorId: null, operator: null, remark: "测试充值", proofPath: null, createdAtRaw: new Date().toISOString(), customer: updated.name, type: "recharge_principal", amount, principal: updated.principal, bonus: updated.bonus, at: new Date().toLocaleString("zh-CN") }, ...prev]);
       setRechargeTarget(null);
     } catch (err) {
       if (session) setRechargeNeedsRefresh(true);
@@ -330,21 +322,29 @@ export default function CustomersPage() {
         </div>
       </Modal>
 
-      <Modal open={!!ledgerTarget} title={`钱包流水 — ${ledgerTarget?.name ?? ""}`} onClose={() => setLedgerTarget(null)} wide>
-        <div className="max-h-[60vh] overflow-y-auto">
-          <DataTable<LedgerEntry>
+      <Modal open={!!ledgerTarget} title={`钱包流水 — ${ledgerTarget?.name ?? ""}`} onClose={() => setLedgerTarget(null)} xwide>
+        <p className="mb-3 text-xs text-muted">仅显示此客户已保存的流水。历史关联和余额缺失显示未知，不按同名客户或金额推算。</p>
+        {ledgersLoading && <p role="status">正在读取流水…</p>}
+        {ledgersError && <p role="alert" className="text-danger">流水读取失败：{ledgersError}</p>}
+        {(ledgersError || (!ledgersLoading && !!session && !ledgersReal)) && <Button size="sm" onClick={reloadLedgers}>重新读取流水</Button>}
+        {!ledgersLoading && !ledgersError && (!session || ledgersReal) && <div className="max-h-[60vh] overflow-y-auto">
+          <DataTable<CustomerLedgerRow>
             rowKey={(r) => r.id}
             columns={[
-{ key: "type", label: "类型", mono: true, render: (r) => customerLedgerTypeLabel(r.type) },
-              { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
-              { key: "principal", label: "本金余额", align: "right", mono: true, render: (r) => money(r.principal) },
-              { key: "bonus", label: "赠送余额", align: "right", mono: true, render: (r) => money(r.bonus) },
-              { key: "at", label: "时间", mono: true },
+              { key: "type", label: "类型", mono: true, render: (r) => customerLedgerTypeLabel(r.type, r.amount) },
+              { key: "amount", label: "金额", align: "right", mono: true, render: (r) => ledgerSignedAmount(r.amount) },
+              { key: "principal", label: "本金余额", align: "right", mono: true, render: (r) => ledgerMoney(r.principal) },
+              { key: "bonus", label: "赠送余额", align: "right", mono: true, render: (r) => ledgerMoney(r.bonus) },
+              { key: "order", label: "关联订单", render: r => r.orderId ? <OrderNoPreview orderId={r.orderId} orderNo={r.orderNo} orders={[]} /> : <span className="text-muted">{r.type.startsWith("recharge") ? "充值无订单关联" : "未保留订单关联"}</span> },
+              { key: "operator", label: "操作人", render: r => r.operator || "未知" },
+              { key: "remark", label: "备注", render: r => r.remark || "—" },
+              { key: "proof", label: "凭证", render: r => <LedgerProofLink path={r.proofPath} /> },
+              { key: "at", label: "流水时间", mono: true },
             ]}
-            rows={ledgers.filter((l) => l.customer === ledgerTarget?.name)}
-            empty="暂无流水"
+            rows={ledgers.filter((l) => l.customerId === ledgerTarget?.id)}
+            empty="此客户没有现存钱包流水；历史记录可能未保留。"
           />
-        </div>
+        </div>}
       </Modal>
     </div>
   );

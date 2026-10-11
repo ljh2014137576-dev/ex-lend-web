@@ -1,3 +1,4 @@
+import type { WalletLedgerRow, CustomerLedgerRow } from "@/lib/ledger-types";
 // ============================================================
 // Mock 数据（测试用，结构与线上 Supabase 表一致）
 // 后续接真实数据时按同结构替换 lib/api
@@ -53,6 +54,7 @@ export interface OrderMember {
   base: number;
   rate: number;
   commission: number;
+  recordedCommission?: number | null;
   override?: number | null;
 }
 
@@ -209,17 +211,17 @@ export const ORDERS: Order[] = [
   },
 ];
 
-export const WALLET_LEDGERS = [
-  { id: "w1", employee: "阿明", type: "commission", amount: 81.6, balance: 4860, orderNo: "ORD20260801103001", at: "2026-08-01 11:02" },
-  { id: "w2", employee: "大刘", type: "commission", amount: 40.8, balance: 8800, orderNo: "ORD20260801103001", at: "2026-08-01 11:02" },
-  { id: "w3", employee: "阿明", type: "payout", amount: -1000, balance: 3860, orderNo: "批次 PB20260731", at: "2026-07-31 20:00" },
-  { id: "w4", employee: "老周", type: "adjust", amount: 500, balance: 5320, orderNo: "手动调整", at: "2026-07-31 15:30" },
+export const WALLET_LEDGERS: WalletLedgerRow[] = [
+  { id: "w1", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, employeeId: "e1", orderId: "o1", payoutId: null, batchNo: null, employee: "阿明", type: "commission", amount: 81.6, balance: 4860, orderNo: "ORD20260801103001", at: "2026-08-01 11:02" },
+  { id: "w2", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, employeeId: "e3", orderId: "o1", payoutId: null, batchNo: null, employee: "大刘", type: "commission", amount: 40.8, balance: 8800, orderNo: "ORD20260801103001", at: "2026-08-01 11:02" },
+  { id: "w3", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, employeeId: "e1", orderId: null, payoutId: "pb1", batchNo: "PB20260731", employee: "阿明", type: "payout", amount: -1000, balance: 3860, orderNo: null, at: "2026-07-31 20:00" },
+  { id: "w4", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, employeeId: "e5", orderId: null, payoutId: null, batchNo: null, employee: "老周", type: "adjust", amount: 500, balance: 5320, orderNo: null, at: "2026-07-31 15:30" },
 ];
 
-export const CUSTOMER_LEDGERS = [
-  { id: "cl1", customer: "张三", type: "recharge_principal", amount: 2000, principal: 3280.5, bonus: 560, at: "2026-07-30 14:00" },
-  { id: "cl2", customer: "张三", type: "consume_principal", amount: -693.6, principal: 2586.9, bonus: 560, at: "2026-08-01 10:30" },
-  { id: "cl3", customer: "钱七", type: "recharge_bonus", amount: 300, principal: 6100, bonus: 880, at: "2026-07-29 09:12" },
+export const CUSTOMER_LEDGERS: CustomerLedgerRow[] = [
+  { id: "cl1", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, customerId: "c1", orderId: null, orderNo: null, customer: "张三", type: "recharge_principal", amount: 2000, principal: 3280.5, bonus: 560, at: "2026-07-30 14:00" },
+  { id: "cl2", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, customerId: "c1", orderId: "o1", orderNo: "ORD20260801103001", customer: "张三", type: "consume_principal", amount: -693.6, principal: 2586.9, bonus: 560, at: "2026-08-01 10:30" },
+  { id: "cl3", operatorId: null, operator: null, remark: null, proofPath: null, createdAtRaw: null, customerId: "c5", orderId: null, orderNo: null, customer: "钱七", type: "recharge_bonus", amount: 300, principal: 6100, bonus: 880, at: "2026-07-29 09:12" },
 ];
 
 

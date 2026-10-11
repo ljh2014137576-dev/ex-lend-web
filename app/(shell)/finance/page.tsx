@@ -2,34 +2,24 @@
 
 import { useMemo, useState } from "react";
 import { dateKey } from "@/lib/date";
-import { customerLedgerTypeLabel } from "@/lib/ledger";
+import Link from "next/link";
+import { shortPayoutBatch } from "@/components/business/PayoutSettlementDialog";
+import { customerLedgerTypeLabel, ledgerMoney, ledgerSignedAmount, walletLedgerTypeLabel } from "@/lib/ledger";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FilterTabs } from "@/components/ui/FilterTabs";
-import { Modal } from "@/components/ui/Modal";
 import { WALLET_LEDGERS, CUSTOMER_LEDGERS, EMPLOYEES, DELETE_LOGS, ORDERS, CUSTOMERS, type Employee, type Order, type Customer } from "@/lib/mock-data";
 import { apiEmployees, apiOrders, apiCustomers, apiWalletLedgers, apiCustomerLedgers, apiPayouts, apiDeleteLogs } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { BossOnly } from "@/components/business/RequireRole";
 import { OrderNoPreview } from "@/components/business/OrderPreview";
 import { LedgerPartners } from "@/components/business/LedgerPartners";
-import { rpcPayoutSalary } from "@/lib/supabase-api";
-import { useAuth } from "@/lib/auth";
+import type { PayoutRow } from "@/lib/supabase-api";
 
-const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
-
-interface PayoutRow {
-  id: string;
-  batchNo: string;
-  operator: string;
-  total: number;
-  count: number;
-  status: string;
-  at: string;
-}
+const money = ledgerMoney;
 
 const fmtDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -55,28 +45,10 @@ const RANGE_PRESETS: { id: string; label: string; range: () => { from: string; t
   { id: "all", label: "全部", range: () => ({ from: "", to: "" }) },
 ];
 
-const INITIAL_PAYOUTS: PayoutRow[] = [
-  { id: "pa1", batchNo: "PB20260731", operator: "灰晨", total: 3200, count: 3, status: "completed", at: "2026-07-31 20:00" },
-  { id: "pa2", batchNo: "PB20260715", operator: "灰晨", total: 2800, count: 2, status: "completed", at: "2026-07-15 20:00" },
-];
-
 export default function FinancePage() {
 
-  const { data: employees, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
-  const { data: payouts, mutate: setPayouts } = useResource<PayoutRow>("payouts", apiPayouts, INITIAL_PAYOUTS);
-  const [payoutOpen, setPayoutOpen] = useState(false);
-  const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [hint, setHint] = useState<string | null>(null);
-
-  const openPayout = () => {
-    const init: Record<string, string> = {};
-    employees.filter((e) => e.status === "active").forEach((e) => (init[e.id] = ""));
-    setAmounts(init);
-    setHint(null);
-    setPayoutOpen(true);
-  };
-
-  const { session, name } = useAuth();
+  const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
+  const { data: payouts } = useResource<PayoutRow>("payouts", apiPayouts, []);
   const { data: orders, real } = useResource<Order>("orders", apiOrders, ORDERS);
   const { data: customers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { data: walletLedgers } = useResource("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
@@ -124,7 +96,7 @@ export default function FinancePage() {
       const d = dateKey(l.at);
       return (!range.from || d >= range.from) && (!range.to || d <= range.to);
     })
-    .reduce((s, l) => s + l.amount, 0);
+    .reduce<number | null>((sum, row) => sum === null || row.amount === null ? null : sum + row.amount, 0);
   const pendingAuditCommission = orders
     .filter((o) => o.auditStatus === "pending")
     .reduce((s, o) => s + o.commission, 0);
@@ -145,40 +117,6 @@ export default function FinancePage() {
   const maxTrend = Math.max(1, ...trendData.map((g) => g.v));
 
 
-
-  const submitPayout = async () => {
-    setHint(null);
-    const active = employees.filter((e) => e.status === "active");
-    const rows = active
-      .map((e) => ({ e, v: Number(amounts[e.id]) || 0 }))
-      .filter((r) => r.v > 0);
-    if (rows.length === 0) return setHint("请至少填写一名员工的发放金额");
-    for (const r of rows) {
-      if (!r.e.isDebt && r.e.wallet < r.v) {
-        return setHint(`员工 ${r.e.name} 余额不足（当前 ${money(r.e.wallet)}，欲发 ${money(r.v)}）`);
-      }
-    }
-    const total = rows.reduce((s, r) => s + r.v, 0);
-    const batchNo = "PB" + new Date().toISOString().replace(/\D/g, "").slice(0, 8);
-
-    if (session) {
-      const { data, error } = await rpcPayoutSalary(
-        rows.map((r) => ({ employee_id: r.e.id, amount: r.v })),
-        batchNo,
-      );
-      if (error || data?.success === false) {
-        return setHint("发放失败：" + (error?.message ?? data?.message ?? "未知错误"));
-      }
-    }
-    setEmployees((prev) =>
-      prev.map((e) => {
-        const row = rows.find((r) => r.e.id === e.id);
-        return row ? { ...e, wallet: +(e.wallet - row.v).toFixed(2) } : e;
-      }),
-    );
-    setPayouts((p) => [{ id: "pa" + Date.now(), batchNo, operator: name || "当前用户", total, count: rows.length, status: "completed", at: new Date().toLocaleString("zh-CN") }, ...p]);
-    setPayoutOpen(false);
-  };
 
   return (
     <div className="space-y-6">
@@ -287,7 +225,7 @@ export default function FinancePage() {
         <DataTable<PayoutRow>
           rowKey={(r) => r.id}
           columns={[
-            { key: "batchNo", label: "批次号", mono: true },
+            { key: "batchNo", label: "批次号", mono: true, render: (r) => <Link className="underline" href={"/payouts?payoutId=" + encodeURIComponent(r.id)}>{shortPayoutBatch(r.batchNo)}</Link> },
             { key: "operator", label: "操作人" },
             { key: "total", label: "总额", align: "right", mono: true, render: (r) => money(r.total) },
             { key: "count", label: "明细数", align: "right", mono: true },
@@ -298,28 +236,29 @@ export default function FinancePage() {
         />
       </Panel>
 
-      <Panel title="员工钱包流水" meta={`wallet_ledger${real ? "（真实）" : "（Mock）"}`}>
+      <Panel title="员工钱包流水（已保存）" meta={`wallet_ledger${real ? "（真实）" : "（Mock）"}`}>
         <DataTable
           rowKey={(r) => r.id}
           columns={[
             { key: "employee", label: "员工" },
-            { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
+            { key: "type", label: "类型", render: (r) => walletLedgerTypeLabel(r.type) },
+            { key: "amount", label: "金额", align: "right", mono: true, render: (r) => ledgerSignedAmount(r.amount) },
             { key: "balance", label: "变动后余额", align: "right", mono: true, render: (r) => money(r.balance) },
-            { key: "orderNo", label: "关联订单", render: (r) => <OrderNoPreview orderNo={r.orderNo} orders={orders} /> },
-            { key: "partner", label: "协作", render: (r) => <LedgerPartners orderNo={r.orderNo} currentEmployee={r.employee} orders={orders} /> },
+            { key: "orderNo", label: "关联订单", render: (r) => <OrderNoPreview orderNo={r.orderNo} orderId={r.orderId} orders={orders} /> },
+            { key: "partner", label: "协作", render: (r) => <LedgerPartners orderId={r.orderId} currentEmployeeId={r.employeeId} orders={orders} /> },
             { key: "at", label: "时间", mono: true },
           ]}
           rows={walletLedgers}
         />
       </Panel>
 
-      <Panel title="客户钱包流水" meta={`customer_wallet_ledger${real ? "（真实）" : "（Mock）"}`}>
+      <Panel title="客户钱包流水（已保存）" meta={`customer_wallet_ledger${real ? "（真实）" : "（Mock）"}`}>
         <DataTable
           rowKey={(r) => r.id}
           columns={[
             { key: "customer", label: "客户" },
-            { key: "type", label: "类型", mono: true, render: (r) => customerLedgerTypeLabel(r.type) },
-            { key: "amount", label: "金额", align: "right", mono: true, render: (r) => money(r.amount) },
+            { key: "type", label: "类型", mono: true, render: (r) => customerLedgerTypeLabel(r.type, r.amount) },
+            { key: "amount", label: "金额", align: "right", mono: true, render: (r) => ledgerSignedAmount(r.amount) },
             { key: "principal", label: "本金余额", align: "right", mono: true, render: (r) => money(r.principal) },
             { key: "bonus", label: "赠送余额", align: "right", mono: true, render: (r) => money(r.bonus) },
             { key: "at", label: "时间", mono: true },
@@ -344,43 +283,12 @@ export default function FinancePage() {
 
       <Panel title="工资发放" meta={`payout_salary${real ? "（真实）" : "（Mock）"}`}>
         <div className="flex items-center justify-between gap-4">
-          <p className="font-mono text-xs text-muted">按批次扣减员工钱包；非欠款员工余额不足将整体中断</p>
-          <BossOnly fallback={<span className="font-mono text-[11px] text-muted">仅老板可操作</span>}><Button onClick={openPayout}>发起工资发放</Button></BossOnly>
+          <p className="font-mono text-xs text-muted">工资统一在工资结算页处理；成功后凭证可独立补传。</p>
+          <BossOnly fallback={<span className="font-mono text-[11px] text-muted">仅老板可操作</span>}><Link href="/payroll" className="border border-line px-3 py-2 text-sm">进入工资结算</Link></BossOnly>
         </div>
       </Panel>
 
-      <Modal open={payoutOpen} title={`工资发放${real ? "" : "（Mock）"}`} onClose={() => setPayoutOpen(false)} wide>
-        <div className="space-y-4">
-          {hint && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{hint}</p>}
-          <div className="max-h-[50vh] overflow-y-auto">
-            <DataTable<Employee>
-              rowKey={(r) => r.id}
-              columns={[
-                { key: "name", label: "员工" },
-                { key: "wallet", label: "当前余额", align: "right", mono: true, render: (r) => money(r.wallet) },
-                { key: "isDebt", label: "欠款", mono: true, render: (r) => (r.isDebt ? "是" : "否") },
-                {
-                  key: "amount", label: "发放金额", align: "right",
-                  render: (r) => (
-                    <input
-                      type="number" min="0"
-                      value={amounts[r.id] ?? ""}
-                      onChange={(e) => setAmounts({ ...amounts, [r.id]: e.target.value })}
-                      placeholder="0"
-                      className="w-24 rounded-md border border-line bg-paper px-2 py-1 text-right font-mono text-xs outline-none focus:border-ink"
-                    />
-                  ),
-                },
-              ]}
-              rows={employees.filter((e) => e.status === "active")}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setPayoutOpen(false)}>取消</Button>
-            <Button onClick={submitPayout}>确认发放</Button>
-          </div>
-        </div>
-      </Modal>
+
     </div>
   );
 }

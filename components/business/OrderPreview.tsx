@@ -1,22 +1,29 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import type { Order } from "@/lib/mock-data";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
-export function OrderNoPreview({ orderNo, orders }: { orderNo: string; orders: Order[] }) {
+export function OrderNoPreview({ orderId, orderNo, orders }: { orderId?: string | null; orderNo?: string | null; orders: Order[] }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const order = orders.find((o) => o.orderNo === orderNo);
+  // Explicit null is a missing historical FK, not permission to guess by label.
+  const order = orderId === undefined ? orders.find(o => o.orderNo === orderNo) : orderId ? orders.find(o => o.id === orderId) : undefined;
+  const targetId = orderId ?? (orderId === undefined ? order?.id : null);
 
   if (!order) {
-    return <span className="font-mono text-xs text-muted">{orderNo}</span>;
+    return targetId
+      ? <Link href={`/orders/${encodeURIComponent(targetId)}`} onClick={e => e.stopPropagation()} className="font-mono text-xs text-accent underline">{orderNo || "查看关联订单"}</Link>
+      : <span className="font-mono text-xs text-muted">{orderNo || "未保留订单关联"}</span>;
   }
 
   return (
     <>
-      <span
+      <Link
+        href={`/orders/${encodeURIComponent(order.id)}`}
+        onClick={e => e.stopPropagation()}
         className="cursor-pointer font-mono text-xs text-accent underline decoration-line underline-offset-2"
         onMouseEnter={(e) => {
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -27,8 +34,8 @@ export function OrderNoPreview({ orderNo, orders }: { orderNo: string; orders: O
         }}
         onMouseLeave={() => setPos(null)}
       >
-        {orderNo}
-      </span>
+        {order.orderNo}
+      </Link>
       {pos && (
         <div
           className="fixed z-50 w-80 border border-line bg-surface p-3 shadow-lg"

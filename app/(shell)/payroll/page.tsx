@@ -8,16 +8,19 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { useResource } from "@/lib/data-store";
-import { apiEmployees, apiOrders, apiWalletLedgers, apiPayouts, rpcPayoutSalary, uploadPayoutProof, apiUpdatePayoutProof } from "@/lib/supabase-api";
+import { apiEmployees, apiOrders, apiWalletLedgers, apiPayouts } from "@/lib/supabase-api";
 import { EMPLOYEES, ORDERS, WALLET_LEDGERS, type Employee, type Order } from "@/lib/mock-data";
 import type { WalletLedgerRow } from "@/lib/supabase-api";
-import { supabase } from "@/lib/supabase";
+import { employeeLedgerTotals, ledgerMoney } from "@/lib/ledger";
+import { PayoutSettlementDialog, shortPayoutBatch } from "@/components/business/PayoutSettlementDialog";
 import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { dateKey } from "@/lib/date";
 
-const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
+const money = ledgerMoney;
+const sumKnown = (values: (number | null)[]): number | null => values.some(value => value === null) ? null : values.reduce<number>((sum, value) => sum + value!, 0);
+const exportNumber = (value: number | null) => value === null ? "未知" : Number(value.toFixed(2));
 
 interface PayrollRow {
   id: string;
@@ -29,13 +32,13 @@ interface PayrollRow {
   status: "active" | "resigned";
   wallet: number;
   isDebt: boolean;
-  commission: number;
-  payout: number;
-  other: number;
+  commission: number | null;
+  payout: number | null;
+  other: number | null;
 }
 
 export default function PayrollPage() {
-  const { isBoss, session } = useAuth();
+  const { isBoss } = useAuth();
   const { data: employees, real, mutate: setEmployees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: ledgers, invalidate: invalidateLedgers } = useResource<WalletLedgerRow>("walletLedgers", apiWalletLedgers, WALLET_LEDGERS);
   const { data: payouts, invalidate: invalidatePayouts } = useResource("payouts", apiPayouts, []);
@@ -43,39 +46,26 @@ export default function PayrollPage() {
   const [hint, setHint] = useState<string | null>(null);
   const [detailEmp, setDetailEmp] = useState<PayrollRow | null>(null);
 
-  if (!isBoss) return <NoPermission />;
-
-  const ledgerByEmployee = useMemo(() => {
-    const map = new Map<string, { commission: number; payout: number; other: number }>();
-    for (const l of ledgers) {
-      const key = l.employeeId || l.employee;
-      const g = map.get(key) ?? { commission: 0, payout: 0, other: 0 };
-      if (l.type === "commission") g.commission += l.amount;
-      else if (l.type === "payout") g.payout += Math.abs(l.amount);
-      else g.other += Math.abs(l.amount);
-      map.set(key, g);
-    }
-    return map;
-  }, [ledgers]);
+  const ledgerByEmployee = useMemo(() => employeeLedgerTotals(ledgers), [ledgers]);
 
   const rows: PayrollRow[] = useMemo(
     () =>
       employees.map((e) => {
-        const g = ledgerByEmployee.get(e.id) ?? ledgerByEmployee.get(e.name) ?? { commission: 0, payout: 0, other: 0 };
+        const g = ledgerByEmployee.get(e.id) ?? { commission: 0, payout: 0, other: 0 };
         return { id: e.id, name: e.name, realName: e.realName, alipay: e.alipay, bankCard: e.bankCard, grade: e.grade, status: e.status, wallet: e.wallet, isDebt: e.isDebt, ...g };
       }),
     [employees, ledgerByEmployee],
   );
 
-  // 排除没有工资的员工（结余/累计佣金/已发/调整全为 0 且无欠款）
+  // 排除没有工资的员工（结余/已保存流水·提成/已发/调整全为 0 且无欠款）
   const visibleRows = rows
     .filter((r) => r.wallet !== 0 || r.commission !== 0 || r.payout !== 0 || r.other !== 0 || r.isDebt)
     // 按当前工资结余降序排列
     .sort((a, b) => b.wallet - a.wallet);
   const active = visibleRows.filter((r) => r.status === "active");
   const totalWallet = active.reduce((s, r) => s + r.wallet, 0);
-  const totalCommission = active.reduce((s, r) => s + r.commission, 0);
-  const totalPayout = active.reduce((s, r) => s + r.payout, 0);
+  const totalCommission = sumKnown(active.map(r => r.commission));
+  const totalPayout = sumKnown(active.map(r => r.payout));
   const debtRows = active.filter((r) => r.isDebt || r.wallet < 0);
 
   // 选中员工的订单明细
@@ -93,10 +83,7 @@ export default function PayrollPage() {
   const empCompleted = empOrders.filter((o) => o.status === "completed").length;
 
   const [settleOpen, setSettleOpen] = useState(false);
-  const [settleDrafts, setSettleDrafts] = useState<Record<string, { checked: boolean; amount: string }>>({});
-  const [settleProof, setSettleProof] = useState<File | null>(null);
-  const [settleMsg, setSettleMsg] = useState<string | null>(null);
-  const [settling, setSettling] = useState(false);
+  const [settleIds, setSettleIds] = useState<string[] | undefined>();
   const [selected, setSelected] = useState<string[]>([]);
 
   const toggleSelect = (id: string) =>
@@ -104,73 +91,7 @@ export default function PayrollPage() {
   const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selected.includes(r.id));
   const toggleSelectAll = () => setSelected(allSelected ? [] : visibleRows.map((r) => r.id));
 
-  // ids：指定员工批量结算；不传 = 全部在职员工
-  const openSettle = (ids?: string[]) => {
-    const drafts: Record<string, { checked: boolean; amount: string }> = {};
-    if (ids && ids.length > 0) {
-      for (const id of ids) {
-        const emp = employees.find((e) => e.id === id);
-        if (emp) drafts[emp.id] = { checked: true, amount: String(emp.wallet) };
-      }
-    } else {
-      for (const e of employees) {
-        if (e.status === "active") drafts[e.id] = { checked: true, amount: String(e.wallet) };
-      }
-    }
-    setSettleDrafts(drafts);
-    setSettleProof(null);
-    setSettleMsg(null);
-    setSettleOpen(true);
-  };
-
-  const settleSelectedNames = active.filter((e) => settleDrafts[e.id]?.checked).map((e) => e.name);
-  const settleTitle =
-    settleSelectedNames.length === 1
-      ? settleSelectedNames[0] + " 结算"
-      : settleSelectedNames.length > 1
-        ? "批量结算"
-        : "结算工资";
-  const settleItems = active
-    .filter((e) => settleDrafts[e.id]?.checked && Number(settleDrafts[e.id]?.amount || 0) > 0)
-    .map((e) => ({ employee_id: e.id, amount: Number(settleDrafts[e.id].amount) }));
-  const settleTotal = settleItems.reduce((s2, i) => s2 + i.amount, 0);
-
-  const submitSettle = async () => {
-    setSettleMsg(null);
-    if (settleItems.length === 0) return setSettleMsg("请至少勾选一名员工并填写结算金额");
-    for (const it of settleItems) {
-      const emp = employees.find((x) => x.id === it.employee_id);
-      if (emp && !emp.isDebt && emp.wallet < it.amount) return setSettleMsg("员工 " + emp.name + " 余额不足（当前 " + money(emp.wallet) + "）");
-    }
-    const batchNo = "PB" + new Date().toISOString().replace(/\D/g, "").slice(0, 8) + "-" + String(Date.now()).slice(-4);
-    setSettling(true);
-    try {
-      const { data, error } = await rpcPayoutSalary(settleItems, batchNo);
-      if (error || data?.success === false) {
-        setSettleMsg((error?.message ?? (data as { message?: string })?.message) || "结算失败");
-        return;
-      }
-      if (settleProof && session) {
-        const path = await uploadPayoutProof(settleProof, session.user.id, batchNo);
-        await apiUpdatePayoutProof(String(data?.batch_id ?? ""), path);
-      }
-      setEmployees((prev) =>
-        prev.map((e) => {
-          const it = settleItems.find((x) => x.employee_id === e.id);
-          return it ? { ...e, wallet: +(e.wallet - it.amount).toFixed(2) } : e;
-        }),
-      );
-      invalidateLedgers();
-      invalidatePayouts();
-      setSettleOpen(false);
-      setHint("已结算批次 " + batchNo + " · " + settleItems.length + " 人 · " + money(settleTotal));
-      window.setTimeout(() => setHint(null), 3000);
-    } catch (err) {
-      setSettleMsg("结算失败：" + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setSettling(false);
-    }
-  };
+  const openSettle = (ids?: string[]) => { setSettleIds(ids); setSettleOpen(true); };
 
   const exportExcel = async () => {
     try {
@@ -181,11 +102,11 @@ export default function PayrollPage() {
         ["数据来源", real ? "真实数据" : "Mock 数据"],
         ["在职员工数", active.length],
         ["工资总额（在职结余合计）", Number(totalWallet.toFixed(2))],
-        ["累计佣金合计", Number(totalCommission.toFixed(2))],
-        ["已发放合计", Number(totalPayout.toFixed(2))],
+        ["已保存流水·提成合计", exportNumber(totalCommission)],
+        ["已保存流水·发放净额", exportNumber(totalPayout)],
         ["欠款员工数", debtRows.length],
       ];
-      const header = ["员工(昵称)", "真实姓名", "支付宝账号", "银行卡号", "等级", "状态", "累计佣金", "已发放", "调整/扣减", "当前工资结余", "欠款"];
+      const header = ["员工(昵称)", "真实姓名", "支付宝账号", "银行卡号", "等级", "状态", "已保存流水·提成", "已保存流水·发放净额", "已保存流水·其他净额", "当前工资结余", "欠款"];
       // 导出排序：支付宝+姓名都填 > 只填支付宝 > 只填姓名 > 都没填（未填的留空排在后面）
       const sortScore = (r: PayrollRow) => {
         const a = r.alipay && r.alipay.trim() ? 1 : 0;
@@ -200,9 +121,9 @@ export default function PayrollPage() {
         r.bankCard ?? "",
         r.grade,
         r.status === "active" ? "在职" : "离职",
-        Number(r.commission.toFixed(2)),
-        Number(r.payout.toFixed(2)),
-        Number(r.other.toFixed(2)),
+        exportNumber(r.commission),
+        exportNumber(r.payout),
+        exportNumber(r.other),
         Number(r.wallet.toFixed(2)),
         r.isDebt ? "是" : "否",
       ]);
@@ -212,7 +133,7 @@ export default function PayrollPage() {
       XLSX.utils.book_append_sheet(wb, ws, "工资结算");
       const ws2 = XLSX.utils.aoa_to_sheet([
         ["批次号", "发放总额", "人数", "状态", "时间"],
-        ...payouts.map((p: { batchNo: string; total: number; count: number; status: string; at: string }) => [p.batchNo, p.total, p.count, p.status, p.at]),
+        ...payouts.map(p => [p.batchNo, p.total ?? "未知", p.count ?? "未知", p.status, p.at]),
       ]);
       ws2["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 20 }];
       XLSX.utils.book_append_sheet(wb, ws2, "发放批次");
@@ -224,6 +145,8 @@ export default function PayrollPage() {
       window.setTimeout(() => setHint(null), 3000);
     }
   };
+
+  if (!isBoss) return <NoPermission />;
 
   return (
     <div className="space-y-6">
@@ -242,8 +165,8 @@ export default function PayrollPage() {
         {[
           { label: "在职员工", value: active.length + " 人" },
           { label: "工资总额（在职结余）", value: money(totalWallet) },
-          { label: "累计佣金合计", value: money(totalCommission) },
-          { label: "已发放合计", value: money(totalPayout) },
+          { label: "已保存流水·提成合计", value: money(totalCommission) },
+          { label: "已保存流水·发放净额", value: money(totalPayout) },
           { label: "欠款员工", value: debtRows.length + " 人" },
         ].map((s) => (
           <div key={s.label} className="bg-surface p-4">
@@ -287,11 +210,11 @@ export default function PayrollPage() {
         />
       </Panel>
 
-      <Panel title="工资发放批次" meta={payouts.length + " 批 · 仅老板可发放（见财务页）"}>
+      <Panel title="工资发放批次" meta={payouts.length + " 批 · 统一从本页结算"}>
         <DataTable
           rowKey={(r) => r.id}
           columns={[
-            { key: "batchNo", label: "批次号", mono: true },
+            { key: "batchNo", label: "批次号", mono: true, render: (r) => shortPayoutBatch(r.batchNo) },
             { key: "total", label: "发放总额", align: "right", mono: true, render: (r) => money(r.total) },
             { key: "count", label: "人数", align: "right", mono: true },
             { key: "status", label: "状态", mono: true },
@@ -311,9 +234,9 @@ export default function PayrollPage() {
 
             <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-4">
               {[
-                { label: "累计佣金", value: money(detailEmp.commission), danger: false },
-                { label: "已发放", value: money(detailEmp.payout), danger: false },
-                { label: "调整/扣减", value: money(detailEmp.other), danger: false },
+                { label: "已保存流水·提成", value: money(detailEmp.commission), danger: false },
+                { label: "已保存流水·发放净额", value: money(detailEmp.payout), danger: false },
+                { label: "已保存流水·其他净额", value: money(detailEmp.other), danger: false },
                 { label: "当前工资结余", value: money(detailEmp.wallet), danger: detailEmp.wallet < 0 },
               ].map((s) => (
                 <div key={s.label} className="bg-surface p-3">
@@ -357,54 +280,8 @@ export default function PayrollPage() {
         )}
       </Modal>
 
-      <Modal open={settleOpen} title={settleTitle} onClose={() => setSettleOpen(false)} xwide>
-        <div className="space-y-4">
-          {settleMsg && <p className="rounded-md border border-line bg-paper p-2 font-mono text-xs text-danger">{settleMsg}</p>}
-          <p className="font-mono text-[11px] text-muted">勾选员工并填写结算金额（默认=当前工资结余）。确认后将扣减钱包余额、写入员工流水，并生成一条结算批次记录。</p>
-          <div className="max-h-[45vh] overflow-y-auto">
-            <DataTable<Employee>
-              rowKey={(r) => r.id}
-              columns={[
-                {
-                  key: "check", label: "", render: (r) => (
-                    <input
-                      type="checkbox"
-                      checked={!!settleDrafts[r.id]?.checked}
-                      onChange={(e) => setSettleDrafts((d) => ({ ...d, [r.id]: { ...(d[r.id] ?? { amount: String(r.wallet) }), checked: e.target.checked } }))}
-                    />
-                  ),
-                },
-                { key: "name", label: "员工" },
-                { key: "wallet", label: "当前结余", align: "right", mono: true, render: (r) => money(r.wallet) },
-                {
-                  key: "amount", label: "结算金额", align: "right",
-                  render: (r) => (
-                    <input
-                      type="number" min={0} step="0.01"
-                      value={settleDrafts[r.id]?.amount ?? ""}
-                      onChange={(e) => setSettleDrafts((d) => ({ ...d, [r.id]: { ...(d[r.id] ?? { checked: true }), amount: e.target.value } }))}
-                      className="w-24 rounded-md border border-line bg-paper px-2 py-1 text-right font-mono text-xs outline-none focus:border-ink"
-                    />
-                  ),
-                },
-              ]}
-              rows={employees.filter((e) => e.status === "active")}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-[11px] text-muted">合计：{settleItems.length} 人 · {money(settleTotal)}</span>
-            <label className="ml-auto flex cursor-pointer items-center gap-2">
-              <span className="font-mono text-[11px] text-muted">支付凭证（Excel/图片）：</span>
-              <input type="file" accept="image/*,.xlsx,.xls,.csv,.pdf" onChange={(e) => setSettleProof(e.target.files?.[0] ?? null)} className="max-w-[220px] text-xs" />
-            </label>
-          </div>
-          {settleProof && <p className="font-mono text-[11px] text-muted">已选择凭证：{settleProof.name}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setSettleOpen(false)}>取消</Button>
-            <Button onClick={() => void submitSettle()} disabled={settling}>{settling ? "结算中…" : "确认结算"}</Button>
-          </div>
-        </div>
-      </Modal>
+      <PayoutSettlementDialog open={settleOpen} onClose={() => setSettleOpen(false)} employeeIds={settleIds}
+        onEmployees={next => setEmployees(() => next)} onRecorded={() => { invalidateLedgers(); invalidatePayouts(); }} />
     </div>
   );
 }
