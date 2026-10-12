@@ -16,6 +16,8 @@ import { ReceiptEditor } from "@/components/business/ReceiptEditor";
 import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
 import { orderActionMessage } from "@/lib/order-actions";
 
+import { ledgerMoney } from "@/lib/ledger";
+
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export default function OrderDetailPage() {
@@ -237,7 +239,7 @@ export default function OrderDetailPage() {
           { label: "客户", value: `${o.customerName}${o.customerType === "vip" ? ` · VIP${o.vipLevel}` : ""}` },
           { label: "支付方式", value: o.payMethod === "wallet" ? "钱包（本金/赠送质押）" : "现金（预收）" },
           { label: "原价 / 实付 / 折扣", value: `${money(o.original)} / ${money(o.paid)} / ${money(o.discount)}` },
-          { label: "佣金 / 毛利", value: `${money(o.commission)} / ${money(o.grossProfit)}` },
+          { label: "佣金 / 毛利", value: `${money(o.commission)} / ${ledgerMoney(o.grossProfit)}` },
         ].map((x) => (
           <div key={x.label} className="bg-surface p-4">
             <p className="font-mono text-[11px] text-muted">{x.label}</p>

@@ -19,6 +19,8 @@ import { OrderNoPreview } from "@/components/business/OrderPreview";
 import { LedgerPartners } from "@/components/business/LedgerPartners";
 import type { PayoutRow } from "@/lib/supabase-api";
 
+import { summarizeGrossProfit } from "@/lib/order-profit";
+
 const money = ledgerMoney;
 
 const fmtDay = (d: Date) =>
@@ -55,7 +57,7 @@ export default function FinancePage() {
   const { data: customerLedgers } = useResource("customerLedgers", apiCustomerLedgers, CUSTOMER_LEDGERS);
   const { data: deleteLogs } = useResource("deleteLogs", apiDeleteLogs, DELETE_LOGS);
   const approvedOrders = orders.filter((o) => o.auditStatus === "approved");
-  const grossProfitTotal = approvedOrders.reduce((s, o) => s + o.grossProfit, 0);
+  const grossProfit = summarizeGrossProfit(approvedOrders.map(o => o.grossProfit));
   const commissionTotal = approvedOrders.reduce((s, o) => s + o.commission, 0);
   const inFlightPending = orders
     .filter((o) => o.status === "booking" || o.status === "in_progress")
@@ -104,17 +106,12 @@ export default function FinancePage() {
   const totalWallet = employees.filter((e) => e.status === "active").reduce((s, e) => s + e.wallet, 0);
   // 毛利趋势：近 7 日，按已审核订单毛利聚合（真实数据）
   const trendData = useMemo(() => {
-    const days: { day: string; v: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      days.push({ day: dateKey(new Date(Date.now() - i * 86400000)), v: 0 });
-    }
-    approvedOrders.forEach((o) => {
-      const hit = days.find((x) => x.day === dateKey(o.createdAt));
-      if (hit) hit.v += o.grossProfit;
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = dateKey(new Date(Date.now() - (6 - index) * 86400000));
+      return { day, ...summarizeGrossProfit(approvedOrders.filter(order => dateKey(order.createdAt) === day).map(order => order.grossProfit)) };
     });
-    return days;
   }, [approvedOrders]);
-  const maxTrend = Math.max(1, ...trendData.map((g) => g.v));
+  const maxTrend = Math.max(1, ...trendData.map(day => day.knownTotal ?? 0));
 
 
 
@@ -191,7 +188,7 @@ export default function FinancePage() {
       <div className="grid grid-cols-2 gap-px border border-line bg-line lg:grid-cols-4">
         {[
           { label: "今日提成", value: money(todayCommission) },
-          { label: "总毛利（已审核）", value: money(grossProfitTotal) },
+          { label: grossProfit.unknownCount ? "毛利已知小计（已审核）" : "总毛利（已审核）", value: money(grossProfit.knownTotal), note: grossProfit.unknownCount ? `有 ${grossProfit.unknownCount} 单毛利未知；不代表完整总额` : undefined },
           { label: "进行中临时金额", value: money(inFlightPending) },
           { label: "客户存款总额", value: money(customerDeposits) },
           { label: "客户待结", value: money(customerPending) },
@@ -201,16 +198,20 @@ export default function FinancePage() {
           <div key={s.label} className="bg-surface p-4">
             <p className="font-mono text-[11px] text-muted">{s.label}</p>
             <p className="mt-2 text-xl font-semibold tabular-nums">{s.value}</p>
+            {s.note && <p className="mt-1 text-xs text-muted">{s.note}</p>}
           </div>
         ))}
       </div>
 
-      <Panel title="毛利趋势（近 7 日）" meta={`元 · ${real ? "真实" : "Mock"}`}>
+      <Panel title="毛利趋势（近 7 日）" meta={`已审核订单 · ${real ? "真实" : "Mock"} · 含未知订单的日期仅显示已知小计`}>
         <div className="flex h-40 items-end gap-3 border-b border-line">
           {trendData.map((g) => (
             <div key={g.day} className="flex flex-1 flex-col items-center gap-1">
-              <span className="font-mono text-[10px] text-muted">{g.v}</span>
-              <div className="w-full bg-accent/70" style={{ height: Math.max(8, (g.v / maxTrend) * 120) + "px" }} />
+              <span className="text-center font-mono text-[10px] text-muted">{g.unknownCount && g.knownCount ? "已知 " : ""}{money(g.knownTotal)}</span>
+              {g.unknownCount > 0 && <span className="text-center text-[10px] text-danger">{g.unknownCount} 单未知</span>}
+              <div title={g.unknownCount ? "该日毛利不完整，仅显示已知部分" : "该日已审核订单毛利"}
+                className={g.unknownCount ? "w-full border border-dashed border-muted bg-accent/20" : "w-full bg-accent/70"}
+                style={{ height: (g.knownTotal === null ? 8 : Math.max(0, (g.knownTotal / maxTrend) * 100)) + "px" }} />
             </div>
           ))}
         </div>

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import type { Order } from "@/lib/mock-data";
 
+import { ledgerMoney } from "@/lib/ledger";
+
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export function OrderNoPreview({ orderId, orderNo, orders }: { orderId?: string | null; orderNo?: string | null; orders: Order[] }) {
@@ -54,7 +56,7 @@ export function OrderNoPreview({ orderId, orderNo, orders }: { orderId?: string 
             <span className="text-muted">实付</span><span>{money(order.paid)}</span>
             <span className="text-muted">折扣</span><span>{money(order.discount)}</span>
             <span className="text-muted">佣金</span><span>{money(order.commission)}</span>
-            <span className="text-muted">毛利</span><span>{money(order.grossProfit)}</span>
+            <span className="text-muted">毛利</span><span>{ledgerMoney(order.grossProfit)}</span>
           </div>
           {order.items.length > 0 && (
             <ul className="mt-2 border-t border-line pt-2">

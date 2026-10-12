@@ -20,6 +20,8 @@ import { ReceiptEditor } from "@/components/business/ReceiptEditor";
 
 type ActionToken = { selection: string | null; version: number; confirmed: boolean };
 
+import { ledgerMoney } from "@/lib/ledger";
+
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
 export function OrderDetailModal({
@@ -510,7 +512,7 @@ export function OrderDetailModal({
               { label: "折扣", value: money(o.discount) },
               { label: "待结算", value: money(o.pending ?? 0) },
               { label: "佣金", value: money(o.commission) },
-              { label: "毛利", value: money(o.grossProfit) },
+              { label: "毛利", value: ledgerMoney(o.grossProfit) },
             ].map((x) => (
               <div key={x.label} className="bg-surface p-3">
                 <p className="font-mono text-[10px] text-muted">{x.label}</p>

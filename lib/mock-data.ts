@@ -82,7 +82,7 @@ export interface Order {
   paid: number;
   discount: number;
   commission: number;
-  grossProfit: number;
+  grossProfit: number | null;
   pending?: number;
   status: OrderStatus;
   auditStatus: AuditStatus;

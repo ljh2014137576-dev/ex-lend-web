@@ -31,7 +31,7 @@ function exportCsv(rows: Order[], from: string, to: string) {
       o.paid,
       o.discount,
       o.commission,
-      o.grossProfit,
+      o.grossProfit ?? "未知",
       o.status,
       o.auditStatus,
       o.createdAt,
