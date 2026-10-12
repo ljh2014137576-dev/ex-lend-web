@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
 import { OrderStatusTag, AuditStatusTag } from "@/components/business/OrderStatusTag";
 import { dateKey } from "@/lib/date";
+import { compareOrderCreatedDesc } from "@/lib/order-sort";
 
 const money = ledgerMoney;
 const sumKnown = (values: (number | null)[]): number | null => values.some(value => value === null) ? null : values.reduce<number>((sum, value) => sum + value!, 0);
@@ -73,7 +74,7 @@ export default function PayrollPage() {
     if (!detailEmp) return [];
     return orders
       .filter((o) => o.members.some((m) => m.employeeId === detailEmp.id))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort(compareOrderCreatedDesc);
   }, [detailEmp, orders]);
   const empOrderTotal = empOrders.reduce((s, o) => s + o.paid, 0);
   const empCommissionTotal = empOrders.reduce(

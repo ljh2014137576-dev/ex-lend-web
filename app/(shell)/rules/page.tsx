@@ -14,6 +14,8 @@ import { useResource } from "@/lib/data-store";
 import { useAuth } from "@/lib/auth";
 import { NoPermission } from "@/components/business/RequireRole";
 
+import { commissionRateFromPercent, commissionPercentText, DEFAULT_COMMISSION_PERCENT } from "@/lib/commission-policy";
+
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 const pct = (n: number) => (n * 100).toFixed(0) + "%";
 
@@ -23,7 +25,7 @@ export default function RulesPage() {
   const { data: upgrades, mutate: setUpgrades } = useResource<VipUpgradeRule>("vipUpgrades", apiVipUpgradeRules, VIP_UPGRADE_RULES);
   const { data: packages, real: packagesReal, mutate: setPackages } = useResource<RechargePackage>("rechargePackages", apiRechargePackages, RECHARGE_PACKAGES);
 
-  const [newGrade, setNewGrade] = useState({ grade: 4, rate: 0.12 });
+  const [newGrade, setNewGrade] = useState({ grade: 4, ratePercent: DEFAULT_COMMISSION_PERCENT });
   const [newVip, setNewVip] = useState({ vipLevel: 2, category: "正常单", discount: 0.92 });
   const [newUpgrade, setNewUpgrade] = useState({ vipLevel: 4, threshold: 100000 });
   const [newPkg, setNewPkg] = useState({ amount: 3000, bonus: 500 });
@@ -35,14 +37,18 @@ export default function RulesPage() {
   const [packageErrors, setPackageErrors] = useState<Record<string, string>>({});
   const gradeRequests = useRef(new Set<number>());
   const packageRequests = useRef(new Set<string>());
+  const addingGradeRef = useRef(false);
+  const [addingGrade, setAddingGrade] = useState(false);
+  const [newGradeError, setNewGradeError] = useState<string | null>(null);
   if (!isBoss) return <NoPermission />;
 
   const saveGrade = async (rule: GradeRule) => {
     if (!isBoss || gradeRequests.current.has(rule.grade)) return;
-    const draft = gradeDrafts[rule.grade] ?? String(rule.rate);
-    const rate = Number(draft);
-    if (!draft.trim() || !Number.isFinite(rate) || rate < 0 || rate > 1) {
-      setGradeFeedback((previous) => ({ ...previous, [rule.grade]: { error: true, message: "请输入 0 到 1 之间的数字" } }));
+    const draft = gradeDrafts[rule.grade] ?? commissionPercentText(rule.rate);
+    let rate: number;
+    try { rate = commissionRateFromPercent(draft); }
+    catch (error) {
+      setGradeFeedback(previous => ({ ...previous, [rule.grade]: { error: true, message: error instanceof Error ? error.message : "提成比例无效" } }));
       return;
     }
     if (session && !real) {
@@ -93,26 +99,27 @@ export default function RulesPage() {
     }
   };
 
-  // 添加等级：乐观插入 → 真实会话写库 → 失败回滚并提示，成功用 data.id 替换乐观项
   const addGrade = async () => {
-    const optimisticId = "tmp-" + Date.now();
-    const optimistic: GradeRule = { id: optimisticId, grade: newGrade.grade, rate: newGrade.rate };
-    setGrades((p) => [...p, optimistic]);
-    setNewGrade({ grade: 4, rate: 0.12 });
-
-    if (session) {
-      const { data, error } = await supabase
-        .from("grade_commission_rule")
-        .insert([{ grade: optimistic.grade, rate: optimistic.rate }])
-        .select("id")
-        .single();
-      if (error || !data) {
-        setGrades((prev) => prev.filter((x) => x.id !== optimisticId));
-        window.alert("创建失败：" + (error?.message ?? "未知错误"));
-        return;
+    if (!isBoss || addingGradeRef.current) return;
+    setNewGradeError(null);
+    let rate: number;
+    try { rate = commissionRateFromPercent(newGrade.ratePercent); }
+    catch (error) { return setNewGradeError(error instanceof Error ? error.message : "提成比例无效"); }
+    if (!Number.isInteger(newGrade.grade) || newGrade.grade < 1) return setNewGradeError("等级必须是大于 0 的整数");
+    if (grades.some(rule => rule.grade === newGrade.grade)) return setNewGradeError("此等级已存在，请修改上方已有规则");
+    if (session && !real) return setNewGradeError("规则数据未加载，请刷新后重试");
+    const rule: GradeRule = { id: "mock-grade-" + Date.now(), grade: newGrade.grade, rate };
+    addingGradeRef.current = true; setAddingGrade(true);
+    try {
+      if (session) {
+        const { data, error } = await supabase.from("grade_commission_rule").insert([{ grade: rule.grade, rate: rule.rate }]).select("id,grade,rate").single();
+        if (error || !data?.id || data.grade !== rule.grade || Number(data.rate) !== rate) throw new Error(error?.message ?? "未收到完整保存结果，请刷新核对规则");
+        rule.id = data.id;
       }
-      setGrades((prev) => prev.map((x) => (x.id === optimisticId ? { ...x, id: data.id } : x)));
-    }
+      setGrades(previous => [...previous, rule]);
+      setNewGrade({ grade: 4, ratePercent: DEFAULT_COMMISSION_PERCENT });
+    } catch (error) { setNewGradeError("创建等级失败：" + (error instanceof Error ? error.message : "请稍后重试")); }
+    finally { addingGradeRef.current = false; setAddingGrade(false); }
   };
 
   // 添加 VIP 折扣规则：乐观插入 → 真实会话写库 → 失败回滚并提示，成功用 data.id 替换乐观项
@@ -187,19 +194,20 @@ export default function RulesPage() {
 
       <Panel title="等级提成规则" meta="grade_commission_rule">
         <div className="space-y-4">
+          <p className="text-xs text-muted">填写百分数 80–100，例如 80 表示 80%；新订单不接受低于 80% 的提成规则。</p>
           <DataTable<GradeRule>
             rowKey={(r) => String(r.grade)}
             columns={[
               { key: "grade", label: "等级", align: "right", mono: true, render: (r) => `Lv${r.grade}` },
               {
-                key: "rate", label: "提成比例", align: "right",
+                key: "rate", label: "提成比例（%）", align: "right",
                 render: (r) => (
                   <div className="space-y-1">
                     <div className="flex items-center justify-end gap-2">
                       <input
-                        type="number" step="0.01" min="0" max="1"
-                        aria-label={`Lv${r.grade} 提成比例`}
-                        value={gradeDrafts[r.grade] ?? String(r.rate)}
+                        type="number" step="0.01" min="80" max="100"
+                        aria-label={`Lv${r.grade} 提成比例（80–100%）`}
+                        value={gradeDrafts[r.grade] ?? commissionPercentText(r.rate)}
                         disabled={gradeSaving[r.grade]}
                         onChange={(e) => {
                           if (gradeRequests.current.has(r.grade)) return;
@@ -209,7 +217,7 @@ export default function RulesPage() {
                         }}
                         className="w-20 rounded-md border border-line bg-paper px-2 py-1 text-right font-mono text-xs outline-none focus:border-ink"
                       />
-                      <Button size="sm" variant="secondary" disabled={gradeSaving[r.grade] || (gradeDrafts[r.grade] ?? String(r.rate)) === String(r.rate)} onClick={() => saveGrade(r)}>
+                      <Button size="sm" variant="secondary" disabled={gradeSaving[r.grade] || (gradeDrafts[r.grade] ?? commissionPercentText(r.rate)) === commissionPercentText(r.rate)} onClick={() => saveGrade(r)}>
                         {gradeSaving[r.grade] ? "保存中…" : "保存"}
                       </Button>
                     </div>
@@ -221,10 +229,11 @@ export default function RulesPage() {
             rows={grades}
           />
           <div className="flex items-end gap-2">
-            <label className="space-y-1"><span className="font-mono text-[10px] text-muted">等级</span><Input type="number" value={newGrade.grade} onChange={(e) => setNewGrade({ ...newGrade, grade: Number(e.target.value) })} /></label>
-            <label className="space-y-1"><span className="font-mono text-[10px] text-muted">比例</span><Input type="number" step="0.01" value={newGrade.rate} onChange={(e) => setNewGrade({ ...newGrade, rate: Number(e.target.value) })} /></label>
-            <Button size="sm" variant="secondary" onClick={addGrade}>添加等级</Button>
+            <label className="space-y-1"><span className="font-mono text-[10px] text-muted">等级</span><Input type="number" min="1" step="1" disabled={addingGrade} value={newGrade.grade} onChange={(e) => setNewGrade({ ...newGrade, grade: Number(e.target.value) })} /></label>
+            <label className="space-y-1"><span className="font-mono text-[10px] text-muted">提成比例（80–100%）</span><Input type="number" min="80" max="100" step="0.01" disabled={addingGrade} value={newGrade.ratePercent} onChange={(e) => setNewGrade({ ...newGrade, ratePercent: e.target.value })} /></label>
+            <Button size="sm" variant="secondary" disabled={addingGrade} onClick={addGrade}>{addingGrade ? "添加中…" : "添加等级"}</Button>
           </div>
+          {newGradeError && <p role="alert" className="text-xs text-danger">{newGradeError}</p>}
         </div>
       </Panel>
 

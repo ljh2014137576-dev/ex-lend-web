@@ -17,17 +17,21 @@ import {
   PRODUCTS,
   TOP_PRODUCTS,
   VIP_DISCOUNT_RULES,
+  GRADE_RULES,
   type Customer,
   type Employee,
   type Product,
   type PayMethod,
   type Order,
   type VipDiscountRule,
+  type GradeRule,
 } from "@/lib/mock-data";
-import { apiCustomers, apiEmployees, apiOrders, apiOrderDetail, apiProducts, apiTopProducts, apiVipDiscountRules, rpcCreateOrderMulti } from "@/lib/supabase-api";
+import { apiCustomers, apiEmployees, apiOrders, apiOrderDetail, apiProducts, apiTopProducts, apiVipDiscountRules, apiGradeRules, rpcCreateOrderMulti } from "@/lib/supabase-api";
 import { supabase } from "@/lib/supabase";
 import { useResource } from "@/lib/data-store";
 import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
+
+import { assertOrderCommissionPolicy, commissionPercentText, commissionRejectionMessage } from "@/lib/commission-policy";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -109,10 +113,11 @@ export default function CashierPage() {
 
   const { data: customers, real, mutate: setCustomers, invalidate: invalidateCustomers } = useResource<Customer>("customers", apiCustomers, CUSTOMERS);
   const { mutate: setOrders, invalidate: invalidateOrders } = useResource<Order>("orders", apiOrders, ORDERS);
-  const { data: employees } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
+  const { data: employees, real: employeesReal } = useResource<Employee>("employees", apiEmployees, EMPLOYEES);
   const { data: products, real: productsReal } = useResource<Product>("products", apiProducts, PRODUCTS);
   const { data: topProducts } = useResource<Product>("topProducts", apiTopProducts, TOP_PRODUCTS);
   const { data: vipDiscounts } = useResource<VipDiscountRule>("vipDiscounts", apiVipDiscountRules, VIP_DISCOUNT_RULES);
+  const { data: gradeRules, real: gradeRulesReal } = useResource<GradeRule>("gradeRules", apiGradeRules, GRADE_RULES);
   const { session, mockRole } = useAuth();
   const canSubmit = !!session || (MOCK_LOGIN_ENABLED && !!mockRole);
 
@@ -164,7 +169,18 @@ export default function CashierPage() {
   const catalogProducts =
     catalogMode === "popular" ? (popularProducts.length > 0 ? popularProducts : filteredProducts) : filteredProducts;
 
+  const commissionIssue = (selectedProducts: Product[]): string | null => {
+    if (session && employeeIds.length > 0 && selectedProducts.some(product => product.commissionType === "grade") && (!gradeRulesReal || !employeesReal)) return "员工或等级提成规则未加载成功，请刷新后再下单";
+    try { assertOrderCommissionPolicy(selectedProducts, employeeIds, employees, gradeRules); return null; }
+    catch (error) { return error instanceof Error ? error.message : "提成比例未确认，不能新建订单"; }
+  };
+
   const add = (p: Product) => {
+    if (session && !productsReal) return setHint("商品数据未加载成功，请刷新后再添加");
+    const currentProduct = resolveProduct(p.id);
+    if (!currentProduct) return setHint("该商品资料未完整加载，请刷新后再添加");
+    const issue = commissionIssue([currentProduct]);
+    if (issue) return setHint(issue);
     setReceipt(null);
     setHint(null);
     setCart((prev) => {
@@ -221,6 +237,8 @@ export default function CashierPage() {
     if (cart.length === 0) return setHint("请先添加商品");
     if (session && !productsReal) return setHint("商品数据未加载成功，请稍后刷新重试");
     if (missingProducts.length > 0) return setHint("部分商品未加载或已失效，请移除后重试");
+    const commissionError = commissionIssue(cartLines.map(line => line.product!));
+    if (commissionError) return setHint(commissionError);
     if (!paidValid) return setHint("实际收款需在 0 与订单原价之间");
     // 钱包余额不足：弹窗提醒，不静默切换
     if (pay === "wallet" && walletTotal < effectivePaid) {
@@ -337,7 +355,7 @@ export default function CashierPage() {
         const definiteRejection = !error?.uncertain && (data?.success === false
           || (error?.uncertain === false && /^(?:[0-9A-Z]{5}|PGRST\d{3})$/.test(error.code ?? "")));
         if (!definiteRejection) requireVerification("下单结果未确认，订单可能已生成或已扣款，请先到订单列表核对，勿重复提交。");
-        else setFail("下单被拒绝：" + (error?.message ?? data?.message ?? "请检查订单信息"));
+        else setFail("下单被拒绝：" + commissionRejectionMessage(error?.code ?? data?.code, error?.message ?? data?.message));
         return;
       }
       const orderId = data.order_id;
@@ -431,7 +449,7 @@ export default function CashierPage() {
                     <span className="min-w-0">
                       <span className="block truncate text-sm">{p.name}</span>
                       <span className="block font-mono text-[11px] text-muted">
-                        {p.category} · {p.commissionType === "grade" ? "按等级提成" : "固定提成"}
+                        {p.category} · {p.commissionType === "grade" ? "按等级提成" : `固定提成 ${commissionPercentText(p.fixedRate) || "未知"}${p.fixedRate === null ? "" : "%"}`}
                       </span>
                     </span>
                     <span className="shrink-0 font-mono text-sm tabular-nums">{money(p.price)}</span>

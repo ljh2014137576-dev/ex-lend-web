@@ -38,6 +38,7 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 
 - [工资与流水可靠性修复（2026-10-11）](docs/PAYOUT_LEDGER_REPAIR_20261011.md)：统一结算、原请求安全重试、附件独立补传及流水关联/分页
 - [历史订单明确清单补审（2026-10-12）](docs/REVIEWED_HISTORICAL_APPROVAL_20261012.md)：授权比例、原子入账、防重复回执及未知毛利显示
+- [工资订单排序与提成下限（2026-10-12）](docs/ORDER_COMMISSION_FLOOR_SORT_20261012.md)：真实创建时间倒序、订单类型至少 80%、客户端与数据库校验
 
 - [系统功能全景（2026-10-10）](docs/SYSTEM_FUNCTION_MAP_20261010.md)：现有页面、业务流程、角色权限、资金口径、占位入口与恢复限制
 

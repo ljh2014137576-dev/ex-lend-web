@@ -14,8 +14,10 @@ import { apiProducts, rpcHideProduct } from "@/lib/supabase-api";
 import { useResource } from "@/lib/data-store";
 import { DataSourceBadge } from "@/lib/use-real-data";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { MOCK_LOGIN_ENABLED, useAuth } from "@/lib/auth";
 import { BossOnly } from "@/components/business/RequireRole";
+
+import { commissionRateFromPercent, commissionPercentText, DEFAULT_COMMISSION_PERCENT } from "@/lib/commission-policy";
 
 const money = (n: number) => "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2 });
 
@@ -27,17 +29,20 @@ const STATUS_TABS = [
 ];
 
 export default function ProductsPage() {
-  const { session } = useAuth();
+  const { session, mockRole } = useAuth();
   const { data: products, real, error, loading, mutate: setProducts } = useResource<Product>("products", apiProducts, PRODUCTS);
   const [category, setCategory] = useState("all");
   const [statusTab, setStatusTab] = useState<"all" | "on_sale" | "off_shelf">("all");
   const [keyword, setKeyword] = useState("");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
+  const [form, setForm] = useState({ name: "", category: "正常单", price: 100, commissionType: "fixed", fixedPercent: DEFAULT_COMMISSION_PERCENT });
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
   const [hideTarget, setHideTarget] = useState<Product | null>(null);
   const [hiding, setHiding] = useState(false);
   const toastTimer = useRef<number | null>(null);
+  const creatingRef = useRef(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const cats = useMemo(() => {
     const set = new Set(products.map((p) => p.category));
@@ -66,53 +71,32 @@ export default function ProductsPage() {
   };
 
   const create = async () => {
-    if (!form.name.trim()) return;
-    const optimisticId = "tmp-p" + Date.now();
-    const optimistic: Product = {
-      id: optimisticId,
-      name: form.name.trim(),
-      category: form.category,
-      price: Math.max(0, Number(form.price)),
-      commissionType: form.commissionType as "fixed" | "grade",
-      fixedRate: form.commissionType === "fixed" ? 0.08 : null,
-      status: "on_sale",
-    };
-    // 先入缓存展示，后台写库；失败回滚并提示
-    setProducts((p) => [optimistic, ...p]);
-    setOpen(false);
-    setForm({ name: "", category: "正常单", price: 100, commissionType: "fixed" });
-
-    if (session) {
-      const { data, error } = await supabase
-        .from("product")
-        .insert([
-          {
-            name: optimistic.name,
-            category: optimistic.category,
-            price: optimistic.price,
-            commission_type: optimistic.commissionType,
-            fixed_rate: optimistic.fixedRate,
-            status: optimistic.status,
-          },
-        ])
-        .select("id")
-        .single();
-      if (error || !data) {
-        setProducts((prev) => prev.filter((x) => x.id !== optimisticId));
-        showToast("创建商品失败：" + (error?.message ?? "未知错误"), "error");
-        return;
+    if (creatingRef.current) return;
+    setCreateError(null);
+    if (!session && !(MOCK_LOGIN_ENABLED && mockRole)) return setCreateError("请重新登录后创建商品");
+    if (!form.name.trim()) return setCreateError("请填写商品名称");
+    let fixedRate: number | null = null;
+    try {
+      if (form.commissionType === "fixed") fixedRate = commissionRateFromPercent(form.fixedPercent);
+      else if (form.commissionType !== "grade") throw new Error("请选择有效的提成方式");
+    } catch (error) { return setCreateError(error instanceof Error ? error.message : "提成比例无效"); }
+    if (!Number.isFinite(form.price) || form.price < 0) return setCreateError("价格必须是大于等于 0 的有效数字");
+    const product: Product = { id: "mock-p-" + Date.now(), name: form.name.trim(), category: form.category,
+      price: form.price, commissionType: form.commissionType as "fixed" | "grade", fixedRate, status: "on_sale" };
+    creatingRef.current = true; setCreating(true);
+    try {
+      if (session) {
+        const { data, error } = await supabase.from("product").insert([{ name: product.name, category: product.category,
+          price: product.price, commission_type: product.commissionType, fixed_rate: product.fixedRate, status: product.status }]).select("id").single();
+        if (error || !data?.id) throw new Error(error?.message ?? "未收到创建结果，请先刷新核对商品列表");
+        product.id = data.id;
       }
-      // 防并发请求覆盖：乐观项仍在就换 id；已被覆盖冲掉则重新加回列表最前，保证新商品立即可见。
-      const real: Product = { ...optimistic, id: data.id };
-      setProducts((prev) => {
-        if (prev.some((x) => x.id === optimisticId)) return prev.map((x) => (x.id === optimisticId ? real : x));
-        return [real, ...prev];
-      });
-      showToast(`已成功创建商品 ${optimistic.name}`, "ok");
-    } else {
-      // mock 模式（无真实会话）：乐观插入即视为成功
-      showToast(`已成功创建商品 ${optimistic.name}`, "ok");
-    }
+      setProducts(previous => [product, ...previous.filter(row => row.id !== product.id)]);
+      setOpen(false);
+      setForm({ name: "", category: "正常单", price: 100, commissionType: "fixed", fixedPercent: DEFAULT_COMMISSION_PERCENT });
+      showToast(`已成功创建商品 ${product.name}`, "ok");
+    } catch (error) { setCreateError("创建商品未完成：" + (error instanceof Error ? error.message : "请刷新核对后重试")); }
+    finally { creatingRef.current = false; setCreating(false); }
   };
 
   const toggleStatus = async (id: string) => {
@@ -186,7 +170,7 @@ export default function ProductsPage() {
             { key: "name", label: "商品", render: (r) => <span className="font-medium">{r.name}</span> },
             { key: "category", label: "分类", mono: true },
             { key: "price", label: "价格", align: "right", mono: true, render: (r) => money(r.price) },
-            { key: "commission", label: "提成", mono: true, render: (r) => (r.commissionType === "grade" ? "按等级" : `${(r.fixedRate ?? 0) * 100}%`) },
+            { key: "commission", label: "提成", mono: true, render: (r) => (r.commissionType === "grade" ? "按等级" : (commissionPercentText(r.fixedRate) ? `${commissionPercentText(r.fixedRate)}%` : "比例未知")) },
             { key: "status", label: "状态", render: (r) => (r.status === "on_sale" ? <StatusDot tone="active" label="在售" /> : <StatusDot tone="neutral" label="下架" />) },
             { key: "actions", label: "操作", render: (r) => (
               <div className="flex items-center gap-2">
@@ -204,8 +188,9 @@ export default function ProductsPage() {
         />
       </Panel>
 
-      <Modal open={open} title="新建商品" onClose={() => setOpen(false)}>
-        <div className="space-y-3">
+      <Modal open={open} title="新建商品" onClose={() => { if (!creatingRef.current) setOpen(false); }}>
+        <fieldset disabled={creating} className="m-0 space-y-3 border-0 p-0">
+          {createError && <p role="alert" className="text-sm text-danger">{createError}</p>}
           <label className="block space-y-1">
             <span className="font-mono text-[11px] text-muted">名称 *</span>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="商品名称" />
@@ -237,11 +222,16 @@ export default function ProductsPage() {
               </select>
             </label>
           </div>
+          {form.commissionType === "fixed" && <label className="block space-y-1">
+            <span className="font-mono text-[11px] text-muted">固定提成比例（80%–100%，填写百分数）</span>
+            <Input type="number" min="80" max="100" step="0.01" value={form.fixedPercent} onChange={event => setForm({ ...form, fixedPercent: event.target.value })} placeholder="80 表示 80%" />
+          </label>}
+          <p className="text-xs text-muted">新订单提成比例不得低于 80%；按等级商品使用所选员工的等级规则。</p>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setOpen(false)}>取消</Button>
-            <Button onClick={create}>创建</Button>
+            <Button variant="secondary" disabled={creating} onClick={() => setOpen(false)}>取消</Button>
+            <Button disabled={creating} onClick={create}>{creating ? "创建中…" : "创建"}</Button>
           </div>
-        </div>
+        </fieldset>
       </Modal>
 
       <Modal open={!!hideTarget} title={hideTarget ? `隐藏商品 — ${hideTarget.name}` : ""} onClose={() => setHideTarget(null)}>

@@ -23,6 +23,7 @@ import type { WalletLedgerRow, CustomerLedgerRow, PayoutRow, PayoutDetailRow, Pa
 export type { WalletLedgerRow, CustomerLedgerRow, PayoutRow, PayoutDetailRow, PayoutItem, PayoutReceipt, PayoutApiError, PayoutMutationResult, PayoutLookupResult } from "@/lib/ledger-types";
 import { readAllLedgerPages, ledgerCursorFilter, type CursorRow } from "@/lib/ledger-pagination";
 import { ledgerNumber } from "@/lib/ledger";
+import { requireCommissionRate } from "@/lib/commission-policy";
 import { readPayoutReceipt, validatePayoutRequest, payoutProofObjectPath, PAYOUT_UUID } from "@/lib/ledger-payout";
 
 // ============================================================
@@ -527,7 +528,7 @@ export async function apiUpdateAnnouncementPin(id: string, pinned: boolean): Pro
 }
 
 export async function apiUpdateGradeRate(grade: number, rate: number): Promise<GradeRule> {
-  if (!Number.isFinite(rate) || rate < 0 || rate > 1) throw new Error("提成比例必须是 0 到 1 之间的数字");
+  requireCommissionRate(rate);
   const { data, error } = await supabase
     .from("grade_commission_rule")
     .update({ rate })
@@ -536,7 +537,9 @@ export async function apiUpdateGradeRate(grade: number, rate: number): Promise<G
     .single<{ grade: number; rate: number }>();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("保存未返回等级记录，请刷新后重试");
-  return { grade: data.grade, rate: Number(data.rate) };
+  const savedRate = requireCommissionRate(data.rate);
+  if (data.grade !== grade || savedRate !== rate) throw new Error("提成规则保存结果不一致，请刷新核对");
+  return { grade: data.grade, rate: savedRate };
 }
 
 export async function apiUpdateRechargePackageStatus(
