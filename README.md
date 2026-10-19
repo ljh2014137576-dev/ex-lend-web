@@ -40,6 +40,7 @@ Ex-Lend 前端（Next.js 15 + TypeScript + Tailwind 4）**脚手架已搭建**�
 - [历史订单明确清单补审（2026-10-12）](docs/REVIEWED_HISTORICAL_APPROVAL_20261012.md)：授权比例、原子入账、防重复回执及未知毛利显示
 - [工资订单排序与提成下限（2026-10-12）](docs/ORDER_COMMISSION_FLOOR_SORT_20261012.md)：真实创建时间倒序、订单类型至少 80%、客户端与数据库校验
 - [账号登录与管理岗核验（2026-10-16）](docs/ACCOUNT_LOGIN_RECOVERY_20261016.md)：缺失认证与业务资料的补建、安全输入及权限回读
+- [当日审核恢复待审（2026-10-20）](docs/AUDIT_REVERSAL_20261020.md)：按审核日期固定范围、原子冲回工资/消费及有日志依据的 VIP 升级
 
 - [系统功能全景（2026-10-10）](docs/SYSTEM_FUNCTION_MAP_20261010.md)：现有页面、业务流程、角色权限、资金口径、占位入口与恢复限制
 
